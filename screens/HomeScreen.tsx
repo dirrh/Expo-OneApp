@@ -1,15 +1,16 @@
 import { View, Text, StyleSheet, Image } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
-import data from '../data.json';
+import { users } from '../lib/data/users';
+
 
 export default function HomeScreen() {
   return (
     <View style={styles.container}>
 
         <View style={styles.container_items}>
-          <Image source={require('../images/photo.png')} style={styles.image} />
-          <Text style={styles.container_text_top}>{data.person.first_name} {data.person.last_name}</Text>
-          <Text style={styles.container_text_bottom}>ID: {data.person.id}</Text>
+        <Image source={require('../images/photo.png')} style={styles.image} />         
+         <Text style={styles.container_text_top}>{users[0].first_name} {users[0].last_name}</Text>
+          <Text style={styles.container_text_bottom}>ID: {users[0].id} </Text>
         </View> 
       
         <View style={styles.container_qr}>

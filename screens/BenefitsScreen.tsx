@@ -1,20 +1,234 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity,Modal,TouchableWithoutFeedback} from 'react-native';
+import QRCode from 'react-native-qrcode-svg';
+
+
+
 
 export default function BenefitsScreen() {
+  const [ActualTab,setActualTab] = useState<"Activated"| "Claimed">("Activated");
+  const [QRcode,setQRCode] = useState<boolean>(false);
+
   return (
+
     <View style={styles.container}>
-      <Text style={styles.text}>Benefits Screen (Blank page)</Text>
+    
+      <Text style={styles.text_benefits}>My Benefits</Text>
+
+        <View style={styles.button_group}>
+          
+          <TouchableOpacity onPress={()=>setActualTab("Activated")} style={ActualTab === 'Activated'? styles.button1Active : styles.button1}>
+            <Text style={ActualTab === 'Activated'? styles.button_text : styles.button_text_inactive}>Activated</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={() => setActualTab("Claimed")} style={ActualTab === 'Claimed' ? styles.button2Active : styles.button2}>
+            <Text style={ActualTab === 'Claimed' ? styles.button_text : styles.button_text_inactive}>Claimed</Text>
+          </TouchableOpacity>
+
+        </View>
+
+        <View style={styles.text_container}>
+
+          <Text style={styles.text_benefits_lower}>20% discount on first entry</Text>
+          <Text style={styles.text_normal}>Get 20% off your first visit to the fitness center and save on your first workout.</Text>
+
+          <TouchableOpacity onPress={()=>setQRCode(true)} disabled={ActualTab==='Claimed'} style={ActualTab === 'Activated'? styles.button3: styles.button3_claimed}><Text style={ActualTab === 'Activated'? styles.button3_text:styles.button3_text_claimed}>{ActualTab === 'Activated'? "Show QR" :"Claimed"}</Text></TouchableOpacity>
+          
+            
+              <Modal visible={QRcode} transparent animationType='fade'>
+
+              <TouchableWithoutFeedback onPress={()=>setQRCode(false)}>
+
+                    <View style={styles.button_backdrop}>
+
+                        <View style={styles.container_qr}>
+                          <QRCode
+                                    value="Skuska"
+                                    size={300}
+                                    backgroundColor="white"
+                                    color="black"
+                                    logoBorderRadius={5}
+                                  
+                                    >
+
+                          </QRCode>
+                        
+                        </View>
+                        <Text style={styles.text_hours}>09:54</Text>
+              
+                    </View>
+
+                    </TouchableWithoutFeedback>
+               
+              </Modal>
+            
+        </View>
+
     </View>
+
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor:'#FFFFFF',
   },
-  text: {
-    fontSize: 18,
+  text_benefits: {
+    fontSize: 22,
+    marginLeft:16,
+    marginTop: 54,
+    fontFamily:"Inter_700Bold",
   },
+  text_benefits_lower: {
+    fontSize: 15,
+    marginLeft:16,
+    marginTop:16,
+    fontFamily:"Inter_700Bold",
+  },
+  text_normal:{
+    fontSize: 10,
+    marginLeft:16,
+    marginRight:25,
+    marginTop:10,
+    color:'gray',
+    fontFamily:"Inter_500Medium",
+  },
+  button1:{
+    backgroundColor:'white',
+    height:40,
+    width:"50%",
+    borderRadius:40,
+    justifyContent:'center',
+    borderColor:'white',
+    borderWidth:1,
+  },
+  button1Active:{
+    backgroundColor:'black',
+    height:40,
+    width:"50%",
+    borderRadius:40,
+    justifyContent:'center',
+  },
+  button2:{
+    marginLeft:5,
+    backgroundColor:'white',
+    height:40,
+    width:"50%",
+    borderRadius:40,
+    justifyContent:'center',
+    borderColor:'white',
+    borderWidth:1,
+  },
+  button2Active:{
+    marginLeft:5,
+    backgroundColor:'black',
+    height:40,
+    width:"50%",
+    borderRadius:40,
+    justifyContent:'center',
+  },
+  button_group:{
+   flexDirection:'row',
+   marginLeft:15,
+   marginRight:15,
+   borderWidth:1,
+   borderColor:'white',
+   justifyContent:'center',
+   borderRadius:40,
+   paddingHorizontal:8,
+   paddingVertical:6,
+   marginTop:30,
+   elevation:2,
+   backgroundColor:'white',
+  },
+  button_text:{
+    textAlign:'center',
+    fontFamily:"Inter_600SemiBold",
+    color:'white',
+    fontSize:14,
+  },
+  button_text_inactive:{
+    textAlign:'center',
+    fontWeight:'bold',
+    color:'gray',
+    fontSize:14,
+  },
+  text_container:{
+    flexDirection:'column',
+    marginLeft:15,
+    marginRight:15,
+    borderWidth:1,
+    borderColor:'white',
+    justifyContent:'center',
+    borderRadius:20,
+    paddingHorizontal:8,
+    paddingVertical:6,
+    marginTop:30,
+    elevation:2,
+    backgroundColor:'white',
+
+  },
+  button3:{
+    marginTop:15,
+    marginLeft:15,
+    marginRight:15,
+    backgroundColor:'black',
+    width:"93%",
+    marginBottom:10,
+    borderRadius:40,
+    paddingTop:10,
+    paddingRight:16,
+    paddingLeft:16,
+    paddingBottom:10,
+  },
+  button3_claimed:{
+    marginTop:15,
+    marginLeft:15,
+    marginRight:15,
+    backgroundColor:'#e4e4e7',
+    width:"90%",
+    marginBottom:10,
+    borderRadius:40,
+    paddingTop:10,
+    paddingRight:16,
+    paddingLeft:16,
+    paddingBottom:10,
+  },
+  button3_text:{
+    color:"white",
+    textAlign:"center",
+    fontFamily:"Inter_600SemiBold",
+  },
+  button3_text_claimed:{
+    color:"gray",
+    textAlign:"center",
+    fontFamily:"Inter_600SemiBold",
+  },
+  button_backdrop:{
+    width :"100%",
+    height:"92%",
+    backgroundColor:"#00000080",
+    justifyContent:"center"
+  },
+  container_qr:{
+    backgroundColor:'#FFFFFF',
+    marginLeft:20,
+    marginTop:145,
+    width:"90%",
+    borderRadius:20,
+    padding:35,
+    elevation:5,
+    justifyContent:"center",
+  
+  },
+  text_hours:{
+    textAlign:"center",
+    marginTop:7,
+
+    fontSize:30,
+    color:"white",
+    fontFamily: "Inter_700Bold",
+    
+  }
 });
