@@ -1,11 +1,14 @@
 import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from "@react-navigation/native";
 
 export default function ProfileScreen() {
   type SubscriptionType = "starter" | "medium" | "gold" | "none";
 
   const subscription: SubscriptionType = "gold";
+
+  const navigation = useNavigation<any>();
 
   return (
     <ScrollView style={styles.container}>
@@ -23,19 +26,25 @@ export default function ProfileScreen() {
           <Text style={styles.cardValue}>15 €</Text>
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.cardLabel}>
-            {subscription === "none"
-              ? "INACTIVE SUBSCRIPTION"
-              : "ACTIVE SUBSCRIPTION"}
-          </Text>
-          <Text style={styles.cardValue}>
-            {subscription === "none"
-              ? "Activate Now"
-              : subscription.charAt(0).toUpperCase() +
+        <TouchableOpacity
+          style={{ flex: 1 }}
+          onPress={() => navigation.navigate("SubscriptionActivation")}
+        >
+          <View style={styles.card}>
+            <Text style={styles.cardLabel}>
+              {subscription === "none"
+                ? "INACTIVE SUBSCRIPTION"
+                : "ACTIVE SUBSCRIPTION"}
+            </Text>
+            <Text style={styles.cardValue}>
+              {subscription === "none"
+                ? "Activate Now"
+                : subscription.charAt(0).toUpperCase() +
                 subscription.slice(1)}
-          </Text>
-        </View>
+            </Text>
+          </View>
+        </TouchableOpacity>
+
       </View>
 
       {/* MENU */}
@@ -88,11 +97,11 @@ const styles = StyleSheet.create({
   },
 
   header: {
-  flexDirection: "row",
-  alignItems: "center",
-  marginTop: 40,
-  marginBottom: 30,
-},
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 40,
+    marginBottom: 30,
+  },
 
 
   avatar: {
