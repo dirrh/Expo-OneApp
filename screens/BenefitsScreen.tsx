@@ -57,7 +57,7 @@ export default function BenefitsScreen() {
                           </QRCode>
                         
                         </View>
-                        <Text style={styles.text_hours}>09:54</Text>
+                        <Text style={styles.text_hours}>09:55</Text>
               
                     </View>
 
