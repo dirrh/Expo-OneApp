@@ -12,6 +12,7 @@
     "@expo-google-fonts/inter": "^0.4.2",
     "@expo/vector-icons": "^14.0.0",
     "@gorhom/bottom-sheet": "^4.6.4",
+    "@react-native-async-storage/async-storage": "^2.2.0",
     "@react-navigation/bottom-tabs": "^6.6.1",
     "@react-navigation/native": "^6.1.18",
     "@react-navigation/native-stack": "^6.9.14",
@@ -20,9 +21,12 @@
     "expo-dev-client": "~3.3.12",
     "expo-font": "~11.10.3",
     "expo-linear-gradient": "~12.7.2",
+    "expo-localization": "~14.8.4",
     "expo-status-bar": "~1.11.0",
+    "i18next": "^25.7.3",
     "react": "18.2.0",
     "react-dom": "18.2.0",
+    "react-i18next": "^16.5.0",
     "react-native": "0.73.6",
     "react-native-dotenv": "^3.4.11",
     "react-native-gesture-handler": "~2.14.0",
@@ -40,7 +44,9 @@
   },
   "expo": {
     "install": {
-      "exclude": ["typescript"]
+      "exclude": [
+        "typescript"
+      ]
     }
   },
   "private": true

@@ -5,6 +5,7 @@ export default ({ config }) => ({
   plugins: [
     ...(config.plugins ?? []),
     './plugins/withMapboxMaven',
+    "expo-localization",
   ],
   extra: {
     ...config.extra,

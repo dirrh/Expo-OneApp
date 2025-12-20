@@ -21,6 +21,9 @@ import {
 } from "@expo-google-fonts/inter";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
+import "./i18n";
+
+
 if (typeof global.TextEncoder === "undefined") {
   // @ts-ignore
   global.TextEncoder = TextEncoder;

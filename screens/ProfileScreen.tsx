@@ -2,6 +2,9 @@ import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from "@react-navigation/native";
+import { useTranslation } from "react-i18next";
+
+
 
 export default function ProfileScreen() {
   type SubscriptionType = "starter" | "medium" | "gold" | "none";
@@ -9,6 +12,9 @@ export default function ProfileScreen() {
   const subscription: SubscriptionType = "gold";
 
   const navigation = useNavigation<any>();
+
+  const { t } = useTranslation();
+
 
   return (
     <SafeAreaView style={styles.container}>
@@ -22,7 +28,7 @@ export default function ProfileScreen() {
       {/* STATY */}
       <View style={styles.cardsRow}>
         <View style={styles.card}>
-          <Text style={styles.cardLabel}>SAVED</Text>
+          <Text style={styles.cardLabel}>{t("saved")}</Text>
           <Text style={styles.cardValue}>15 €</Text>
         </View>
 
@@ -33,8 +39,9 @@ export default function ProfileScreen() {
           <View style={styles.card}>
             <Text style={styles.cardLabel}>
               {subscription === "none"
-                ? "INACTIVE SUBSCRIPTION"
-                : "ACTIVE SUBSCRIPTION"}
+                ? t("inactiveSubscription")
+                : t("activeSubscription")}
+
             </Text>
             <Text style={styles.cardValue}>
               {subscription === "none"
@@ -48,9 +55,9 @@ export default function ProfileScreen() {
 
       {/* MENU */}
       <View style={styles.menu}>
-        <MenuItem icon="heart-outline" label="Favorite branches" onPress={() => navigation.navigate("FavoriteBranches")} />
-        <MenuItem icon="settings-outline" label="Settings" onPress={() => navigation.navigate("Settings")} />
-        <MenuItem icon="help-circle-outline" label="FAQ" />
+        <MenuItem icon="heart-outline" label={t("favoriteBranches")} onPress={() => navigation.navigate("FavoriteBranches")} />
+        <MenuItem icon="settings-outline" label={t("settings")}" onPress={() => navigation.navigate("Settings")} />
+        <MenuItem icon="help-circle-outline" label={t("faq")} />
         <MenuItem
           icon="alert-circle-outline"
           label="Report a technical problem"
