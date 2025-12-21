@@ -9,9 +9,11 @@ import {
   SafeAreaView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 
 export default function UserAccountScreen() {
   const navigation = useNavigation<any>();
+  const { t } = useTranslation();
 
   return (
     <SafeAreaView style={styles.container}>
@@ -22,11 +24,11 @@ export default function UserAccountScreen() {
           <TouchableOpacity onPress={() => navigation.goBack()}>
             <Ionicons name="arrow-back" size={24} />
           </TouchableOpacity>
-          <Text style={styles.title}>User account</Text>
+          <Text style={styles.title}>{t("userAccount")}</Text>
         </View>
 
         {/* FULL NAME */}
-        <Text style={styles.label}>Full Name</Text>
+        <Text style={styles.label}>{t("fullName")}</Text>
         <TextInput
           value="Martin Novák"
           editable={false}
@@ -45,7 +47,7 @@ export default function UserAccountScreen() {
       {/* SAVE BUTTON – FIXNE DOLE */}
       <View style={styles.footer}>
         <TouchableOpacity style={styles.saveButton}>
-          <Text style={styles.saveText}>Save</Text>
+          <Text style={styles.saveText}>{t("save")}</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>

@@ -56,15 +56,15 @@ export default function ProfileScreen() {
       {/* MENU */}
       <View style={styles.menu}>
         <MenuItem icon="heart-outline" label={t("favoriteBranches")} onPress={() => navigation.navigate("FavoriteBranches")} />
-        <MenuItem icon="settings-outline" label={t("settings")}" onPress={() => navigation.navigate("Settings")} />
+        <MenuItem icon="settings-outline" label={t("settings")} onPress={() => navigation.navigate("Settings")} />
         <MenuItem icon="help-circle-outline" label={t("faq")} />
         <MenuItem
           icon="alert-circle-outline"
-          label="Report a technical problem"
+          label={t("reportProblem")}
         />
         <MenuItem
           icon="information-circle-outline"
-          label="Application information"
+          label={t("appInformation")}
           last
         />
       </View>

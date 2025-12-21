@@ -1,16 +1,19 @@
 import { useNavigation } from "@react-navigation/native";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  ScrollView,
-  StyleSheet,
-  SafeAreaView,
-} from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
+import i18n from "../i18n";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function LanguageScreen() {
   const navigation = useNavigation<any>();
+
+  const changeLanguage = async (lang: "en" | "sk" | "cz") => {
+    await i18n.changeLanguage(lang);
+    await AsyncStorage.setItem("language", lang)
+  }
+
+  const { t } = useTranslation();
 
   return (
     <SafeAreaView style={styles.container}>
@@ -19,21 +22,21 @@ export default function LanguageScreen() {
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} />
         </TouchableOpacity>
-        <Text style={styles.title}>Language</Text>
+        <Text style={styles.title}>{t("language")}</Text>
       </View>
 
       {/* SUBTITLE */}
       <Text style={styles.subtitle}>
-        Change the language in the application
+        {t("changeLanguage")}
       </Text>
 
       {/* LANGUAGE CARD */}
       <View style={styles.card}>
-        <LanguageItem flag="🇬🇧" label="English" />
+        <LanguageItem flag="🇬🇧" label="English" onPress={() => changeLanguage("en")} />
         <Divider />
-        <LanguageItem flag="🇸🇰" label="Slovak" />
+        <LanguageItem flag="🇸🇰" label="Slovak" onPress={() => changeLanguage("sk")}/>
         <Divider />
-        <LanguageItem flag="🇨🇿" label="Czech" />
+        <LanguageItem flag="🇨🇿" label="Czech" onPress={() => changeLanguage("cz")} />
       </View>
     </SafeAreaView>
   );
@@ -42,12 +45,14 @@ export default function LanguageScreen() {
 function LanguageItem({
   flag,
   label,
+  onPress,
 }: {
   flag: string;
   label: string;
+  onPress: () => void;
 }) {
   return (
-    <TouchableOpacity style={styles.item}>
+    <TouchableOpacity style={styles.item} onPress={onPress}>
       <View style={styles.itemLeft}>
         <Text style={styles.flag}>{flag}</Text>
         <Text style={styles.itemText}>{label}</Text>

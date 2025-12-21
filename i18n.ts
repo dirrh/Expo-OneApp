@@ -17,7 +17,7 @@ i18n.use(initReactI18next).init({
   resources: {
     en: { translation: en },
     sk: { translation: sk },
-    cs: { translation: cz },
+    cz: { translation: cz },
   },
 
   interpolation: {

@@ -4,10 +4,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 
 import SelectableCard, { PlanId } from "../components/SelectableCard";
+import { useTranslation } from "react-i18next";
 
 export default function SubscriptionActivationScreen() {
   const navigation = useNavigation();
   const [selectedPlan, setSelectedPlan] = useState<PlanId | null>(null);
+
+  const { t } = useTranslation();
 
   return (
     <SafeAreaView style={styles.container}>
@@ -16,19 +19,18 @@ export default function SubscriptionActivationScreen() {
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} />
         </TouchableOpacity>
-        <Text style={styles.title}>Subscription activation</Text>
+        <Text style={styles.title}>{t("subscriptionActivation")}</Text>
       </View>
 
       <Text style={styles.subtitle}>
-        OneApp offers three types of subscriptions: starter, medium, gold.
-        Each has different benefits, which one will you try?
+        {t("subsScreenDesc")}
       </Text>
 
       <SelectableCard
         id="starter"
         title="Starter"
         price="5.99"
-        description="Basic access to core benefits with a lower monthly cost."
+        description={t("starterDesc")}
         selected={selectedPlan === "starter"}
         onPress={setSelectedPlan}
       />
@@ -38,7 +40,7 @@ export default function SubscriptionActivationScreen() {
         title="Medium"
         price="9.99"
         popular
-        description="More benefits, higher limits and better overall value."
+        description={t("mediumDesc")}
         selected={selectedPlan === "medium"}
         onPress={setSelectedPlan}
       />
@@ -47,7 +49,7 @@ export default function SubscriptionActivationScreen() {
         id="gold"
         title="Gold"
         price="15.99"
-        description="All-inclusive experience with maximum flexibility."
+        description={t("goldDesc")}
         selected={selectedPlan === "gold"}
         onPress={setSelectedPlan}
       />

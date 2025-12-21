@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { useTranslation } from "react-i18next";
 
 export type PlanId = "starter" | "medium" | "gold";
 
@@ -22,6 +23,7 @@ export default function SelectableCard({
   selected,
   onPress,
 }: SelectableCardProps) {
+  const { t } = useTranslation();
   const Wrapper: any = selected ? LinearGradient : View;
 
   return (
@@ -41,13 +43,13 @@ export default function SelectableCard({
 
           {popular && (
             <View style={styles.badge}>
-              <Text style={styles.badgeText}>Popular</Text>
+              <Text style={styles.badgeText}>{t("popular")}</Text>
             </View>
           )}
         </View>
 
         <Text style={styles.price}>
-          {price} € <Text style={styles.per}>/ month</Text>
+          {price} € <Text style={styles.per}>/ {t("month")}</Text>
         </Text>
 
         <Text style={styles.desc}>{description}</Text>

@@ -1,9 +1,11 @@
 import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
+import { useTranslation } from "react-i18next";
 
 export default function SettingsScreen() {
   const navigation = useNavigation<any>();
+  const { t } = useTranslation();
 
   return (
     <SafeAreaView style={styles.container}>
@@ -12,31 +14,31 @@ export default function SettingsScreen() {
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} />
         </TouchableOpacity>
-        <Text style={styles.title}>Settings</Text>
+        <Text style={styles.title}>{t("settings")}</Text>
       </View>
 
       {/* USER SETTINGS */}
-      <Text style={styles.sectionTitle}>User Settings</Text>
+      <Text style={styles.sectionTitle}>{t("userSettings")}</Text>
       <View style={styles.card}>
         <SettingsItem
           icon="person-outline"
-          label="User account"
+          label={t("userAccount")}
           onPress={() => navigation.navigate("UserAccount")}
         />
         <Divider />
         <SettingsItem
           icon="card-outline"
-          label="Payments and subscriptions"
+          label={t("paymentAndSubs")}
           onPress={() => console.log("Payments")}
         />
       </View>
 
       {/* NASTAVENIA */}
-      <Text style={styles.sectionTitle}>Application Settings</Text>
+      <Text style={styles.sectionTitle}>{t("appSettings")}</Text>
       <View style={styles.card}>
         <SettingsItem
           icon="language-outline"
-          label="Language"
+          label={t("language")}
           onPress={() => navigation.navigate("Language")}
         />
       </View>
@@ -44,7 +46,7 @@ export default function SettingsScreen() {
       {/* LOG OUT */}
       <TouchableOpacity style={styles.logout}>
         <Ionicons name="log-out-outline" size={18} color="#666" />
-        <Text style={styles.logoutText}>Log out</Text>
+        <Text style={styles.logoutText}>{t("logOut")}</Text>
       </TouchableOpacity>
     </SafeAreaView>
   );
