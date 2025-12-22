@@ -1,12 +1,22 @@
 import BranchCard from "../components/BranchCard";
 import { useNavigation } from "@react-navigation/native";
-import { SafeAreaView, ScrollView, StyleSheet } from "react-native";
+import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 
 export default function FavoriteBranchesScreen() {
-    const navigation = useNavigation(); // do buducna
+    const navigation = useNavigation<any>(); // do buducna
+    const { t } = useTranslation();
 
     return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }}>
+        <SafeAreaView style={styles.screen}>
+            <View style={styles.header}>
+                <TouchableOpacity onPress={() => navigation.goBack()}>
+                    <Ionicons name="arrow-back" size={24} />
+                </TouchableOpacity>
+                <Text style={styles.title}>{t("favoriteBranches")}</Text>
+            </View>
+
             <ScrollView contentContainerStyle={styles.container}>
                 <BranchCard
                     title="365 GYM Nitra"
@@ -44,23 +54,24 @@ export default function FavoriteBranchesScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: {
-        paddingVertical: 60,
+    screen: {
+        paddingVertical: 10,
         flex: 1,
+        padding: 20,
         backgroundColor: "#fff",
-        paddingHorizontal: 20,
     },
-
     header: {
         flexDirection: "row",
         alignItems: "center",
         gap: 12,
-        marginTop: 10,
-        marginBottom: 20,
+        marginTop: 40,
+        marginBottom: 24,
     },
-
     title: {
         fontSize: 18,
         fontWeight: "600",
+    },
+    container: {
+        paddingBottom: 20,
     },
 });

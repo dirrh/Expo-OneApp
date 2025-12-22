@@ -2,6 +2,12 @@ import { View, TouchableOpacity, Text, StyleSheet } from "react-native";
 import { Ionicons, MaterialCommunityIcons, Feather } from "@expo/vector-icons";
 
 export default function CustomTabBar({ state, descriptors, navigation }: any) {
+  const focusedOptions = descriptors[state.routes[state.index].key]?.options;
+
+  if (focusedOptions?.tabBarStyle?.display === "none") {
+    return null;
+  }
+
   return (
     <View style={styles.container}>
       {state.routes.map((route: any, index: number) => {

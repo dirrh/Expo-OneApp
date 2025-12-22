@@ -1,17 +1,10 @@
 import React from "react";
-import { View, Text, StyleSheet, Image, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, Image, TouchableOpacity, useWindowDimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { BranchCardProps } from "../lib/interfaces";
+import BusinessDetail from "../screens/BusinessDetail";
+import { Link, useNavigation } from "@react-navigation/native";
 
-interface BranchCardProps {
-  title: string;
-  image: any; // require(...) alebo { uri }
-  rating: number;
-  distance: string;
-  hours: string;
-  discount?: string;
-  moreCount?: number;
-  onPress?: () => void;
-}
 
 export default function BranchCard({
   title,
@@ -23,14 +16,22 @@ export default function BranchCard({
   moreCount,
   onPress,
 }: BranchCardProps) {
+  const { width } = useWindowDimensions();
+  const imageSize = Math.min(96, Math.max(64, Math.floor(width * 0.18)));
+  const navigation = useNavigation<any>();
+
   return (
     <TouchableOpacity
       activeOpacity={0.9}
-      onPress={onPress}
+      onPress={()=> {navigation.navigate("BusinessDetail")}}
       style={styles.branchCard}
     >
       {/* IMAGE */}
-      <Image source={image} style={styles.branchImage} resizeMode="cover" />
+      <Image
+        source={image}
+        style={[styles.branchImage, { width: imageSize, height: imageSize }]}
+        resizeMode="cover"
+      />
 
       {/* CONTENT */}
       <View style={styles.branchContent}>
@@ -68,24 +69,23 @@ const styles = StyleSheet.create({
   branchCard: {
     flexDirection: "row",
     backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 12,
+    borderRadius: 18,
+    padding: 14,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: "#eee",
+    borderColor: "#E8E8E8",
 
     shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
+    width: "100%",
   },
 
   branchImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 12,
-    marginRight: 12,
+    borderRadius: 14,
+    marginRight: 14,
   },
 
   branchContent: {
@@ -94,45 +94,48 @@ const styles = StyleSheet.create({
   },
 
   branchTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    marginBottom: 4,
+    fontSize: 17,
+    fontWeight: "700",
+    marginBottom: 6,
+    color: "#111",
   },
 
   metaRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    marginBottom: 8,
+    gap: 5,
+    marginBottom: 10,
+    flexWrap: "wrap",
   },
 
   metaText: {
-    fontSize: 13,
-    color: "#444",
-    marginRight: 6,
+    fontSize: 12,
+    color: "#4B5563",
+    marginRight: 8,
   },
 
   bottomRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 10,
+    flexWrap: "wrap",
   },
 
   badge: {
-    backgroundColor: "#F7931E",
+    backgroundColor: "#EB8100",
     paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingVertical: 5,
+    borderRadius: 14,
   },
 
   badgeText: {
     color: "#fff",
-    fontSize: 11,
-    fontWeight: "600",
+    fontSize: 12,
+    fontWeight: "700",
   },
 
   moreText: {
-    fontSize: 11,
-    color: "#666",
+    fontSize: 12,
+    color: "#6B7280",
   },
 });

@@ -22,6 +22,7 @@ import {
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import "./i18n";
+import BusinessDetail from "./screens/BusinessDetail";
 
 
 if (typeof global.TextEncoder === "undefined") {
@@ -83,6 +84,11 @@ export default function App() {
               name="Language"
               component={LanguageScreen}
             />
+            <Stack.Screen
+            name="BusinessDetail"
+            component={BusinessDetail}
+            ></Stack.Screen>
+            
           </Stack.Navigator>
         </NavigationContainer>
       </SafeAreaProvider>
