@@ -10,6 +10,9 @@ import SettingsScreen from "./screens/profile/SettingsScreen";
 import UserAccountScreen from "./screens/profile/UserAccountScreen"
 import LanguageScreen from "./screens/profile/LanguageScreen";
 
+import SignupScreen from "./screens/LoginRegister/SignupScreen";
+import ForgottenPasswordScreen from "./screens/LoginRegister/ForgotPasswordScreen";
+import LoginScreen from "./screens/LoginRegister/LoginScreen";
 
 import { TextEncoder, TextDecoder } from "text-encoding";
 import { useFonts } from "expo-font";
@@ -61,7 +64,7 @@ export default function App() {
       <SafeAreaProvider>
         <NavigationContainer>
           <Stack.Navigator screenOptions={{ headerShown: false }}>
-          
+
             <Stack.Screen name="Tabs" component={Tabs} />
 
             <Stack.Screen
@@ -85,10 +88,25 @@ export default function App() {
               component={LanguageScreen}
             />
             <Stack.Screen
-            name="BusinessDetail"
-            component={BusinessDetail}
+              name="BusinessDetail"
+              component={BusinessDetail}
             ></Stack.Screen>
-            
+
+            <Stack.Screen
+              name="Signup"
+              component={SignupScreen}
+            ></Stack.Screen>
+
+            <Stack.Screen
+              name="ForgottenPassword"
+              component={ForgottenPasswordScreen}
+            ></Stack.Screen>
+
+            <Stack.Screen
+              name="Login"
+              component={LoginScreen}
+            ></Stack.Screen>
+
           </Stack.Navigator>
         </NavigationContainer>
       </SafeAreaProvider>

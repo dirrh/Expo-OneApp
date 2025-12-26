@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from "@react-navigation/native";
@@ -11,6 +11,7 @@ export default function ProfileScreen() {
   const navigation = useNavigation<any>();
 
   const { t } = useTranslation();
+
 
   return (
     <SafeAreaView style={styles.container}>
