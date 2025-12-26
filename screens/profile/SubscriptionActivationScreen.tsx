@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView } from "react-na
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 
-import SelectableCard, { PlanId } from "../components/SelectableCard";
+import SelectableCard, { PlanId } from "../../components/SelectableCard";
 import { useTranslation } from "react-i18next";
 
 export default function SubscriptionActivationScreen() {

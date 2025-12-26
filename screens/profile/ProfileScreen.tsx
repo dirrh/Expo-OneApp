@@ -1,16 +1,13 @@
-import React from "react";
+import React, { useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from "@react-navigation/native";
 import { useTranslation } from "react-i18next";
 
-
-
 export default function ProfileScreen() {
   type SubscriptionType = "starter" | "medium" | "gold" | "none";
 
   const subscription: SubscriptionType = "gold";
-
   const navigation = useNavigation<any>();
 
   const { t } = useTranslation();

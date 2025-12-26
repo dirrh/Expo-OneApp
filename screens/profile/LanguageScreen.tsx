@@ -2,7 +2,7 @@ import { useNavigation } from "@react-navigation/native";
 import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
-import i18n from "../i18n";
+import i18n from "../../i18n";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function LanguageScreen() {
