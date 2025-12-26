@@ -1,7 +1,7 @@
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { ActivityIndicator, View } from "react-native";
+import { ActivityIndicator, View, Platform, StyleSheet } from "react-native";
 
 import Tabs from "./components/Tabs";
 import SubscriptionActivationScreen from "./screens/SubscriptionActivationScreen";
@@ -56,14 +56,14 @@ export default function App() {
     );
   }
 
-  return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
-        <NavigationContainer>
-          <Stack.Navigator screenOptions={{ headerShown: false }}>
-          
-            <Stack.Screen name="Tabs" component={Tabs} />
+  const content = (
+    <SafeAreaProvider>
+      <NavigationContainer>
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+        
+          <Stack.Screen name="Tabs" component={Tabs} />
 
+<<<<<<< Updated upstream
             <Stack.Screen
               name="SubscriptionActivation"
               component={SubscriptionActivationScreen}
@@ -92,6 +92,69 @@ export default function App() {
           </Stack.Navigator>
         </NavigationContainer>
       </SafeAreaProvider>
+=======
+          <Stack.Screen
+            name="SubscriptionActivation"
+            component={SubscriptionActivationScreen}
+          />
+          <Stack.Screen
+            name="FavoriteBranches"
+            component={FavoriteBranchesScreen}
+          />
+          <Stack.Screen
+            name="Settings"
+            component={SettingsScreen}
+          />
+          <Stack.Screen
+            name="UserAccount"
+            component={UserAccountScreen}
+          />
+          <Stack.Screen
+            name="Language"
+            component={LanguageScreen}
+          />
+        </Stack.Navigator>
+      </NavigationContainer>
+    </SafeAreaProvider>
+  );
+
+  if (Platform.OS === 'web') {
+    return (
+      <View style={styles.webWrapper}>
+        <GestureHandlerRootView style={styles.webContainer}>
+          {content}
+        </GestureHandlerRootView>
+      </View>
+    );
+  }
+
+  return (
+    <GestureHandlerRootView style={styles.container}>
+      {content}
+>>>>>>> Stashed changes
     </GestureHandlerRootView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  webWrapper: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f5f5f5',
+  },
+  webContainer: {
+    width: 375,
+    maxWidth: '100%',
+    height: '100%',
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.15,
+    shadowRadius: 30,
+    elevation: 10,
+  },
+});
