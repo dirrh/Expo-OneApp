@@ -63,15 +63,22 @@ export default function DiscoverBranchOverlay({
       </View>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16 }}>
-        {branches.map((b) => (
-          <TouchableOpacity
-            key={b.title}
-            style={{ width: branchCardWidth, marginRight: 12, padding: 7 }}
-          >
-            <BranchCard {...b} 
-            onPress={() => {navigation.navigate("BusinessDetailScreen", {branch: b})}}/>
-          </TouchableOpacity>
-        ))}
+        {branches.map((b) => {
+          const { onPress: _onPress, ...branchData } = b;
+          return (
+            <TouchableOpacity
+              key={b.title}
+              style={{ width: branchCardWidth, marginRight: 12, padding: 7 }}
+            >
+              <BranchCard
+                {...b}
+                onPress={() => {
+                  navigation.navigate("BusinessDetailScreen", { branch: branchData });
+                }}
+              />
+            </TouchableOpacity>
+          );
+        })}
       </ScrollView>
     </View>
   );

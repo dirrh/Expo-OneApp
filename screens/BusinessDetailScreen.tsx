@@ -118,19 +118,13 @@ export default function BusinessDetailScreen(){
       
         <View style={{flexDirection:"row",position:"absolute",left:sidePadding,right:sidePadding,top:menuTop,height:52,borderRadius:35,backgroundColor:"#FFFFFF",borderWidth: 1,borderColor:"#E4E4E7",paddingLeft:2,paddingRight:2}}>
 
-            {menu.map((x) =>{
-                
-                return(
-
-                    <View style={{marginLeft:5}}>
-                    <TouchableOpacity style={{justifyContent:"center",backgroundColor: active === x ? "orange":"white",padding:5, borderRadius:25,height:37,marginTop:7,width:menuItemWidth,}}key={x}><Text style={{textAlign:"center"}} onPress={()=>setActive(x)}>{x}</Text></TouchableOpacity>
-                    </View>
-
-
-                )
-                
-                
-            })}
+            {menu.map((x) => (
+                <View key={x} style={{marginLeft:5}}>
+                    <TouchableOpacity style={{justifyContent:"center",backgroundColor: active === x ? "orange":"white",padding:5, borderRadius:25,height:37,marginTop:7,width:menuItemWidth,}}>
+                        <Text style={{textAlign:"center"}} onPress={()=>setActive(x)}>{x}</Text>
+                    </TouchableOpacity>
+                </View>
+            ))}
 
         </View>
 
