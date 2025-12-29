@@ -15,6 +15,9 @@ import DiscoverFilterSheet from "../components/discover/DiscoverFilterSheet";
 import DiscoverBranchOverlay from "../components/discover/DiscoverBranchOverlay";
 import { styles } from "../components/discover/discoverStyles";
 
+let lastDiscoverCameraState: { center: [number, number]; zoom: number } | null = null;
+let preserveDiscoverCamera = false;
+
 export default function DiscoverScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
@@ -83,6 +86,7 @@ export default function DiscoverScreen() {
   const [o, setO] = useState<boolean>(true)
   const [categoriesOpen, setCategoriesOpen] = useState(false);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [searchSheetIndex, setSearchSheetIndex] = useState(-1);
   const [filter, setFilter] = useState("Gastro")
   const [appliedFilter, setAppliedFilter] = useState<string | null>(null);
   const [sub, setSub] = useState<Set<string>>(() => new Set());
@@ -117,16 +121,32 @@ const filtered = query
     });
   }, [navigation, isSheetOpen]);
 
+  const searchExpandedIndex = snapPoints.length > 1 ? 1 : 0;
   useFocusEffect(
     useCallback(() => {
       if (route.name === "Search") {
-        sheetRef.current?.snapToIndex(1);
+        setSearchSheetIndex(searchExpandedIndex);
+        return;
       }
-    }, [route.name])
+      if (preserveDiscoverCamera) {
+        if (lastDiscoverCameraState) {
+          cameraRef.current?.setCamera({
+            centerCoordinate: lastDiscoverCameraState.center,
+            zoomLevel: lastDiscoverCameraState.zoom,
+            animationDuration: 0,
+          });
+        }
+        setDidInitialCenter(true);
+        preserveDiscoverCamera = false;
+      }
+    }, [route.name, searchExpandedIndex])
   );
 
   useEffect(() => {
-    if (!userCoord || didInitialCenter) {
+    if (route.name === "Search") {
+      return;
+    }
+    if (!userCoord || didInitialCenter || preserveDiscoverCamera) {
       return;
     }
     cameraRef.current?.setCamera({
@@ -135,7 +155,7 @@ const filtered = query
       animationDuration: 800,
     });
     setDidInitialCenter(true);
-  }, [userCoord, didInitialCenter]);
+  }, [userCoord, didInitialCenter, route.name]);
 
   const subcategoryChipWidth = Math.max(96, Math.floor((screenWidth - 16 * 2 - 12 * 2) / 3));
   const branchCardWidth = Math.min(360, screenWidth - 32);
@@ -170,9 +190,11 @@ const filtered = query
     : markerItems;
 
   const handleSearchSheetChange = (index: number) => {
+    setSearchSheetIndex(index);
     setO(index === -1);
     setIsSheetOpen(index !== -1);
     if (index === -1 && route.name === "Search") {
+      preserveDiscoverCamera = true;
       navigation.navigate(t("Discover"));
     }
   };
@@ -186,12 +208,17 @@ const filtered = query
     setUserCoord(coord);
   };
 
+  const handleCameraChanged = useCallback((center: [number, number], zoom: number) => {
+    lastDiscoverCameraState = { center, zoom };
+  }, []);
+
   return (
     <SafeAreaView style={styles.container} edges={["left", "right", "bottom"]}>
       <DiscoverMap
         cameraRef={cameraRef}
         filteredMarkers={filteredMarkers}
         onUserLocationUpdate={handleUserLocationUpdate}
+        onCameraChanged={handleCameraChanged}
       />
       <DiscoverTopControls
         insetsTop={insets.top}
@@ -212,6 +239,7 @@ const filtered = query
         sheetRef={sheetRef}
         snapPoints={snapPoints}
         onSheetChange={handleSearchSheetChange}
+        sheetIndex={searchSheetIndex}
         text={text}
         setText={setText}
         filtered={filtered}

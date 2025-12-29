@@ -88,7 +88,7 @@ export default function DiscoverTopControls({
             activeOpacity={0.85}
             onPress={() => {
               setOpen(false);
-              filterRef.current?.snapToIndex(1);
+              filterRef.current?.expand();
             }}
           >
             <Image source={require("../../images/filter.png")} />

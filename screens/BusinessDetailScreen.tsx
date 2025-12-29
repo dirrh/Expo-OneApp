@@ -1,6 +1,8 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import { FlatList, Image, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { FlatList, Image, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import Mapbox, { Camera, MarkerView, MapView } from "@rnmapbox/maps";
+import { EXPO_PUBLIC_MAPBOX_TOKEN, NEXT_PUBLIC_MAPBOX_TOKEN } from "@env";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { TouchableOpacity } from "react-native-gesture-handler";
 import BottomSheet from "@gorhom/bottom-sheet";
@@ -16,7 +18,10 @@ export default function BusinessDetailScreen(){
     const [index, setIndex] = useState(0);
     const [active,setActive] = useState<string>("News");
     const logRef = useRef<BottomSheet>(null);
+    const infoCameraRef = useRef<Camera>(null);
+    const [infoScrollEnabled, setInfoScrollEnabled] = useState(true);
     const snapPoints = useMemo(() => ["15%", "35%"], []);
+    const mapboxToken = (EXPO_PUBLIC_MAPBOX_TOKEN || NEXT_PUBLIC_MAPBOX_TOKEN || "").trim();
 
     const menu =["News","Benefits","Info","Reviews"];
     const heroHeight = Math.min(360, Math.max(240, Math.round(width * 0.7)));
@@ -40,8 +45,63 @@ export default function BusinessDetailScreen(){
     { id: "3", title: "Default", image: require("../images/fitness_bg.png") },
     ];
 
-    return(
+    const info =[
+        {id: "1", title: "365 GYM Nitra",monday:"9:00 - 21:00",tuesday:"9:00 - 21:00",wednesday:"9:00 - 21:00",thursday:"9:00 - 21:00",friday:"9:00 - 21:00",saturday:"7:00 - 20:00",sunday:"7:00 - 20:00"},
+        {id: "2", title: "RED ROYAL GYM",monday:"9:00 - 21:00",tuesday:"9:00 - 21:00",wednesday:"9:00 - 21:00",thursday:"9:00 - 21:00",friday:"9:00 - 21:00",saturday:"7:00 - 20:00",sunday:"7:00 - 20:00"},
+        {id: "3", title: "GYM KLUB",monday:"9:00 - 21:00",tuesday:"9:00 - 21:00",wednesday:"9:00 - 21:00",thursday:"9:00 - 21:00",friday:"9:00 - 21:00",saturday:"7:00 - 20:00",sunday:"7:00 - 20:00"},
+        {id: "4", title: "DEFAULT",monday:"9:00 - 21:00",tuesday:"9:00 - 21:00",wednesday:"9:00 - 21:00",thursday:"9:00 - 21:00",friday:"9:00 - 21:00",saturday:"7:00 - 20:00",sunday:"7:00 - 20:00"},
+    ]
+    const contactAddress = "Chrenovska 16, 949 01 Nitra, Slovakia";
+    const [contactCoordinate, setContactCoordinate] = useState<[number, number]>([18.091, 48.3069]);
+    const nearbyCoordinate = useMemo(
+        () => [contactCoordinate[0] - 0.0012, contactCoordinate[1] + 0.0012] as [number, number],
+        [contactCoordinate]
+    );
 
+    const todayIndex = new Date().getDay();
+    const centerInfoMap = useCallback(() => {
+        infoCameraRef.current?.setCamera({
+            centerCoordinate: contactCoordinate,
+            zoomLevel: 16,
+            animationDuration: 350,
+        });
+    }, [contactCoordinate]);
+    useEffect(() => {
+        if (active !== "Info") {
+            return;
+        }
+        centerInfoMap();
+    }, [active, centerInfoMap]);
+    useEffect(() => {
+        if (active !== "Info" || !mapboxToken) {
+            return;
+        }
+        const controller = new AbortController();
+        const lookupAddress = async () => {
+            try {
+                const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
+                    contactAddress
+                )}.json?limit=1&access_token=${mapboxToken}`;
+                const response = await fetch(url, { signal: controller.signal });
+                if (!response.ok) {
+                    return;
+                }
+                const data = await response.json();
+                const center = data?.features?.[0]?.center;
+                if (Array.isArray(center) && center.length === 2) {
+                    setContactCoordinate([center[0], center[1]]);
+                }
+            } catch (error) {
+                if ((error as { name?: string })?.name === "AbortError") {
+                    return;
+                }
+            }
+        };
+        lookupAddress();
+        return () => controller.abort();
+    }, [active, contactAddress, mapboxToken]);
+
+    return(
         <SafeAreaView style={styles.main} edges={["left", "right", "bottom"]}>
 
         <View style={[styles.hero, { height: heroHeight }]}>
@@ -52,6 +112,7 @@ export default function BusinessDetailScreen(){
         horizontal={true}
         pagingEnabled={true}
         showsHorizontalScrollIndicator={false}
+        contentInsetAdjustmentBehavior="never"
         onMomentumScrollEnd={(e) => {
             const nextIndex = Math.round(e.nativeEvent.contentOffset.x / width);
             setIndex(nextIndex);
@@ -121,14 +182,19 @@ export default function BusinessDetailScreen(){
             {menu.map((x) => (
                 <View key={x} style={{marginLeft:5}}>
                     <TouchableOpacity style={{justifyContent:"center",backgroundColor: active === x ? "orange":"white",padding:5, borderRadius:25,height:37,marginTop:7,width:menuItemWidth,}}>
-                        <Text style={{textAlign:"center"}} onPress={()=>setActive(x)}>{x}</Text>
+                        <Text style={{textAlign:"center",color: active === x ? "#FFFFFF" : "#000000"}} onPress={()=>setActive(x)}>{x}</Text>
                     </TouchableOpacity>
                 </View>
             ))}
 
         </View>
 
-        {active === "News"&& (<View style={{position:"absolute", top:sectionTop,left:sidePadding,right:sidePadding}}>
+        {active === "News"&& (
+        <ScrollView
+            style={{position:"absolute", top:sectionTop,left:sidePadding,right:sidePadding, bottom: insets.bottom + 16}}
+            contentContainerStyle={{ paddingBottom: 24 }}
+            showsVerticalScrollIndicator={false}
+        >
 
             <View style={{flexDirection:"row"}}>
                 <Image source={require("../images/placeholder_pfp.png")}></Image>
@@ -136,7 +202,7 @@ export default function BusinessDetailScreen(){
                 <Image style={{position:"absolute",right:0,top:12}} source={require("../images/dots.png")}></Image>
             </View>
 
-            <View style={{position:"absolute",top:50,width:"100%"}}>
+            <View style={{marginTop:12,width:"100%"}}>
                 <Image style={{width:"100%",borderRadius:15}} source={require("../images/post_picture.png")}></Image>
 
                 <View style={{flexDirection:"row", marginTop:10}}>
@@ -155,11 +221,15 @@ export default function BusinessDetailScreen(){
                 </View>
             </View>
 
-        </View>
+        </ScrollView>
         )}
 
         {active ==="Benefits"&&(
-            <View style={{position:"absolute", top:sectionTop,left:sidePadding,right:sidePadding}}>
+            <ScrollView
+                style={{position:"absolute", top:sectionTop,left:sidePadding,right:sidePadding, bottom: insets.bottom + 16}}
+                contentContainerStyle={{ paddingBottom: 24 }}
+                showsVerticalScrollIndicator={false}
+            >
                 <View style={{flexDirection:"column",borderRadius:15, backgroundColor:"white",borderWidth:1,padding:20,borderColor:"#E4E4E7"}}>
                     <Text style={{marginBottom:10, fontSize:15,fontWeight:"bold"}}>20% discount on first entry</Text>
                     <Text style={{marginBottom:10, fontSize:12}}>Get 20% off your first visit to the fitness center and save on your first workout.</Text>
@@ -172,7 +242,7 @@ export default function BusinessDetailScreen(){
                     <TouchableOpacity style={{width:"100%",backgroundColor:"orange",padding:10, borderRadius:15}} onPress={()=> logRef.current?.expand()}><Text style={{textAlign:"center"}}>Active Benefit</Text></TouchableOpacity>
                 </View>
 
-            </View>
+            </ScrollView>
 
           
         )}
@@ -201,10 +271,261 @@ export default function BusinessDetailScreen(){
                 </View>
             </BottomSheet>
         )}
-        
+
+        {active === "Info" && (
+                    <ScrollView
+                        style={{position:"absolute", top:sectionTop,left:sidePadding,right:sidePadding, bottom: insets.bottom + 16}}
+                        contentContainerStyle={{ paddingBottom: 24 }}
+                        scrollEnabled={infoScrollEnabled}
+                        showsVerticalScrollIndicator={false}
+                    >
+
+                        <View>
+
+                            
+
+        {info.map((x) =>
+        x.title === safeBranch.title ? (
+            <View
+            style={{
+                flexDirection: "column",
+                borderRadius: 15,
+                backgroundColor: "white",
+                borderWidth: 1,
+                padding: 20,
+                borderColor: "#E4E4E7",
+            }}
+            key={x.id}
+            >
+            <Text style={{ fontSize: 17, fontWeight: "bold", marginBottom: 12 }}>
+                Opening hours
+            </Text>
+
+            <View style={{ flexDirection: "row", marginBottom: 4 }}>
+                <Text style={{ flex: 1, fontWeight: todayIndex === 1 ? "bold" : "normal" }}>
+                Monday
+                </Text>
+                <Text style={{ flex: 1, textAlign: "right" }}>{x.monday}</Text>
+            </View>
+            <View style={{ flexDirection: "row", marginBottom: 4 }}>
+                <Text style={{ flex: 1, fontWeight: todayIndex === 2 ? "bold" : "normal" }}>
+                Tuesday
+                </Text>
+                <Text style={{ flex: 1, textAlign: "right" }}>{x.tuesday}</Text>
+            </View>
+            <View style={{ flexDirection: "row", marginBottom: 4 }}>
+                <Text style={{ flex: 1, fontWeight: todayIndex === 3 ? "bold" : "normal" }}>
+                Wednesday
+                </Text>
+                <Text style={{ flex: 1, textAlign: "right" }}>{x.wednesday}</Text>
+            </View>
+            <View style={{ flexDirection: "row", marginBottom: 4 }}>
+                <Text style={{ flex: 1, fontWeight: todayIndex === 4 ? "bold" : "normal" }}>
+                Thursday
+                </Text>
+                <Text style={{ flex: 1, textAlign: "right" }}>{x.thursday}</Text>
+            </View>
+            <View style={{ flexDirection: "row", marginBottom: 4 }}>
+                <Text style={{ flex: 1, fontWeight: todayIndex === 5 ? "bold" : "normal" }}>
+                Friday
+                </Text>
+                <Text style={{ flex: 1, textAlign: "right" }}>{x.friday}</Text>
+            </View>
+            <View style={{ flexDirection: "row", marginBottom: 4 }}>
+                <Text style={{ flex: 1, fontWeight: todayIndex === 6 ? "bold" : "normal" }}>
+                Saturday
+                </Text>
+                <Text style={{ flex: 1, textAlign: "right" }}>{x.saturday}</Text>
+            </View>
+            <View style={{ flexDirection: "row" }}>
+                <Text style={{ flex: 1, fontWeight: todayIndex === 0 ? "bold" : "normal" }}>
+                Sunday
+                </Text>
+                <Text
+                style={{
+                    flex: 1,
+                    textAlign: "right",
+                    fontWeight: todayIndex === 0 ? "bold" : "normal",
+                }}
+                >
+                {x.sunday}
+                </Text>
+            </View>
+
+            <Text style={{ marginTop: 12, fontSize: 11 }}>
+                * During holidays, opening hours may vary. For more information, please contact the venue.
+            </Text>
+            </View>
+        ) : null
+        )}
+
+
+
+
+                        </View>
+
+                        <View style={{flexDirection:"column",borderRadius:15, backgroundColor:"white",borderWidth:1,padding:20,borderColor:"#E4E4E7",marginTop:15,marginBottom:15}}>
+
+                    <Text style={{ fontSize: 17, fontWeight: "bold", marginBottom: 12 }}>Contact</Text>
+
+
+                <View style={{ flexDirection: "row", alignItems: "flex-start", marginBottom: 16 }}>
+                    <View style={{ width: 24, height: 24, alignItems: "center", justifyContent: "center", marginRight: 12 }}>
+                        <Image source={require("../images/home.png")} style={{ width: 18, height: 18, resizeMode: "contain" }} />
+                    </View>
+                <View style={{ flex: 1, alignItems: "flex-end" }}>
+                    <Text style={{ textAlign: "right" }}>{contactAddress}</Text>
+                </View>
+                </View>
+
+
+                    <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 16 }}>
+                        <View style={{ width: 24, height: 24, alignItems: "center", justifyContent: "center", marginRight: 12 }}>
+                            <Image source={require("../images/web.png")} style={{ width: 18, height: 18, resizeMode: "contain" }} />
+                        </View>
+                        <View style={{ flex: 1, alignItems: "flex-end" }}>
+                            <Text style={{ textAlign: "right" }}>https://redroyal.sk/</Text>
+                        </View>
+                    </View>
+
+                    <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 16 }}>
+                        <View style={{ width: 24, height: 24, alignItems: "center", justifyContent: "center", marginRight: 12 }}>
+                            <Image source={require("../images/phone.png")} style={{ width: 18, height: 18, resizeMode: "contain" }} />
+                        </View>
+                        <View style={{ flex: 1, alignItems: "flex-end" }}>
+                            <Text style={{ textAlign: "right" }}>+421 903 776 925</Text>
+                        </View>
+                    </View>
+
+                    <View style={{ flexDirection: "row", alignItems: "center" }}>
+                        <View style={{ width: 24, height: 24, alignItems: "center", justifyContent: "center", marginRight: 12 }}>
+                            <Image source={require("../images/mail.png")} style={{ width: 18, height: 18, resizeMode: "contain" }} />
+                        </View>
+                        <View style={{ flex: 1, alignItems: "flex-end" }}>
+                            <Text style={{ textAlign: "right" }}>info@redroyal.sk</Text>
+                        </View>
+                    </View>
+                </View>
+
+                        <View
+                            style={{
+                                borderRadius: 18,
+                                overflow: "hidden",
+                                borderWidth: 1,
+                                borderColor: "#E4E4E7",
+                                backgroundColor: "#FFFFFF",
+                                marginBottom: 16,
+                            }}
+                        >
+                            <View style={{ height: 170, position: "relative" }}>
+                                <MapView
+                                    style={{ flex: 1 }}
+                                    styleURL={Mapbox.StyleURL.Street}
+                                    scaleBarEnabled={false}
+                                    logoEnabled={false}
+                                    attributionEnabled={false}
+                                    compassEnabled={true}
+                                    scrollEnabled={true}
+                                    zoomEnabled={true}
+                                    rotateEnabled={true}
+                                    pitchEnabled={true}
+                                    surfaceView={false}
+                                    onDidFinishLoadingStyle={centerInfoMap}
+                                    onTouchStart={() => setInfoScrollEnabled(false)}
+                                    onTouchEnd={() => setInfoScrollEnabled(true)}
+                                    onTouchCancel={() => setInfoScrollEnabled(true)}
+                                >
+                                    <Camera ref={infoCameraRef} centerCoordinate={contactCoordinate} zoomLevel={16} />
+                                    <MarkerView coordinate={contactCoordinate} anchor={{ x: 0.5, y: 1 }}>
+                                        <View
+                                            style={{
+                                                width: 16,
+                                                height: 16,
+                                                borderRadius: 8,
+                                                backgroundColor: "#EF4444",
+                                                borderWidth: 3,
+                                                borderColor: "#FFFFFF",
+                                            }}
+                                        />
+                                    </MarkerView>
+                                    <MarkerView coordinate={nearbyCoordinate} anchor={{ x: 0.5, y: 1 }}>
+                                        <View
+                                            style={{
+                                                width: 12,
+                                                height: 12,
+                                                borderRadius: 6,
+                                                backgroundColor: "#10B981",
+                                                borderWidth: 2,
+                                                borderColor: "#FFFFFF",
+                                            }}
+                                        />
+                                    </MarkerView>
+                                </MapView>
+                                <View
+                                    pointerEvents="box-none"
+                                    style={{
+                                        position: "absolute",
+                                        left: 0,
+                                        right: 0,
+                                        top: 0,
+                                        bottom: 0,
+                                        zIndex: 2,
+                                        elevation: 2,
+                                    }}
+                                >
+                                    <TouchableOpacity
+                                        onPress={() => {
+                                            infoCameraRef.current?.setCamera({
+                                                centerCoordinate: contactCoordinate,
+                                                zoomLevel: 16,
+                                                animationDuration: 350,
+                                            });
+                                        }}
+                                        style={{
+                                            position: "absolute",
+                                            right: 10,
+                                            top: 10,
+                                            width: 36,
+                                            height: 36,
+                                            borderRadius: 18,
+                                            backgroundColor: "transparent",
+                                        }}
+                                        activeOpacity={0.9}
+                                    />
+                                    <TouchableOpacity
+                                        style={{
+                                            position: "absolute",
+                                            left: 12,
+                                            top: 12,
+                                            backgroundColor: "#F59E0B",
+                                            paddingHorizontal: 12,
+                                            paddingVertical: 6,
+                                            borderRadius: 16,
+                                            flexDirection: "row",
+                                            alignItems: "center",
+                                        }}
+                                        activeOpacity={0.85}
+                                    >
+                                        <Image
+                                            source={require("../images/navigation.png")}
+                                            style={{ width: 14, height: 14, tintColor: "#FFFFFF", marginRight: 6 }}
+                                        />
+                                        <Text style={{ color: "#FFFFFF", fontWeight: "600", fontSize: 12 }}>Navigate</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        </View>
+                        
+                    </ScrollView>
+                )}
+
+
+
+     
+
+          
        
 
-        
         
         
         

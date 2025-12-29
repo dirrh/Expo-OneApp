@@ -10,6 +10,7 @@ export default function DiscoverSearchSheet({
   sheetRef,
   snapPoints,
   onSheetChange,
+  sheetIndex,
   text,
   setText,
   filtered,
@@ -18,7 +19,7 @@ export default function DiscoverSearchSheet({
   return (
     <BottomSheet
       ref={sheetRef}
-      index={-1}
+      index={sheetIndex}
       snapPoints={snapPoints}
       enablePanDownToClose={true}
       onChange={onSheetChange}
