@@ -39,37 +39,49 @@ export default function DiscoverScreen() {
   const { t } = useTranslation();
 
   const branches = [
-    {
-      title: t("365 GYM Nitra"),
-      image: require("../assets/365.jpg"),
-      rating: 4.6,
-      distance: t("1.7 km"),
-      hours: t("9:00 - 21:00"),
-      discount: t("20% discount on first entry"),
-      moreCount: 2,
-      onPress: () => console.log("Open detail"),
-    },
-    {
-      title: t("RED ROYAL GYM"),
-      image: require("../assets/royal.jpg"),
-      rating: 4.6,
-      distance: t("1.7 km"),
-      hours: t("9:00 - 21:00"),
-      discount: t("20% discount on first entry"),
-      moreCount: 3,
-    },
-    {
-      title: t("GYM KLUB"),
-      image: require("../assets/klub.jpg"),
-      rating: 4.6,
-      distance: t("1.7 km"),
-      hours: t("9:00 - 21:00"),
-      discount: t("20% discount on first entry"),
-      moreCount: 5,
-    },
-  ];
+  {
+    title: t("365 GYM Nitra"),
+    image: require("../assets/365.jpg"),
+    rating: 4.6,
+    distance: t("1.7 km"),
+    hours: t("9:00 - 21:00"),
+    discount: t("20% discount on first entry"),
+    moreCount: 2,
 
- 
+    address: "Chrenovská 16, Nitra",
+    phone: "+421903776925",
+    email: "info@365gym.sk",
+    website: "https://365gym.sk",
+  },
+  {
+    title: t("RED ROYAL GYM"),
+    image: require("../assets/royal.jpg"),
+    rating: 4.6,
+    distance: t("1.7 km"),
+    hours: t("9:00 - 21:00"),
+    discount: t("20% discount on first entry"),
+    moreCount: 3,
+
+    address: "Trieda Andreja Hlinku 3, Nitra",
+    phone: "+421911222333",
+    email: "info@redroyal.sk",
+    website: "https://redroyal.sk",
+  },
+  {
+    title: t("GYM KLUB"),
+    image: require("../assets/klub.jpg"),
+    rating: 4.6,
+    distance: t("1.7 km"),
+    hours: t("9:00 - 21:00"),
+    discount: t("20% discount on first entry"),
+    moreCount: 5,
+
+    address: "Mostná 42, Nitra",
+    phone: "+421904555666",
+    email: "kontakt@gymklub.sk",
+    website: "https://gymklub.sk",
+  },
+];
 
   const [location,setLocation] = useState <Location[]>([
     { image:require("../images/home.png"),label:"home" },

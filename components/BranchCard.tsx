@@ -1,24 +1,58 @@
 import React from "react";
-import { View, Text, StyleSheet, Image, TouchableOpacity, useWindowDimensions } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  TouchableOpacity,
+  useWindowDimensions,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { BranchCardProps } from "../lib/interfaces";
+import { BranchCardProps, BranchData } from "../lib/interfaces";
 import { useNavigation } from "@react-navigation/native";
 
+export default function BranchCard(props: BranchCardProps) {
+  const {
+    title,
+    image,
+    rating,
+    distance,
+    hours,
+    discount,
+    moreCount,
+    address,
+    phone,
+    email,
+    website,
+    onPress,
+  } = props;
 
-export default function BranchCard({
-  title,
-  image,
-  rating,
-  distance,
-  hours,
-  discount,
-  moreCount,
-  onPress,
-}: BranchCardProps) {
   const { width } = useWindowDimensions();
   const imageSize = Math.min(96, Math.max(64, Math.floor(width * 0.18)));
   const navigation = useNavigation<any>();
-  const handlePress = onPress ?? (() => navigation.navigate("BusinessDetailScreen"));
+
+  const handlePress = () => {
+    const branch: BranchData = {
+      title,
+      image,
+      rating,
+      distance,
+      hours,
+      discount,
+      moreCount,
+      address,
+      phone,
+      email,
+      website,
+    };
+
+    if (onPress) {
+      onPress(branch);
+    } else {
+      navigation.navigate("BusinessDetailScreen", { branch });
+    }
+  };
+  
 
   return (
     <TouchableOpacity
@@ -26,14 +60,12 @@ export default function BranchCard({
       onPress={handlePress}
       style={styles.branchCard}
     >
-      {/* IMAGE */}
       <Image
         source={image}
         style={[styles.branchImage, { width: imageSize, height: imageSize }]}
         resizeMode="cover"
       />
 
-      {/* CONTENT */}
       <View style={styles.branchContent}>
         <Text style={styles.branchTitle}>{title}</Text>
 
@@ -64,6 +96,7 @@ export default function BranchCard({
     </TouchableOpacity>
   );
 }
+
 
 const styles = StyleSheet.create({
   branchCard: {

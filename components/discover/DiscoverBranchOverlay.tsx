@@ -64,6 +64,7 @@ export default function DiscoverBranchOverlay({
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16 }}>
         {branches.map((b) => {
+          
           const { onPress: _onPress, ...branchData } = b;
           return (
             <TouchableOpacity

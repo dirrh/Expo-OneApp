@@ -8,6 +8,7 @@ export default function FavoriteBranchesScreen() {
     const navigation = useNavigation<any>(); // do buducna
     const { t } = useTranslation();
 
+
     return (
         <SafeAreaView style={styles.screen}>
             <View style={styles.header}>
@@ -26,7 +27,14 @@ export default function FavoriteBranchesScreen() {
                     hours="9:00 - 21:00"
                     discount="20% discount on first entry"
                     moreCount={2}
-                    onPress={() => console.log("Open detail")}
+
+                    address="Chrenovská 16, Nitra"
+                    phone="+421 903 776 925"
+                    email="info@365gym.sk"
+                    website="https://365gym.sk"
+                    onPress={(branch) =>
+                        navigation.navigate("BusinessDetailScreen", { branch })
+                    }
                 />
 
                 <BranchCard
@@ -37,6 +45,15 @@ export default function FavoriteBranchesScreen() {
                     hours="9:00 - 21:00"
                     discount="20% discount on first entry"
                     moreCount={3}
+
+                    address="Trieda Andreja Hlinku 3, Nitra"
+                    phone="+421 911 222 333"
+                    email="info@redroyal.sk"
+                    website="https://redroyal.sk"
+
+                    onPress={(branch) =>
+                        navigation.navigate("BusinessDetailScreen", { branch })
+                    }
                 />
 
                 <BranchCard
@@ -47,6 +64,15 @@ export default function FavoriteBranchesScreen() {
                     hours="9:00 - 21:00"
                     discount="20% discount on first entry"
                     moreCount={5}
+
+                    address="Mostná 42, Nitra"
+                    phone="+421 904 555 666"
+                    email="kontakt@gymklub.sk"
+                    website="https://gymklub.sk"
+
+                    onPress={(branch) => {
+                        navigation.navigate("BusinessDetailScreen", { branch });
+                    }}
                 />
             </ScrollView>
         </SafeAreaView>

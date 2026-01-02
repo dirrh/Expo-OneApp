@@ -24,15 +24,22 @@ export interface Location {
     label : string,
 }
 
-export interface BranchCardProps {
+export type BranchData = {
   title: string;
-  image: any; // require(...) alebo { uri }
+  image: any;
   rating: number;
   distance: string;
   hours: string;
   discount?: string;
   moreCount?: number;
-  onPress?: () => void;
+  address?: string;
+  phone?: string;
+  email?: string;
+  website?: string;
+};
+
+export interface BranchCardProps extends BranchData {
+  onPress?: (branch: BranchData) => void;
 }
 
 export interface DiscoverMapMarker {
