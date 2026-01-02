@@ -1,6 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet } from "react-native";
-import { TouchableOpacity } from "react-native-gesture-handler";
+import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 
 type Props = {
   onActivate: () => void;
@@ -13,7 +12,8 @@ export function BenefitsSection({ onActivate }: Props) {
       <View style={styles.card}>
         <Text style={styles.title}>20% discount on first entry</Text>
         <Text style={styles.text}>Get 20% off your first visit.</Text>
-        <TouchableOpacity style={styles.disabledBtn}>
+
+        <TouchableOpacity style={styles.disabledBtn} disabled>
           <Text style={styles.disabledText}>Activated</Text>
         </TouchableOpacity>
       </View>
@@ -24,6 +24,7 @@ export function BenefitsSection({ onActivate }: Props) {
         <Text style={styles.text}>
           Buy one protein shake and get a second one free.
         </Text>
+
         <TouchableOpacity style={styles.activeBtn} onPress={onActivate}>
           <Text style={styles.activeText}>Activate Benefit</Text>
         </TouchableOpacity>
@@ -31,6 +32,7 @@ export function BenefitsSection({ onActivate }: Props) {
     </View>
   );
 }
+
 
 const styles = StyleSheet.create({
   card: {
