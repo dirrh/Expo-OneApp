@@ -8,9 +8,22 @@ export default function DiscoverMap({
   cameraRef,
   filteredMarkers,
   onUserLocationUpdate,
+  onCameraChanged,
 }: DiscoverMapProps) {
   return (
-    <MapView style={styles.map} styleURL={Mapbox.StyleURL.Street} scaleBarEnabled={false}>
+    <MapView
+      style={styles.map}
+      styleURL={Mapbox.StyleURL.Street}
+      scaleBarEnabled={false}
+      onCameraChanged={(state) => {
+        const center = state?.geometry?.coordinates ?? state?.properties?.center;
+        const zoom = state?.properties?.zoom;
+        if (!Array.isArray(center) || center.length < 2 || typeof zoom !== "number") {
+          return;
+        }
+        onCameraChanged([center[0], center[1]], zoom);
+      }}
+    >
       <Camera ref={cameraRef} centerCoordinate={[18.091, 48.3069]} zoomLevel={14} />
 
       <UserLocation

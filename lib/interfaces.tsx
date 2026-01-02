@@ -52,6 +52,7 @@ export interface DiscoverMapProps {
   cameraRef: RefObject<Camera>;
   filteredMarkers: DiscoverMapMarker[];
   onUserLocationUpdate: (coord: [number, number]) => void;
+  onCameraChanged: (center: [number, number], zoom: number) => void;
 }
 
 export interface DiscoverTopControlsProps {
@@ -74,6 +75,7 @@ export interface DiscoverSearchSheetProps {
   sheetRef: RefObject<BottomSheet>;
   snapPoints: string[];
   onSheetChange: (index: number) => void;
+  sheetIndex: number;
   text: string;
   setText: Dispatch<SetStateAction<string>>;
   filtered: BranchCardProps[];
