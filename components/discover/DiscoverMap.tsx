@@ -16,7 +16,7 @@ export default function DiscoverMap({
       styleURL={Mapbox.StyleURL.Street}
       scaleBarEnabled={false}
       onCameraChanged={(state) => {
-        const center = state?.geometry?.coordinates ?? state?.properties?.center;
+        const center = state?.properties?.center ?? state?.geometry?.coordinates;
         const zoom = state?.properties?.zoom;
         if (!Array.isArray(center) || center.length < 2 || typeof zoom !== "number") {
           return;

@@ -22,6 +22,7 @@ export interface Coords {
 export interface Location {
     image : ImageSourcePropType,
     label : string,
+    coord?: [number, number],
 }
 
 export type BranchData = {
@@ -67,8 +68,10 @@ export interface DiscoverTopControlsProps {
   sheetRef: RefObject<BottomSheet>;
   filterRef: RefObject<BottomSheet>;
   userCoord: [number, number] | null;
+  mainMapCenter?: [number, number] | null;
   cameraRef: RefObject<Camera>;
   t: (key: string) => string;
+  onLocationSheetChange?: (index: number) => void;
 }
 
 export interface DiscoverSearchSheetProps {

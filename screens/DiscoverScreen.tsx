@@ -17,6 +17,7 @@ import { styles } from "../components/discover/discoverStyles";
 
 let lastDiscoverCameraState: { center: [number, number]; zoom: number } | null = null;
 let preserveDiscoverCamera = false;
+const NITRA_CENTER: [number, number] = [18.091, 48.3069];
 
 export default function DiscoverScreen() {
   const navigation = useNavigation<any>();
@@ -89,6 +90,7 @@ export default function DiscoverScreen() {
   const [location,setLocation] = useState <Location[]>([
     { image:require("../images/home.png"),label:"home" },
     { image: require("../images/business.png"), label: "business" },
+    { image: require("../images/pin.png"), label: "nitra", coord: NITRA_CENTER },
   ]
  );
 
@@ -103,6 +105,7 @@ export default function DiscoverScreen() {
   const [appliedFilter, setAppliedFilter] = useState<string | null>(null);
   const [sub, setSub] = useState<Set<string>>(() => new Set());
   const [userCoord, setUserCoord] = useState<[number, number] | null>(null);
+  const [mapCenter, setMapCenter] = useState<[number, number]>(NITRA_CENTER);
   const [didInitialCenter, setDidInitialCenter] = useState(false);
 
   const cameraRef = useRef<Camera>(null);
@@ -138,6 +141,13 @@ const filtered = query
     useCallback(() => {
       if (route.name === "Search") {
         setSearchSheetIndex(searchExpandedIndex);
+        const target = lastDiscoverCameraState?.center ?? userCoord ?? NITRA_CENTER;
+        const zoomLevel = lastDiscoverCameraState?.zoom ?? 14;
+        cameraRef.current?.setCamera({
+          centerCoordinate: target,
+          zoomLevel,
+          animationDuration: 0,
+        });
         return;
       }
       if (preserveDiscoverCamera) {
@@ -151,7 +161,7 @@ const filtered = query
         setDidInitialCenter(true);
         preserveDiscoverCamera = false;
       }
-    }, [route.name, searchExpandedIndex])
+    }, [route.name, searchExpandedIndex, userCoord])
   );
 
   useEffect(() => {
@@ -216,13 +226,25 @@ const filtered = query
     setIsSheetOpen(index !== -1);
   };
 
+  const handleLocationSheetChange = (index: number) => {
+    setO(index === -1);
+    setIsSheetOpen(index !== -1);
+  };
+
   const handleUserLocationUpdate = (coord: [number, number]) => {
     setUserCoord(coord);
   };
 
-  const handleCameraChanged = useCallback((center: [number, number], zoom: number) => {
-    lastDiscoverCameraState = { center, zoom };
-  }, []);
+  const handleCameraChanged = useCallback(
+    (center: [number, number], zoom: number) => {
+      if (route.name === "Search") {
+        return;
+      }
+      setMapCenter(center);
+      lastDiscoverCameraState = { center, zoom };
+    },
+    [route.name]
+  );
 
   return (
     <SafeAreaView style={styles.container} edges={["left", "right", "bottom"]}>
@@ -244,8 +266,10 @@ const filtered = query
         sheetRef={sheetRef}
         filterRef={filterRef}
         userCoord={userCoord}
+        mainMapCenter={mapCenter}
         cameraRef={cameraRef}
         t={t}
+        onLocationSheetChange={handleLocationSheetChange}
       />
       <DiscoverSearchSheet
         sheetRef={sheetRef}
