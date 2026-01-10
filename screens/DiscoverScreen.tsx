@@ -1,4 +1,4 @@
-import { Platform, useWindowDimensions, View, Text } from "react-native";
+import { Platform, useWindowDimensions, View, Text, TouchableOpacity, Image } from "react-native";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Mapbox from "@rnmapbox/maps";
 import type { Camera } from "@rnmapbox/maps";
@@ -49,7 +49,7 @@ export default function DiscoverScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const insets = useSafeAreaInsets();
-  const { width: screenWidth } = useWindowDimensions();
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
 
   const sheetRef = useRef<BottomSheet>(null);
   const filterRef = useRef<BottomSheet>(null);
@@ -129,9 +129,29 @@ export default function DiscoverScreen() {
   const [didInitialCenter, setDidInitialCenter] = useState(false);
   const [mapZoom, setMapZoom] = useState(14);
 
+  const DUMMY_BRANCH = {
+    title: "365 GYM Nitra",
+    image: require("../assets/365.jpg"),
+    rating: 4.6,
+    category: "Fitness",
+    distance: "1.7 km",
+    hours: "9:00 - 21:00",
+    discount: "20% discount on first entry",
+    moreCount: 2,
+    address: "Chrenovská 16, Nitra",
+    phone: "+421903776925",
+    email: "info@365gym.sk",
+    website: "https://365gym.sk",
+  };
+
+
   const [selectedGroup, setSelectedGroup] = useState<{
     coord: { lng: number; lat: number };
     items: DiscoverMapMarker[];
+  } | null>(null);
+  const [selectedGroupPosition, setSelectedGroupPosition] = useState<{
+    x: number;
+    y: number;
   } | null>(null);
 
   const cameraRef = useRef<Camera>(null);
@@ -263,7 +283,7 @@ export default function DiscoverScreen() {
 
       // skupina s viacerými položkami → LEN 1 čierny multi-pin
       return {
-        id: group.id, 
+        id: group.id,
         coord: { lng: group.lng, lat: group.lat },
         icon: MULTI_MARKER_ICON,
         rating: Math.max(...group.items.map((i) => i.rating)),
@@ -349,23 +369,79 @@ export default function DiscoverScreen() {
       if (distance > 0.0005) {
         setOption("yourLocation");
       }
+      // Don't update position when camera changes - keep it fixed
     },
     [route.name, selectedOptionCoord]
   );
 
+  const calculateGroupPosition = useCallback((group: { coord: { lng: number; lat: number } }, currentMapCenter: [number, number], currentMapZoom: number) => {
+    // Calculate position using Web Mercator projection
+    const mapCenterX = screenWidth / 2;
+    const mapCenterY = screenHeight / 2;
+    const [centerLng, centerLat] = currentMapCenter;
+    const [pinLng, pinLat] = [group.coord.lng, group.coord.lat];
+    
+    // Web Mercator projection calculations
+    const zoomFactor = Math.pow(2, currentMapZoom);
+    const tileSize = 256;
+    const worldSize = tileSize * zoomFactor;
+    
+    // Convert lat/lng to Web Mercator coordinates
+    const toMercatorX = (lng: number) => {
+      return (lng + 180) / 360 * worldSize;
+    };
+    
+    const toMercatorY = (lat: number) => {
+      const latRad = lat * Math.PI / 180;
+      const mercN = Math.log(Math.tan((Math.PI / 4) + (latRad / 2)));
+      return (worldSize / 2) - (worldSize * mercN / (2 * Math.PI));
+    };
+    
+    const centerMercX = toMercatorX(centerLng);
+    const centerMercY = toMercatorY(centerLat);
+    const pinMercX = toMercatorX(pinLng);
+    const pinMercY = toMercatorY(pinLat);
+    
+    // Calculate pixel offset from center
+    const offsetX = pinMercX - centerMercX;
+    const offsetY = pinMercY - centerMercY;
+    
+    // Convert to screen coordinates
+    const x = mapCenterX + offsetX;
+    const y = mapCenterY + offsetY;
+    
+    return { x, y };
+  }, [screenWidth, screenHeight]);
+
   const handleMarkerPress = (id: string) => {
-    const group = groupedMarkers.find((g) => g.id === id);
+  if (!id || id === "") {
+    setSelectedGroup(null);
+    return;
+  }
 
-    if (!group || group.items.length === 1) {
-      setSelectedGroup(null);
-      return;
-    }
+  const group = groupedMarkers.find((g) => g.id === id);
+  if (!group) return;
 
+  // GROUP PIN
+  if (group.items.length > 1) {
     setSelectedGroup({
       coord: { lng: group.lng, lat: group.lat },
       items: group.items,
     });
-  };
+    return;
+  }
+
+  // SINGLE PIN
+  setSelectedGroup(null);
+
+  navigation.navigate("BusinessDetailScreen", {
+    branch: DUMMY_BRANCH,
+  });
+};
+
+
+
+
 
 
 
@@ -448,7 +524,7 @@ export default function DiscoverScreen() {
         />
       )}
 
-      
+
     </SafeAreaView>
   );
 }

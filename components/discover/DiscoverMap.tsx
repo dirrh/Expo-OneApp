@@ -1,5 +1,5 @@
-import React, { memo, useCallback, useMemo } from "react";
-import { Image, useWindowDimensions, View, Text } from "react-native";
+import React, { memo, useCallback, useMemo, useRef, useEffect } from "react";
+import { Image, useWindowDimensions, View, Text, TouchableOpacity, Pressable } from "react-native";
 import Mapbox, {
   Camera,
   MapView,
@@ -11,6 +11,23 @@ import Mapbox, {
 import type { Feature, FeatureCollection, Point } from "geojson";
 import type { DiscoverMapProps } from "../../lib/interfaces";
 import { styles } from "./discoverStyles";
+import { useNavigation } from "@react-navigation/native";
+
+
+const DUMMY_BRANCH = {
+  title: "365 GYM Nitra",
+  image: require("../../assets/365.jpg"),
+  rating: 4.6,
+  category: "Fitness",
+  distance: "1.7 km",
+  hours: "9:00 - 21:00",
+  discount: "20% discount on first entry",
+  moreCount: 2,
+  address: "Chrenovská 16, Nitra",
+  phone: "+421903776925",
+  email: "info@365gym.sk",
+  website: "https://365gym.sk",
+};
 
 const CLUSTER_IMAGE = require("../../images/group_pin.png");
 const FILTER_CLUSTER_IMAGE = require("../../images/filter_pin.png");
@@ -224,7 +241,9 @@ function DiscoverMap({
   selectedGroup,
   categoryIcons,
 }: DiscoverMapProps) {
+  const navigation = useNavigation<any>();
   const { width } = useWindowDimensions();
+  const mapViewRef = useRef<MapView>(null);
   const badgeScale = width / BADGE_BASE_WIDTH;
   const badgeOffsetX = BADGE_BASE_OFFSET_X * badgeScale;
   const badgeOffsetY = BADGE_BASE_OFFSET_Y * badgeScale;
@@ -309,10 +328,16 @@ function DiscoverMap({
 
   return (
     <MapView
+      ref={mapViewRef}
       style={styles.map}
       styleURL={Mapbox.StyleURL.Street}
       scaleBarEnabled={false}
       onCameraChanged={handleCameraChanged}
+      onPress={() => {
+        if (selectedGroup) {
+          onMarkerPress?.("");
+        }
+      }}
     >
       <Mapbox.Images images={images} />
       <Camera
@@ -338,7 +363,13 @@ function DiscoverMap({
         clusterMaxZoomLevel={CLUSTERING_MAX_ZOOM}
         onPress={(e) => {
           const feature = e.features?.[0];
-          if (!feature) return;
+          if (!feature) {
+            // Clicked outside any marker, close the list if open
+            if (selectedGroup) {
+              onMarkerPress?.("");
+            }
+            return;
+          }
 
           const id = String(feature.id);
           onMarkerPress?.(id);
@@ -382,14 +413,21 @@ function DiscoverMap({
           minZoomLevel={CLUSTER_MAX_ZOOM}
         />
       </ShapeSource>
-      {selectedGroup && (
+      {selectedGroup && selectedGroup.items.length > 1 && (
         <Mapbox.PointAnnotation
-          id="multi-callout"
+          id="multi-pin-marker"
           coordinate={[
             selectedGroup.coord.lng,
             selectedGroup.coord.lat,
           ]}
-          anchor={{ x: 0.5, y: 0 }} // pod pinom
+          anchor={{ x: 0.5, y: 0 }}
+          onSelected={() => {
+            onMarkerPress?.("");
+            navigation.navigate("BusinessDetailScreen", {
+              branch: DUMMY_BRANCH,
+            });
+          }}
+          draggable={false}
         >
           <View
             style={{
@@ -398,16 +436,17 @@ function DiscoverMap({
               paddingHorizontal: 10,
               paddingVertical: 8,
               minWidth: 200,
+              maxWidth: 300,
               shadowColor: "#000",
               shadowOpacity: 0.15,
               shadowRadius: 6,
               elevation: 6,
-              marginTop: 6,
+              marginTop: 40, // 40px pod pinom
             }}
+            pointerEvents="none"
           >
             {selectedGroup.items.map((item, index) => (
               <View key={item.id}>
-                {/* RIADOK */}
                 <View
                   style={{
                     flexDirection: "row",
@@ -416,19 +455,17 @@ function DiscoverMap({
                     paddingVertical: 6,
                   }}
                 >
-                  {/* ĽAVO – LOGO + NÁZOV */}
                   <View style={{ flexDirection: "row", alignItems: "center" }}>
-                    <Image
-                      source={categoryIcons[item.category]}
-                      style={{ width: 16, height: 16, marginRight: 6 }}
-                    />
-
+                    {item.category !== "Multi" && (
+                      <Image
+                        source={categoryIcons[item.category]}
+                        style={{ width: 16, height: 16, marginRight: 6 }}
+                      />
+                    )}
                     <Text style={{ fontSize: 14, fontWeight: "600" }}>
                       {item.id}
                     </Text>
                   </View>
-
-                  {/* PRAVO – HVIEZDA + RATING */}
                   <View style={{ flexDirection: "row", alignItems: "center" }}>
                     <Image
                       source={require("../../images/star_black.png")}
@@ -439,8 +476,6 @@ function DiscoverMap({
                     </Text>
                   </View>
                 </View>
-
-                {/* DIVIDER medzi biznismi */}
                 {index < selectedGroup.items.length - 1 && (
                   <View
                     style={{
@@ -455,7 +490,6 @@ function DiscoverMap({
           </View>
         </Mapbox.PointAnnotation>
       )}
-
     </MapView>
   );
 }

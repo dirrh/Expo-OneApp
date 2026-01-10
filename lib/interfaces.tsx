@@ -71,6 +71,7 @@ export interface DiscoverMapProps {
   ) => void;
 
   onMarkerPress?: (id: string) => void;
+  onSelectedGroupPosition?: (x: number, y: number) => void;
 
   selectedGroup?: {
     coord: { lng: number; lat: number };
