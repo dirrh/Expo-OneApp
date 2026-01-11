@@ -38,9 +38,7 @@ export default function HomeScreen() {
           logoBorderRadius={5}
         />
         </View>
-
     </View>
-
   );
 }
 

@@ -75,7 +75,6 @@ export default function BusinessDetailScreen() {
         },
     ];
 
-
     return (
         <SafeAreaView style={styles.container} edges={["left", "right", "bottom"]}>
             {/* HERO */}

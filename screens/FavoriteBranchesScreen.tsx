@@ -5,7 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 
 export default function FavoriteBranchesScreen() {
-    const navigation = useNavigation<any>(); // do buducna
+    const navigation = useNavigation<any>();
     const { t } = useTranslation();
 
 
@@ -45,12 +45,10 @@ export default function FavoriteBranchesScreen() {
                     hours="9:00 - 21:00"
                     discount="20% discount on first entry"
                     moreCount={3}
-
                     address="Trieda Andreja Hlinku 3, Nitra"
                     phone="+421 911 222 333"
                     email="info@redroyal.sk"
                     website="https://redroyal.sk"
-
                     onPress={(branch) =>
                         navigation.navigate("BusinessDetailScreen", { branch })
                     }
@@ -64,12 +62,10 @@ export default function FavoriteBranchesScreen() {
                     hours="9:00 - 21:00"
                     discount="20% discount on first entry"
                     moreCount={5}
-
                     address="Mostná 42, Nitra"
                     phone="+421 904 555 666"
                     email="kontakt@gymklub.sk"
                     website="https://gymklub.sk"
-
                     onPress={(branch) => {
                         navigation.navigate("BusinessDetailScreen", { branch });
                     }}
