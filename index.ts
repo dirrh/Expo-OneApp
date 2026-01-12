@@ -3,6 +3,11 @@ import "react-native-gesture-handler";
 import "react-native-reanimated";
 
 import { Platform } from "react-native";
+
+// Import expo-asset early to ensure native module is loaded
+// This is required for asset loading (images, fonts) in SDK 54
+// Must be imported before expo-font or any asset usage
+import "expo-asset";
 import { EXPO_PUBLIC_MAPBOX_TOKEN, NEXT_PUBLIC_MAPBOX_TOKEN } from "@env";
 
 import { registerRootComponent } from "expo";
