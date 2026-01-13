@@ -5,6 +5,8 @@ export default ({ config }) => ({
   plugins: [
     ...(config.plugins ?? []),
     './plugins/withMapboxMaven',
+    './plugins/withAndroidXFix',
+    './plugins/withGradleProperties',
     "expo-localization",
   ],
   web: {
