@@ -5,7 +5,7 @@ import "react-native-reanimated";
 import { Platform } from "react-native";
 
 // Import expo-asset early to ensure native module is loaded
-// This is required for asset loading (images, fonts) in SDK 54
+// This is required for asset loading (images, fonts) in SDK 51
 // Must be imported before expo-font or any asset usage
 import "expo-asset";
 import { EXPO_PUBLIC_MAPBOX_TOKEN, NEXT_PUBLIC_MAPBOX_TOKEN } from "@env";

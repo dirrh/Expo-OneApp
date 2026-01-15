@@ -2,6 +2,9 @@ import 'dotenv/config';
 
 export default ({ config }) => ({
   ...config,
+  runtimeVersion: {
+    policy: 'sdkVersion',
+  },
   plugins: [
     ...(config.plugins ?? []),
     './plugins/withMapboxMaven',
