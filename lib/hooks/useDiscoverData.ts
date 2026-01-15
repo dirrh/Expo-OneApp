@@ -1,0 +1,295 @@
+/**
+ * useDiscoverData.ts
+ * 
+ * Tento hook načítava a spravuje dáta pre Discover obrazovku.
+ * Obsahuje logiku pre pobočky, markery a ich zoskupovanie.
+ */
+
+import { useEffect, useState, useMemo, useCallback } from "react";
+import { ImageSourcePropType } from "react-native";
+import type { BranchData, DiscoverCategory, DiscoverMapMarker } from "../interfaces";
+import { useDataSource } from "../data/useDataSource";
+import { DUMMY_BRANCH } from "../constants/discover";
+import { formatTitleFromId, getRatingForId } from "../data/normalizers";
+
+// Ikonka pre multi-pin (keď je viac pobočiek na jednom mieste)
+const MULTI_MARKER_ICON: ImageSourcePropType = require("../../images/icons/multi/multi.png");
+
+// Placeholder obrázky pre jednotlivé kategórie
+const CATEGORY_PLACEHOLDER_IMAGES: Record<DiscoverCategory, ImageSourcePropType> = {
+  Fitness: require("../../assets/365.jpg"),
+  Gastro: require("../../assets/royal.jpg"),
+  Relax: require("../../assets/klub.jpg"),
+  Beauty: require("../../assets/royal.jpg"),
+};
+
+/**
+ * Typ pre návratovú hodnotu hooku
+ */
+export interface UseDiscoverDataReturn {
+  branches: BranchData[];                       // zoznam pobočiek pre zoznam
+  markers: DiscoverMapMarker[];                 // surové markery z API
+  groupedMarkers: Array<{                       // markery zoskupené podľa lokácie
+    id: string;
+    lng: number;
+    lat: number;
+    items: DiscoverMapMarker[];
+  }>;
+  markerItems: DiscoverMapMarker[];             // markery pripravené na zobrazenie (vrátane multi-pinov)
+  loading: boolean;                             // či sa načítavajú dáta
+  error: string | null;                         // chybová správa (ak nastala chyba)
+  refetch: () => void;                          // funkcia na opätovné načítanie dát
+  fetchBranchForMarker: (marker: DiscoverMapMarker) => Promise<BranchData>;
+  buildBranchFromMarker: (marker: DiscoverMapMarker) => BranchData;
+}
+
+/**
+ * Typ pre override údajov pobočky (pre špecifické markery)
+ */
+interface MarkerBranchOverride extends Partial<BranchData> {
+  title?: string;
+  image?: ImageSourcePropType;
+  category?: string;
+  hours?: string;
+}
+
+/**
+ * Možnosti pre hook
+ */
+interface UseDiscoverDataOptions {
+  t: (key: string) => string;                   // prekladová funkcia z i18n
+  markerBranchOverrides?: Record<string, MarkerBranchOverride>;  // vlastné údaje pre konkrétne markery
+}
+
+/**
+ * Hook na načítanie a správu dát pre Discover obrazovku
+ * 
+ * @param options - konfigurácia hooku
+ * @returns objekt s dátami a funkciami na ich správu
+ * 
+ * Príklad použitia:
+ * const { branches, markers, loading, error } = useDiscoverData({ t });
+ */
+export const useDiscoverData = ({
+  t,
+  markerBranchOverrides = {},
+}: UseDiscoverDataOptions): UseDiscoverDataReturn => {
+  
+  // Získame zdroj dát (mock/api/supabase)
+  const dataSource = useDataSource();
+
+  // === STAVOVÉ PREMENNÉ ===
+  const [branches, setBranches] = useState<BranchData[]>([]);
+  const [markers, setMarkers] = useState<DiscoverMapMarker[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [fetchKey, setFetchKey] = useState(0);  // kľúč pre opätovné načítanie
+
+  /**
+   * Načítanie dát pri prvom renderovaní a pri zmene fetchKey
+   * Používame cleanup funkciu na zrušenie aktualizácie pri unmounte
+   */
+  useEffect(() => {
+    let active = true;  // flag pre cleanup
+    
+    setLoading(true);
+    setError(null);
+
+    // Načítame pobočky aj markery paralelne (rýchlejšie)
+    Promise.all([dataSource.getBranches(), dataSource.getMarkers()])
+      .then(([branchData, markerData]) => {
+        // Ak bol komponent odmountnutý, nič nerobíme
+        if (!active) return;
+        
+        // Preložíme textové hodnoty
+        const translated = branchData.map((branch) => ({
+          ...branch,
+          title: t(branch.title),
+          distance: t(branch.distance),
+          hours: t(branch.hours),
+        }));
+        
+        setBranches(translated);
+        setMarkers(markerData);
+      })
+      .catch((err) => {
+        if (!active) return;
+        setError(err?.message ?? "Nepodarilo sa načítať dáta");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    // Cleanup funkcia - nastaví flag na false pri unmounte
+    return () => {
+      active = false;
+    };
+  }, [t, dataSource, fetchKey]);
+
+  /**
+   * Funkcia na opätovné načítanie dát (napr. po chybe)
+   * Jednoducho zvýši fetchKey, čo spustí useEffect
+   */
+  const refetch = useCallback(() => {
+    setFetchKey((k) => k + 1);
+  }, []);
+
+  /**
+   * Zoskupenie markerov podľa groupId
+   * Markery na rovnakej lokácii majú rovnaké groupId
+   * 
+   * Príklad:
+   * - "Diamond gym" a "Diamond barber" majú groupId "diamond_center"
+   * - Zobrazia sa ako jeden multi-pin
+   */
+  const groupedMarkers = useMemo(() => {
+    const map = new Map<
+      string,
+      { id: string; lng: number; lat: number; items: DiscoverMapMarker[] }
+    >();
+
+    markers.forEach((item) => {
+      // Použijeme groupId ak existuje, inak id markera
+      const key = item.groupId ?? item.id;
+
+      // Ak skupina ešte neexistuje, vytvoríme ju
+      if (!map.has(key)) {
+        map.set(key, {
+          id: key,
+          lng: item.coord.lng,
+          lat: item.coord.lat,
+          items: [],
+        });
+      }
+
+      // Pridáme marker do skupiny
+      map.get(key)!.items.push(item);
+    });
+
+    return Array.from(map.values());
+  }, [markers]);
+
+  /**
+   * Transformácia zoskupených markerov na zobraziteľné položky
+   * - Ak má skupina 1 položku → normálny pin
+   * - Ak má skupina viac položiek → čierny multi-pin
+   */
+  const markerItems = useMemo<DiscoverMapMarker[]>(() => {
+    return groupedMarkers.map((group) => {
+      // Skupina s 1 položkou → vrátime pôvodný marker
+      if (group.items.length === 1) {
+        return group.items[0];
+      }
+
+      // Skupina s viacerými položkami → vytvoríme multi-pin
+      return {
+        id: group.id,
+        coord: { lng: group.lng, lat: group.lat },
+        icon: MULTI_MARKER_ICON,
+        rating: Math.max(...group.items.map((i) => i.rating)),  // najvyššie hodnotenie
+        category: "Multi" as const,
+      };
+    });
+  }, [groupedMarkers]);
+
+  /**
+   * Vytvorí objekt pobočky z markera
+   * Používame keď nemáme kompletné dáta pobočky (len marker)
+   */
+  const buildBranchFromMarker = useCallback(
+    (marker: DiscoverMapMarker): BranchData => {
+      // Skontrolujeme či máme override pre tento marker
+      const override = markerBranchOverrides[marker.id] ?? {};
+      
+      // Názov - z override alebo vygenerujeme z ID
+      const title = override.title ?? formatTitleFromId(marker.id);
+      
+      // Kategória - z override alebo z markera
+      const category = override.category ?? (marker.category === "Multi" ? "" : marker.category);
+      const resolvedCategory: DiscoverCategory | undefined =
+        category && category !== "Multi" ? (category as DiscoverCategory) : undefined;
+      
+      // Obrázok - z override, placeholder pre kategóriu, alebo default
+      const image =
+        override.image ??
+        (resolvedCategory ? CATEGORY_PLACEHOLDER_IMAGES[resolvedCategory] : undefined) ??
+        DUMMY_BRANCH.image;
+
+      // Vrátime kompletný objekt pobočky
+      return {
+        ...DUMMY_BRANCH,           // základné hodnoty
+        ...override,               // vlastné hodnoty
+        title,
+        category: resolvedCategory ?? DUMMY_BRANCH.category ?? "Fitness",
+        rating: marker.rating,
+        distance: `${(Math.random() * 2 + 0.5).toFixed(1)} km`,  // náhodná vzdialenosť (TODO: vypočítať reálnu)
+        hours: override?.hours ?? DUMMY_BRANCH.hours,
+        image,
+      };
+    },
+    [markerBranchOverrides]
+  );
+
+  /**
+   * Načíta pobočku pre marker z API, alebo vytvorí z markera
+   * Používame pri kliknutí na marker na mape
+   */
+  const fetchBranchForMarker = useCallback(
+    async (marker: DiscoverMapMarker): Promise<BranchData> => {
+      // Skúsime načítať z API
+      const branch = await dataSource.getBranchById(marker.id);
+      
+      // Ak nemáme dáta, vytvoríme z markera
+      return branch ?? buildBranchFromMarker(marker);
+    },
+    [buildBranchFromMarker, dataSource]
+  );
+
+  return {
+    branches,
+    markers,
+    groupedMarkers,
+    markerItems,
+    loading,
+    error,
+    refetch,
+    fetchBranchForMarker,
+    buildBranchFromMarker,
+  };
+};
+
+/**
+ * Hook na generovanie markerov pre uložené lokácie
+ * 
+ * @param locations - pole lokácií z dropdownu
+ * @returns pole markerov pre uložené lokácie
+ */
+export const useSavedLocationMarkers = (
+  locations: Array<{
+    coord?: [number, number];
+    isSaved?: boolean;
+    image: ImageSourcePropType;
+    markerImage?: ImageSourcePropType;
+  }>
+): DiscoverMapMarker[] => {
+  return useMemo(
+    () =>
+      locations
+        // Vyfiltrujeme len uložené lokácie so súradnicami
+        .filter((item) => item.isSaved && item.coord)
+        // Transformujeme na markery
+        .map((item, index) => {
+          // Vygenerujeme unikátne ID
+          const id = `saved-${index}-${item.coord![0]}-${item.coord![1]}`;
+          
+          return {
+            id,
+            coord: { lng: item.coord![0], lat: item.coord![1] },
+            icon: item.markerImage ?? item.image,
+            rating: getRatingForId(id),  // deterministické hodnotenie z ID
+            category: "Multi" as const,
+          };
+        }),
+    [locations]
+  );
+};

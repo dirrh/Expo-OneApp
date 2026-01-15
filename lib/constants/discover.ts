@@ -1,8 +1,8 @@
-import { Image, Platform } from "react-native";
+import { Image, ImageSourcePropType, Platform } from "react-native";
 import type { Feature, FeatureCollection, Point } from "geojson";
-import type { DiscoverMapProps } from "../../lib/interfaces";
+import type { BranchData, DiscoverMapProps } from "../../lib/interfaces";
 
-const DUMMY_BRANCH = {
+const DUMMY_BRANCH: BranchData = {
   title: "365 GYM Nitra",
   image: require("../../assets/365.jpg"),
   rating: 4.6,
@@ -44,10 +44,15 @@ const getNavigationImageUri = () => {
   return Image.resolveAssetSource(NAVIGATION_IMAGE).uri;
 };
 const NAVIGATION_IMAGE_URI = getNavigationImageUri();
-const CITY_CLUSTER_ZOOM = 12;
-const CLUSTER_MAX_ZOOM = 14;
-const CLUSTERING_MAX_ZOOM = CLUSTER_MAX_ZOOM - 0.01;
-const CLUSTER_FADE_RANGE = 0.25;
+// === ZOOM LEVEL KONŠTANTY ===
+// Hierarchia zobrazovania:
+// 1. zoom >= CLUSTER_MAX_ZOOM (15+)  → jednotlivé markery s hodnotením
+// 2. zoom 11-15                       → menšie skupiny (natívne Mapbox clustre)
+// 3. zoom <= CITY_CLUSTER_ZOOM (11-)  → jeden cluster za celé mesto
+const CITY_CLUSTER_ZOOM = 11;           // pod týmto = city cluster
+const CLUSTER_MAX_ZOOM = 15;            // nad týmto = jednotlivé markery
+const CLUSTERING_MAX_ZOOM = CLUSTER_MAX_ZOOM - 0.01;  // 14.99 - kedy clustering končí
+const CLUSTER_FADE_RANGE = 0.5;         // rozsah pre plynulý prechod
 const DEFAULT_CAMERA_ZOOM = 14;
 const DEFAULT_CITY_CENTER: [number, number] = [18.091, 48.3069];
 const CLUSTER_DEFAULT_NAME = "clusterDefault";
@@ -88,23 +93,25 @@ const BASE_IMAGES: IconRegistry = {
   [STAR_IMAGE_NAME]: STAR_IMAGE,
 };
 
+// Clustre sú plne viditeľné a postupne miznú tesne pred CLUSTER_MAX_ZOOM
 const clusterFadeOut = [
   "interpolate",
   ["linear"],
   ["zoom"],
-  CLUSTER_MAX_ZOOM - CLUSTER_FADE_RANGE,
+  CLUSTER_MAX_ZOOM - CLUSTER_FADE_RANGE,  // 14.5 = opacity 1
   1,
-  CLUSTERING_MAX_ZOOM,
+  CLUSTERING_MAX_ZOOM,                      // 14.99 = opacity 0
   0,
 ] as const;
 
+// Markery sa postupne objavujú pred CLUSTER_MAX_ZOOM
 const markerFadeIn = [
   "interpolate",
   ["linear"],
   ["zoom"],
-  CLUSTER_MAX_ZOOM - CLUSTER_FADE_RANGE,
+  CLUSTER_MAX_ZOOM - CLUSTER_FADE_RANGE,  // 14.5 = opacity 0
   0,
-  CLUSTER_MAX_ZOOM,
+  CLUSTER_MAX_ZOOM,                        // 15 = opacity 1
   1,
 ] as const;
 

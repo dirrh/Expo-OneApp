@@ -1,31 +1,132 @@
-import React from "react";
-import { Image, Text, View, useWindowDimensions } from "react-native";
+/**
+ * DiscoverBranchOverlay.tsx
+ * 
+ * Spodný overlay na Discover obrazovke.
+ * Obsahuje prepínač kategórií a horizontálny carousel s kartami pobočiek.
+ * 
+ * OPTIMALIZÁCIE:
+ * - FlatList namiesto ScrollView - virtualizácia (renderuje len viditeľné položky)
+ * - memo() na komponente - zabraňuje zbytočným renderom
+ * - useMemo() na dynamických štýloch - stabilné referencie
+ * - useCallback() na handleroch - zabraňuje zbytočným renderom detí
+ * - getItemLayout - okamžitý skok na položku (FlatList nemusí merať)
+ */
+
+import React, { memo, useCallback, useMemo } from "react";
+import { FlatList, Image, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { ScrollView, TouchableOpacity } from "react-native-gesture-handler";
 import BranchCard from "../BranchCard";
 import { styles } from "./discoverStyles";
-import type { DiscoverBranchOverlayProps } from "../../lib/interfaces";
+import type { DiscoverBranchOverlayProps, BranchCardProps } from "../../lib/interfaces";
 import { useNavigation } from "@react-navigation/native";
 
-export default function DiscoverBranchOverlay({
-  insetsBottom,
-  categoriesOpen,
-  setCategoriesOpen,
-  filterOptions,
-  filterIcons,
-  appliedFilter,
-  setAppliedFilter,
-  setFilter,
-  branches,
-  branchCardWidth,
-  t,
+function DiscoverBranchOverlay({
+  insetsBottom,        // spodný safe area inset (pre notch/home indicator)
+  categoriesOpen,      // či je otvorený prepínač kategórií
+  setCategoriesOpen,   // funkcia na otvorenie/zatvorenie prepínača
+  filterOptions,       // možnosti filtrov (Fitness, Gastro, atď.)
+  filterIcons,         // ikonky pre jednotlivé kategórie
+  appliedFilter,       // aktuálne aplikovaný filter
+  setAppliedFilter,    // funkcia na zmenu filtra
+  setFilter,           // funkcia na nastavenie filtra v sheete
+  branches,            // zoznam pobočiek na zobrazenie
+  branchCardWidth,     // šírka karty (responzívna)
+  t,                   // prekladová funkcia
 }: DiscoverBranchOverlayProps) {
+  
   const { width: screenWidth } = useWindowDimensions();
-  const pageWidth = screenWidth;
-  const snapOffsets = branches.map((_, index) => index * pageWidth);
+  const pageWidth = screenWidth;  // každá "stránka" má šírku obrazovky
   const navigation = useNavigation<any>();
+
+  // === MEMOIZOVANÉ ŠTÝLY ===
+  // Tieto štýly závisia od props, takže ich memoizujeme
+
+  // Kontajner s dynamickým bottom (pre safe area)
+  const containerStyle = useMemo(
+    () => [styles.branchOverlay, { bottom: insetsBottom }],
+    [insetsBottom]
+  );
+
+  // Kontajner pre kartu s dynamickou šírkou
+  const cardContainerStyle = useMemo(
+    () => ({ width: branchCardWidth }),
+    [branchCardWidth]
+  );
+
+  // Štýl pre "stránku" v carousel
+  const pageStyle = useMemo(
+    () => [overlayStyles.page, { width: pageWidth }],
+    [pageWidth]
+  );
+
+  // Pozície pre snap (pre plynulé scrollovanie po stránkach)
+  const snapOffsets = useMemo(
+    () => branches.map((_, index) => index * pageWidth),
+    [branches.length, pageWidth]
+  );
+
+  // === MEMOIZOVANÉ FUNKCIE PRE FLATLIST ===
+
+  /**
+   * Extraktor kľúča pre FlatList
+   * Stabilná referencia vďaka useCallback
+   */
+  const keyExtractor = useCallback(
+    (item: BranchCardProps) => item.id ?? item.title,
+    []
+  );
+
+  /**
+   * Renderovacia funkcia pre položku
+   * Vytvára kartu pobočky v kontajneri so správnou šírkou
+   */
+  const renderItem = useCallback(
+    ({ item }: { item: BranchCardProps }) => {
+      // Odstránime onPress z dát (nechceme ho posielať do navigácie)
+      const { onPress: _onPress, ...branchData } = item;
+      
+      return (
+        <View style={pageStyle}>
+          <View style={cardContainerStyle}>
+            <BranchCard
+              {...item}
+              onPress={() => {
+                navigation.navigate("BusinessDetailScreen", { branch: branchData });
+              }}
+            />
+          </View>
+        </View>
+      );
+    },
+    [pageStyle, cardContainerStyle, navigation]
+  );
+
+  // === HANDLERY ===
+
+  /**
+   * Handler pre kliknutie na kategóriu
+   * Ak je kategória už vybraná, zruší filter
+   */
+  const handleCategoryPress = useCallback(
+    (option: string) => {
+      setFilter(option);
+      setAppliedFilter((prev) => (prev === option ? null : option));
+    },
+    [setFilter, setAppliedFilter]
+  );
+
+  /**
+   * Handler pre prepnutie viditeľnosti kategórií
+   */
+  const handleToggleCategories = useCallback(() => {
+    setCategoriesOpen((prev) => !prev);
+  }, [setCategoriesOpen]);
+
   return (
-    <View style={[styles.branchOverlay, { bottom: insetsBottom }]} pointerEvents="box-none">
+    <View style={containerStyle} pointerEvents="box-none">
+      {/* Horná časť - prepínač kategórií */}
       <View style={styles.branchOverlayHandle}>
+        {/* Riadok s kategóriami (zobrazuje sa len ak je otvorený) */}
         {categoriesOpen && (
           <ScrollView
             horizontal
@@ -39,12 +140,10 @@ export default function DiscoverBranchOverlay({
                   key={option}
                   style={[styles.categoryIconBtn, active && styles.categoryIconBtnActive]}
                   activeOpacity={0.85}
-                  onPress={() => {
-                    setFilter(option);
-                    setAppliedFilter((prev) => (prev === option ? null : option));
-                  }}
+                  onPress={() => handleCategoryPress(option)}
                 >
                   <Image source={filterIcons[option]} style={styles.categoryIcon} />
+                  {/* Zobrazíme názov len ak je kategória aktívna */}
                   {active && (
                     <Text style={[styles.categoryLabel, styles.categoryLabelActive]}>{t(option)}</Text>
                   )}
@@ -53,9 +152,11 @@ export default function DiscoverBranchOverlay({
             })}
           </ScrollView>
         )}
+        
+        {/* Tlačidlo na otvorenie/zatvorenie kategórií */}
         <TouchableOpacity
           activeOpacity={0.85}
-          onPress={() => setCategoriesOpen((prev) => !prev)}
+          onPress={handleToggleCategories}
           style={[styles.branchOverlayHandleToggle, categoriesOpen && styles.branchOverlayHandleToggleOpen]}
         >
           <Image
@@ -65,42 +166,41 @@ export default function DiscoverBranchOverlay({
         </TouchableOpacity>
       </View>
 
-      <ScrollView
+      {/* Horizontálny carousel s kartami pobočiek */}
+      <FlatList
+        data={branches}
+        keyExtractor={keyExtractor}
+        renderItem={renderItem}
         horizontal
         showsHorizontalScrollIndicator={false}
-        pagingEnabled
-        contentContainerStyle={{}}
-        snapToOffsets={snapOffsets}
+        pagingEnabled                    // scrolluje po celých "stránkach"
+        snapToOffsets={snapOffsets}      // pozície pre snap
         snapToAlignment="start"
-        snapToInterval={pageWidth}
-        decelerationRate="fast"
-        disableIntervalMomentum
-        bounces={false}
-      >
-        {branches.map((b, index) => {
-          
-          const { onPress: _onPress, ...branchData } = b;
-          return (
-            <TouchableOpacity
-              key={b.title}
-              style={{
-                width: pageWidth,
-                paddingVertical: 7,
-                alignItems: "center",
-              }}
-            >
-              <View style={{ width: branchCardWidth }}>
-                <BranchCard
-                  {...b}
-                  onPress={() => {
-                    navigation.navigate("BusinessDetailScreen", { branch: branchData });
-                  }}
-                />
-              </View>
-            </TouchableOpacity>
-          );
+        decelerationRate="fast"          // rýchle zastavenie
+        bounces={false}                  // bez bounce efektu na krajoch
+        // === OPTIMALIZAČNÉ NASTAVENIA ===
+        initialNumToRender={3}           // na začiatku vyrenderuj 3 položky
+        maxToRenderPerBatch={5}          // pri scrolle renderuj max 5 naraz
+        windowSize={3}                   // drž v pamäti 3 "obrazovky"
+        removeClippedSubviews={true}     // odstráň položky mimo obrazovky
+        // getItemLayout umožňuje okamžitý skok na položku (nemusíme merať)
+        getItemLayout={(_, index) => ({
+          length: pageWidth,
+          offset: pageWidth * index,
+          index,
         })}
-      </ScrollView>
+      />
     </View>
   );
 }
+
+// memo() zabraňuje zbytočným renderom
+export default memo(DiscoverBranchOverlay);
+
+// Lokálne štýly pre overlay
+const overlayStyles = StyleSheet.create({
+  page: {
+    paddingVertical: 7,
+    alignItems: "center",
+  },
+});

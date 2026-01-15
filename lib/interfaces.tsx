@@ -36,7 +36,7 @@ export interface Location {
 export type BranchData = {
   id?: string;
   title: string;
-  image: any;
+  image: ImageSourcePropType;
   rating: number;
   distance: string;
   hours: string;
@@ -58,9 +58,8 @@ export interface DiscoverMapMarker {
   title?: string;
   coord: { lng: number; lat: number };
   groupId?: string;
-  icon: any;
+  icon: ImageSourcePropType;
   rating: number;
-
   category: DiscoverCategory | "Multi";
 }
 
@@ -82,12 +81,12 @@ export interface DiscoverMapProps {
     items: DiscoverMapMarker[];
   } | null;
 
-  categoryIcons: Record<string, any>;
+  categoryIcons: Record<string, ImageSourcePropType>;
 
   mapZoom?: number;
   cityCenter?: [number, number];
   isFilterActive?: boolean;
-  iconRegistry?: Record<string, any>;
+  iconRegistry?: Record<string, ImageSourcePropType>;
 }
 
 
@@ -191,7 +190,7 @@ export interface DiscoverFilterSheetProps {
   rating: Set<string>;
   setRating: Dispatch<SetStateAction<Set<string>>>;
   filterOptions: string[];
-  filterIcons: Record<string, any>;
+  filterIcons: Record<string, ImageSourcePropType>;
   subcategories: string[];
   sub: Set<string>;
   toggle: (name: string) => void;
@@ -208,7 +207,7 @@ export interface DiscoverBranchOverlayProps {
   categoriesOpen: boolean;
   setCategoriesOpen: Dispatch<SetStateAction<boolean>>;
   filterOptions: string[];
-  filterIcons: Record<string, any>;
+  filterIcons: Record<string, ImageSourcePropType>;
   appliedFilter: string | null;
   setAppliedFilter: Dispatch<SetStateAction<string | null>>;
   setFilter: Dispatch<SetStateAction<string>>;

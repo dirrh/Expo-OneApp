@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useMemo, useRef } from "react";
-import { Image, useWindowDimensions, View, Text, Platform } from "react-native";
+import { Image, StyleSheet, useWindowDimensions, View, Text, Platform } from "react-native";
 import Mapbox, {
   Camera,
   MapView,
@@ -8,13 +8,12 @@ import Mapbox, {
   ShapeSource,
   SymbolLayer,
 } from "@rnmapbox/maps";
-import type { DiscoverMapProps } from "../../lib/interfaces";
+import type { DiscoverMapProps, DiscoverMapMarker } from "../../lib/interfaces";
 import { styles } from "./discoverStyles";
 import { useNavigation } from "@react-navigation/native";
 
 import {
   DUMMY_BRANCH,
-  CITY_CLUSTER_ZOOM,
   CLUSTER_MAX_ZOOM,
   CLUSTERING_MAX_ZOOM,
   DEFAULT_CAMERA_ZOOM,
@@ -45,10 +44,46 @@ import {
   badgeStarLayerBase,
   badgeTextLayerBase,
 
-  buildCityClusterShape,
   buildMarkersShapeAndImages,
 } from "../../lib/constants/discover";
 import { formatTitleFromId } from "../../lib/data/normalizers";
+
+// Memoized popup item component
+const PopupItem = memo(function PopupItem({
+  item,
+  categoryIcons,
+  isLast,
+}: {
+  item: DiscoverMapMarker;
+  categoryIcons: DiscoverMapProps["categoryIcons"];
+  isLast: boolean;
+}) {
+  return (
+    <View>
+      <View style={popupStyles.itemRow}>
+        <View style={popupStyles.itemLeft}>
+          {item.category !== "Multi" && (
+            <Image
+              source={categoryIcons[item.category]}
+              style={popupStyles.categoryIcon}
+            />
+          )}
+          <Text style={popupStyles.itemTitle}>
+            {item.title ?? formatTitleFromId(item.id)}
+          </Text>
+        </View>
+        <View style={popupStyles.itemRight}>
+          <Image
+            source={require("../../images/star_black.png")}
+            style={popupStyles.starIcon}
+          />
+          <Text style={popupStyles.ratingText}>{item.rating.toFixed(1)}</Text>
+        </View>
+      </View>
+      {!isLast && <View style={popupStyles.divider} />}
+    </View>
+  );
+});
 
 function DiscoverMap({
   cameraRef,
@@ -73,10 +108,8 @@ function DiscoverMap({
   const starOffsetY = STAR_BASE_OFFSET_Y * badgeScale;
   const textOffsetX = TEXT_BASE_OFFSET_X * badgeScale;
   const textOffsetY = TEXT_BASE_OFFSET_Y * badgeScale;
-  const clusterCenter = cityCenter ?? DEFAULT_CITY_CENTER;
-  const isCityCluster =
-    typeof mapZoom === "number" && mapZoom <= CITY_CLUSTER_ZOOM && filteredMarkers.length > 0;
   const clusterIconName = isFilterActive ? CLUSTER_FILTER_NAME : CLUSTER_DEFAULT_NAME;
+
   const clusterLayerStyle = useMemo(
     () => ({ ...clusterLayerBase, iconImage: clusterIconName }),
     [clusterIconName]
@@ -107,24 +140,10 @@ function DiscoverMap({
     [iconRegistry]
   );
 
-  const { shape, images, clusterEnabled } = useMemo(() => {
-    if (isCityCluster) {
-      const shape = buildCityClusterShape(clusterCenter, filteredMarkers.length);
-      return {
-        clusterEnabled: false,
-        images: mergedImages,
-        shape,
-      };
-    }
-
-    const { images, shape } = buildMarkersShapeAndImages(filteredMarkers, mergedImages);
-    return {
-      clusterEnabled: true,
-      images,
-      shape,
-    };
-  }, [clusterCenter, filteredMarkers, isCityCluster, mergedImages]);
-
+  // Vždy používame natívne Mapbox clustering - jednoduchšie a spoľahlivejšie
+  const { shape, images } = useMemo(() => {
+    return buildMarkersShapeAndImages(filteredMarkers, mergedImages);
+  }, [filteredMarkers, mergedImages]);
 
   const handleUserLocationUpdate = useCallback(
     (location: { coords: { longitude: number; latitude: number } }) => {
@@ -148,6 +167,34 @@ function DiscoverMap({
     [onCameraChanged]
   );
 
+  const handleMapPress = useCallback(() => {
+    if (selectedGroup) {
+      onMarkerPress?.("");
+    }
+  }, [selectedGroup, onMarkerPress]);
+
+  const handleShapePress = useCallback(
+    (e: any) => {
+      const feature = e.features?.[0];
+      if (!feature) {
+        if (selectedGroup) {
+          onMarkerPress?.("");
+        }
+        return;
+      }
+      const id = String(feature.id);
+      onMarkerPress?.(id);
+    },
+    [selectedGroup, onMarkerPress]
+  );
+
+  const handleAnnotationSelected = useCallback(() => {
+    onMarkerPress?.("");
+    navigation.navigate("BusinessDetailScreen", {
+      branch: DUMMY_BRANCH,
+    });
+  }, [onMarkerPress, navigation]);
+
   return (
     <MapView
       ref={mapViewRef}
@@ -155,11 +202,7 @@ function DiscoverMap({
       styleURL={Mapbox.StyleURL.Street}
       scaleBarEnabled={false}
       onCameraChanged={handleCameraChanged}
-      onPress={() => {
-        if (selectedGroup) {
-          onMarkerPress?.("");
-        }
-      }}
+      onPress={handleMapPress}
     >
       <Mapbox.Images images={images} />
       <Camera
@@ -180,24 +223,11 @@ function DiscoverMap({
       <ShapeSource
         id="discover-markers"
         shape={shape}
-        cluster={clusterEnabled}
-        clusterRadius={120}
+        cluster={true}
+        clusterRadius={80}
         clusterMaxZoomLevel={CLUSTERING_MAX_ZOOM}
-        onPress={(e) => {
-          const feature = e.features?.[0];
-          if (!feature) {
-            // Clicked outside any marker, close the list if open
-            if (selectedGroup) {
-              onMarkerPress?.("");
-            }
-            return;
-          }
-
-          const id = String(feature.id);
-          onMarkerPress?.(id);
-        }}
+        onPress={handleShapePress}
       >
-
         <SymbolLayer
           id="discover-clusters"
           filter={CLUSTER_FILTER}
@@ -235,85 +265,23 @@ function DiscoverMap({
           minZoomLevel={CLUSTER_MAX_ZOOM}
         />
       </ShapeSource>
+
       {selectedGroup && selectedGroup.items.length > 1 && (
         <Mapbox.PointAnnotation
           id="multi-pin-marker"
-          coordinate={[
-            selectedGroup.coord.lng,
-            selectedGroup.coord.lat,
-          ]}
+          coordinate={[selectedGroup.coord.lng, selectedGroup.coord.lat]}
           anchor={{ x: 0.5, y: 0 }}
-          onSelected={() => {
-            onMarkerPress?.("");
-            navigation.navigate("BusinessDetailScreen", {
-              branch: DUMMY_BRANCH,
-            });
-          }}
+          onSelected={handleAnnotationSelected}
           draggable={false}
         >
-          <View
-            style={{
-              backgroundColor: "white",
-              borderRadius: 10,
-              paddingHorizontal: 10,
-              paddingVertical: 8,
-              minWidth: 200,
-              maxWidth: 300,
-              ...(Platform.OS === "web"
-                ? {
-                    boxShadow: "0 2px 6px rgba(0, 0, 0, 0.15)",
-                  }
-                : {
-                    shadowColor: "#000",
-                    shadowOpacity: 0.15,
-                    shadowRadius: 6,
-                    elevation: 6,
-                  }),
-              marginTop: 40, // 40px pod pinom
-            }}
-            pointerEvents="none"
-          >
+          <View style={popupStyles.container} pointerEvents="none">
             {selectedGroup.items.map((item, index) => (
-              <View key={item.id}>
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    paddingVertical: 6,
-                  }}
-                >
-                  <View style={{ flexDirection: "row", alignItems: "center" }}>
-                    {item.category !== "Multi" && (
-                      <Image
-                        source={categoryIcons[item.category]}
-                        style={{ width: 16, height: 16, marginRight: 6 }}
-                      />
-                    )}
-                    <Text style={{ fontSize: 14, fontWeight: "600" }}>
-                      {item.title ?? formatTitleFromId(item.id)}
-                    </Text>
-                  </View>
-                  <View style={{ flexDirection: "row", alignItems: "center" }}>
-                    <Image
-                      source={require("../../images/star_black.png")}
-                      style={{ width: 12, height: 12, marginRight: 4 }}
-                    />
-                    <Text style={{ fontSize: 12 }}>
-                      {item.rating.toFixed(1)}
-                    </Text>
-                  </View>
-                </View>
-                {index < selectedGroup.items.length - 1 && (
-                  <View
-                    style={{
-                      height: 1,
-                      backgroundColor: "#E6E6E6",
-                      marginVertical: 4,
-                    }}
-                  />
-                )}
-              </View>
+              <PopupItem
+                key={item.id}
+                item={item}
+                categoryIcons={categoryIcons}
+                isLast={index === selectedGroup.items.length - 1}
+              />
             ))}
           </View>
         </Mapbox.PointAnnotation>
@@ -323,3 +291,63 @@ function DiscoverMap({
 }
 
 export default memo(DiscoverMap);
+
+// Popup styles extracted to StyleSheet
+const popupStyles = StyleSheet.create({
+  container: {
+    backgroundColor: "white",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    minWidth: 200,
+    maxWidth: 300,
+    marginTop: 40,
+    ...Platform.select({
+      web: {
+        boxShadow: "0 2px 6px rgba(0, 0, 0, 0.15)",
+      },
+      default: {
+        shadowColor: "#000",
+        shadowOpacity: 0.15,
+        shadowRadius: 6,
+        elevation: 6,
+      },
+    }),
+  },
+  itemRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 6,
+  },
+  itemLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  itemRight: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  categoryIcon: {
+    width: 16,
+    height: 16,
+    marginRight: 6,
+  },
+  itemTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  starIcon: {
+    width: 12,
+    height: 12,
+    marginRight: 4,
+  },
+  ratingText: {
+    fontSize: 12,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: "#E6E6E6",
+    marginVertical: 4,
+  },
+});
