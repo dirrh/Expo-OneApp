@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Image, Text, TextInput, View } from "react-native";
+import { Image, Text, TextInput, View, Platform } from "react-native";
 import { TouchableOpacity } from "react-native-gesture-handler";
 import { Ionicons } from "@expo/vector-icons";
 import BottomSheet, { BottomSheetBackdrop, BottomSheetScrollView } from "@gorhom/bottom-sheet";
@@ -216,6 +216,32 @@ function LocationMapStep({
   setSelectedCoord,
   mapCameraRef,
 }: LocationMapStepProps) {
+  // Web fallback - Mapbox doesn't work on web
+  if (Platform.OS === 'web') {
+    return (
+      <>
+        <View style={styles.locationMapStep}>
+          <View style={styles.locationHeaderRow}>
+            <TouchableOpacity style={styles.locationBackButton} onPress={onBack} activeOpacity={0.85}>
+              <Ionicons name="chevron-back" size={20} color="#111" />
+            </TouchableOpacity>
+            <Text style={styles.locationHeaderTitle}>Choose your location</Text>
+          </View>
+          <View style={[styles.locationMapWrapper, { justifyContent: 'center', alignItems: 'center', minHeight: 300 }]}>
+            <Text style={{ textAlign: 'center', color: '#666' }}>
+              Map view is not available on web. Please use the mobile app.
+            </Text>
+          </View>
+        </View>
+        <View style={styles.locationMapActions}>
+          <TouchableOpacity style={styles.locationPrimaryButton} activeOpacity={0.9} onPress={onSave}>
+            <Text style={styles.locationPrimaryButtonText}>Save Location</Text>
+          </TouchableOpacity>
+        </View>
+      </>
+    );
+  }
+
   return (
     <>
       <View style={styles.locationMapStep}>

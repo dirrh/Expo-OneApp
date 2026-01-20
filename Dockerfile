@@ -11,13 +11,14 @@ RUN npm install -g @expo/ngrok@^4.1.0
 
 COPY . .
 
-EXPOSE 19000 19001 19002
+EXPOSE 19000 19001 19002 19006 8081
 
 ENV NODE_ENV=development
 ENV EXPO_NO_DOTENV=0
 
+# Start Expo with tunnel mode and web support
 # Tunnel mode (requires EXPO_TOKEN in CapRover env vars)
-# Expo recently changed tunnel mode to require authentication
+# Web server will be available on port 19006
 # Get token from: https://expo.dev/accounts/[username]/settings/access-tokens
-CMD ["npx", "expo", "start", "--host", "tunnel", "--clear"]
+CMD ["npx", "expo", "start", "--host", "tunnel", "--web", "--clear"]
 

@@ -195,6 +195,17 @@ function DiscoverMap({
     });
   }, [onMarkerPress, navigation]);
 
+  // Web fallback - Mapbox doesn't work on web
+  if (Platform.OS === 'web') {
+    return (
+      <View style={styles.map}>
+        <Text style={{ textAlign: 'center', marginTop: 50, color: '#666' }}>
+          Map view is not available on web. Please use the mobile app.
+        </Text>
+      </View>
+    );
+  }
+
   return (
     <MapView
       ref={mapViewRef}
