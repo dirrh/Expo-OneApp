@@ -2,6 +2,7 @@ import { View, Text, StyleSheet, Image, useWindowDimensions } from 'react-native
 import QRCode from 'react-native-qrcode-svg';
 import { useAuth } from '../lib/AuthContext';
 import { extractNameFromEmail } from '../lib/utils/userUtils';
+import { useDynamicQRCode } from '../lib/hooks/useDynamicQRCode';
 
 export default function HomeScreen() {
   const { width: screenWidth } = useWindowDimensions();
@@ -12,6 +13,7 @@ export default function HomeScreen() {
     180,
     Math.floor(Math.min(qrMaxSize, screenWidth - 32 - qrPadding * 2))
   );
+  const { token } = useDynamicQRCode({ userId: user?.id });
 
   // Extrahujeme meno a priezvisko z emailu
   const userName = extractNameFromEmail(user?.email);
@@ -31,7 +33,7 @@ export default function HomeScreen() {
       
         <View style={[styles.container_qr, { padding: qrPadding }]}>
         <QRCode
-          value="Skuska"
+          value={token}
           size={qrSize}
           backgroundColor="white"
           color="black"

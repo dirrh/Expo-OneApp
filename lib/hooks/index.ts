@@ -18,3 +18,6 @@ export type { UseDiscoverCameraReturn } from "./useDiscoverCamera";
 // Hook pre načítanie dát (pobočky, markery)
 export { useDiscoverData, useSavedLocationMarkers } from "./useDiscoverData";
 export type { UseDiscoverDataReturn } from "./useDiscoverData";
+
+// Hook pre dynamicky QR kod (dummy JWT)
+export { useDynamicQRCode } from "./useDynamicQRCode";
