@@ -20,7 +20,7 @@ import BranchCard from "../../components/BranchCard";
 export default function ProfileScreen() {
   type SubscriptionType = "starter" | "medium" | "gold" | "none";
 
-  const subscription: SubscriptionType = "gold";
+  const subscription: SubscriptionType = "gold" as SubscriptionType;
   const navigation = useNavigation<any>();
   const { t } = useTranslation();
   const { signOut, user } = useAuth();
