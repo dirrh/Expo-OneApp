@@ -107,5 +107,18 @@
   "updateFailed": "Aktualizace profilu selhala",
   "cancel": "Zrušit",
   "logoutConfirm": "Opravdu se chcete odhlásit?",
-  "logoutError": "Odhlášení selhalo"
+  "logoutError": "Odhlášení selhalo",
+  "onboardingStep": "Krok",
+  "onboardingTitle": "Jaké služby využíváte?",
+  "onboardingSubtitle": "Vyberte kategorie, které vás zajímají. Ukážeme vám relevantní místa a výhody.",
+  "onboardingBranchesTitle": "Objevte místa ve vašem okolí",
+  "onboardingBranchesSubtitle": "Našli jsme {{count}} místa v kategorii {{categories}}",
+  "onboardingNoBranches": "Ve vybraných kategoriích se nenašla žádná místa",
+  "onboardingMoreBranches": "a dalších {{count}} míst",
+  "onboardingSubscriptionTitle": "Vyberte si předplatné",
+  "onboardingSubscriptionSubtitle": "Získejte přístup k exkluzivním výhodám a slevám ve všech partnerských pobočkách.",
+  "onboardingSubscriptionNote": "Tento krok můžete přeskočit a předplatné si aktivovat později z vašeho profilu.",
+  "back": "Zpět",
+  "skip": "Přeskočit",
+  "finish": "Dokončit"
 }

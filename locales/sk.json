@@ -108,5 +108,18 @@
   "updateFailed": "Aktualizácia profilu zlyhala",
   "cancel": "Zrušiť",
   "logoutConfirm": "Naozaj sa chcete odhlásiť?",
-  "logoutError": "Odhlásenie zlyhalo"
+  "logoutError": "Odhlásenie zlyhalo",
+  "onboardingStep": "Krok",
+  "onboardingTitle": "Aké služby využívate?",
+  "onboardingSubtitle": "Vyberte kategórie, ktoré vás zaujímajú. Ukážeme vám relevantné miesta a výhody.",
+  "onboardingBranchesTitle": "Objavte miesta vo vašom okolí",
+  "onboardingBranchesSubtitle": "Našli sme {{count}} miesta v kategórii {{categories}}",
+  "onboardingNoBranches": "V vybraných kategóriách sa nenašli žiadne miesta",
+  "onboardingMoreBranches": "a ďalších {{count}} miest",
+  "onboardingSubscriptionTitle": "Vyberte si predplatné",
+  "onboardingSubscriptionSubtitle": "Získajte prístup k exkluzívnym výhodám a zľavám vo všetkých partnerských prevádzkach.",
+  "onboardingSubscriptionNote": "Tento krok môžete preskočiť a predplatné si aktivovať neskôr z vášho profilu.",
+  "back": "Späť",
+  "skip": "Preskočiť",
+  "finish": "Dokončiť"
 }

@@ -13,6 +13,7 @@ import LanguageScreen from "./screens/profile/LanguageScreen";
 import SignupScreen from "./screens/LoginRegister/SignupScreen";
 import ForgottenPasswordScreen from "./screens/LoginRegister/ForgotPasswordScreen";
 import LoginScreen from "./screens/LoginRegister/LoginScreen";
+import OnboardingScreen from "./screens/OnboardingScreen";
 
 import SavedLocationsScreen from "./screens/profile/SavedLocationsScreen";
 import EditLocationScreen from "./screens/profile/EditLocationScreen";
@@ -114,6 +115,10 @@ export default function App() {
               <Stack.Screen
                 name="Login"
                 component={LoginScreen}
+              />
+              <Stack.Screen
+                name="Onboarding"
+                component={OnboardingScreen}
               />
               <Stack.Screen
                 name="SavedLocations"

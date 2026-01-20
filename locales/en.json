@@ -108,5 +108,18 @@
   "updateFailed": "Failed to update profile",
   "cancel": "Cancel",
   "logoutConfirm": "Are you sure you want to logout?",
-  "logoutError": "Failed to logout"
+  "logoutError": "Failed to logout",
+  "onboardingStep": "Step",
+  "onboardingTitle": "What services do you use?",
+  "onboardingSubtitle": "Select the categories you're interested in. We'll show you relevant places and benefits.",
+  "onboardingBranchesTitle": "Discover places near you",
+  "onboardingBranchesSubtitle": "We found {{count}} places in {{categories}}",
+  "onboardingNoBranches": "No places found in selected categories",
+  "onboardingMoreBranches": "and {{count}} more places",
+  "onboardingSubscriptionTitle": "Choose your subscription",
+  "onboardingSubscriptionSubtitle": "Get access to exclusive benefits and discounts at all partner locations.",
+  "onboardingSubscriptionNote": "You can skip this step and subscribe later from your profile.",
+  "back": "Back",
+  "skip": "Skip",
+  "finish": "Finish"
 }

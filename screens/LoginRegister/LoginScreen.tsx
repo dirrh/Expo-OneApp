@@ -3,6 +3,7 @@ import { useNavigation } from "@react-navigation/native";
 import React, { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, Alert, ActivityIndicator } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "../../lib/supabaseClient";
 import { useAuth } from "../../lib/AuthContext";
 
@@ -18,10 +19,17 @@ export default function LoginScreen() {
 
     // Presmerovanie ak je používateľ už prihlásený
     useEffect(() => {
-        if (user) {
-            navigation.replace('Tabs');
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        const checkOnboarding = async () => {
+            if (user) {
+                const onboardingCompleted = await AsyncStorage.getItem("onboarding_completed");
+                if (onboardingCompleted === "true") {
+                    navigation.replace('Tabs')
+                } else {
+                    navigation.replace('Onboarding');
+                }
+            }
+        };
+        checkOnboarding();
     }, [user]);
 
     const handleLogin = async () => {
@@ -45,8 +53,19 @@ export default function LoginScreen() {
             }
 
             if (data.user) {
-                // Presmerovanie sa deje automaticky cez AuthContext
-                // AuthContext sa aktualizuje automaticky, takže useEffect to spracuje
+                // Kontrola onboarding statusu a presmerovanie
+                const onboardingCompleted = await AsyncStorage.getItem("onboarding_completed");
+                if (onboardingCompleted === "false") { // VYMENIT NA "true" PRE ZOBRAZENIE PRI PRVOM LOGINE
+                    navigation.reset({
+                        index: 0,
+                        routes: [{ name: "Tabs" }],
+                    });
+                } else {
+                    navigation.reset({
+                        index: 0,
+                        routes: [{ name: "Onboarding" }],
+                    });
+                }
             }
         } catch (error: any) {
             console.error("Login catch error:", error);

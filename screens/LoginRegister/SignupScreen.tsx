@@ -48,16 +48,28 @@ export default function SignupScreen() {
             }
 
             if (data.user) {
-                Alert.alert(
-                    t("success") || "Success",
-                    t("signupSuccess") || "Account created successfully! Please check your email to verify your account.",
-                    [
-                        {
-                            text: "OK",
-                            onPress: () => navigation.navigate("Login"),
-                        },
-                    ]
-                );
+                // Po úspešnej registrácii navigovať na onboarding
+                // Ak používateľ potrebuje overiť email, najprv sa zobrazí alert
+                const needsEmailVerification = !data.session;
+                
+                if (needsEmailVerification) {
+                    Alert.alert(
+                        t("success") || "Success",
+                        t("signupSuccess") || "Account created successfully! Please check your email to verify your account.",
+                        [
+                            {
+                                text: "OK",
+                                onPress: () => navigation.navigate("Login"),
+                            },
+                        ]
+                    );
+                } else {
+                    // Ak je automaticky prihlásený (napr. OAuth), ísť na onboarding
+                    navigation.reset({
+                        index: 0,
+                        routes: [{ name: "Onboarding" }],
+                    });
+                }
             }
         } catch (error: any) {
             console.error("Signup catch error:", error);
