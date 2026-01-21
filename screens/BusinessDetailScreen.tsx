@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import { View, ScrollView, StyleSheet, useWindowDimensions, TouchableOpacity, Image } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
@@ -35,16 +35,47 @@ export default function BusinessDetailScreen() {
     const sheetRef = useRef<BottomSheet>(null);
     const snapPoints = useMemo(() => ["15%", "35%"], []);
 
-    const heroHeight = Math.min(360, Math.max(240, Math.round(width * 0.7)));
+    // Memoizované hodnoty - prepočítajú sa len keď sa zmení width
+    const heroHeight = useMemo(
+        () => Math.min(360, Math.max(240, Math.round(width * 0.7))),
+        [width]
+    );
     const sidePadding = 15;
-    const menuTop = heroHeight + 10;
-    const sectionTop = menuTop + 70;
+    const menuTop = useMemo(() => heroHeight + 10, [heroHeight]);
+    const sectionTop = useMemo(() => menuTop + 70, [menuTop]);
 
-    const menu = ["News", "Benefits", "Info", "Reviews"];
+    const menu = useMemo(() => ["News", "Benefits", "Info", "Reviews"], []);
 
-    const menuItemWidth = Math.min(
-        88,
-        Math.floor((width - sidePadding * 2 - menu.length * 5) / menu.length)
+    const menuItemWidth = useMemo(
+        () => Math.min(88, Math.floor((width - sidePadding * 2 - menu.length * 5) / menu.length)),
+        [width, menu.length]
+    );
+
+    // Memoizované štýly - nevytvárajú sa nanovo pri každom rendereri
+    const heroContainerStyle = useMemo(
+        () => ({ height: heroHeight }),
+        [heroHeight]
+    );
+
+    const menuWrapperStyle = useMemo(
+        () => [styles.menuWrapper, { top: menuTop, left: sidePadding, right: sidePadding }],
+        [menuTop]
+    );
+
+    const scrollViewStyle = useMemo(
+        () => ({
+            position: "absolute" as const,
+            top: sectionTop,
+            left: sidePadding,
+            right: sidePadding,
+            bottom: 0,
+        }),
+        [sectionTop]
+    );
+
+    const qrButtonStyle = useMemo(
+        () => [styles.qrButton, { bottom: insets.bottom + 20 }],
+        [insets.bottom]
     );
 
     const safeBranch = branch ?? {
@@ -64,7 +95,7 @@ export default function BusinessDetailScreen() {
         { id: "1", image: safeBranch.image },
     ];
 
-    const reviews = [
+    const reviews = useMemo(() => [
         {
             id: "1",
             name: "Martin Kováč",
@@ -81,12 +112,52 @@ export default function BusinessDetailScreen() {
                 "Great gym overall. Equipment is top-notch and staff is friendly. Only downside is it can get crowded during peak hours.",
             daysAgo: 5,
         },
-    ];
+    ], []);
+
+    // Memoizované handlery - nevytvárajú sa nanovo pri každom rendereri
+    const handleBack = useCallback(() => navigation.goBack(), [navigation]);
+    
+    const handleTabChange = useCallback(
+        (val: string) => setActiveTab(val as any),
+        []
+    );
+
+    const handleActivateBenefit = useCallback(() => {
+        if (user) {
+            navigation.navigate("Tabs", { screen: t("Benefits") });
+        } else {
+            sheetRef.current?.expand();
+        }
+    }, [user, navigation, t]);
+
+    const handleQrPress = useCallback(() => {
+        if (user) {
+            navigation.navigate("Tabs", { screen: t("Benefits") });
+        } else {
+            navigation.navigate("Login");
+        }
+    }, [user, navigation, t]);
+
+    const handleLogin = useCallback(
+        () => navigation.navigate("Login"),
+        [navigation]
+    );
+
+    // Memoizované dáta pre InfoSection
+    const hoursData = useMemo(() => [
+        { day: "Monday", time: safeBranch.hours },
+        { day: "Tuesday", time: safeBranch.hours },
+        { day: "Wednesday", time: safeBranch.hours, isToday: true },
+        { day: "Thursday", time: safeBranch.hours },
+        { day: "Friday", time: safeBranch.hours },
+        { day: "Saturday", time: "7:00 - 20:00" },
+        { day: "Sunday", time: "7:00 - 20:00" },
+    ], [safeBranch.hours]);
 
     return (
         <SafeAreaView style={styles.container} edges={["left", "right", "bottom"]}>
             {/* HERO */}
-            <View style={{ height: heroHeight }}>
+            <View style={heroContainerStyle}>
                 <HeroCarousel
                     data={images}
                     height={heroHeight}
@@ -97,7 +168,7 @@ export default function BusinessDetailScreen() {
 
                 <HeroActions
                     topInset={insets.top}
-                    onBack={() => navigation.goBack()}
+                    onBack={handleBack}
                 />
 
                 <HeroInfo
@@ -111,30 +182,19 @@ export default function BusinessDetailScreen() {
             </View>
 
             {/* TAB MENU */}
-            <View
-                style={[
-                    styles.menuWrapper,
-                    { top: menuTop, left: sidePadding, right: sidePadding },
-                ]}
-            >
+            <View style={menuWrapperStyle}>
                 <TabMenu
                     items={menu}
                     active={activeTab}
-                    onChange={(val) => setActiveTab(val as any)}
+                    onChange={handleTabChange}
                     width={menuItemWidth}
                 />
             </View>
 
             {/* CONTENT */}
             <ScrollView
-                style={{
-                    position: "absolute",
-                    top: sectionTop,
-                    left: sidePadding,
-                    right: sidePadding,
-                    bottom: 0,
-                }}
-                contentContainerStyle={{ paddingBottom: 140 }}
+                style={scrollViewStyle}
+                contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
             >
                 {activeTab === "News" && (
@@ -142,28 +202,12 @@ export default function BusinessDetailScreen() {
                 )}
 
                 {activeTab === "Benefits" && (
-                    <BenefitsSection onActivate={() => {
-                        if (user) {
-                            // Prihlásený → rovno na Benefits
-                            navigation.navigate("Tabs", { screen: t("Benefits") });
-                        } else {
-                            // Neprihlásený → sign-in prompt
-                            sheetRef.current?.expand();
-                        }
-                    }} />
+                    <BenefitsSection onActivate={handleActivateBenefit} />
                 )}
 
                 {activeTab === "Info" && (
                     <InfoSection
-                        hours={[
-                            { day: "Monday", time: safeBranch.hours },
-                            { day: "Tuesday", time: safeBranch.hours },
-                            { day: "Wednesday", time: safeBranch.hours, isToday: true },
-                            { day: "Thursday", time: safeBranch.hours },
-                            { day: "Friday", time: safeBranch.hours },
-                            { day: "Saturday", time: "7:00 - 20:00" },
-                            { day: "Sunday", time: "7:00 - 20:00" },
-                        ]}
+                        hours={hoursData}
                         address={safeBranch.address ?? ""}
                         phone={safeBranch.phone ?? ""}
                         email={safeBranch.email ?? ""}
@@ -186,20 +230,14 @@ export default function BusinessDetailScreen() {
                 <BenefitsBottomSheet
                     sheetRef={sheetRef}
                     snapPoints={snapPoints}
-                    onLogin={() => navigation.navigate("Login")}
+                    onLogin={handleLogin}
                 />
             )}
 
             {/* Floating QR tlačidlo */}
             <TouchableOpacity
-                style={[styles.qrButton, { bottom: insets.bottom + 20 }]}
-                onPress={() => {
-                    if (user) {
-                        navigation.navigate("Tabs", { screen: t("Benefits") });
-                    } else {
-                        navigation.navigate("Login");
-                    }
-                }}
+                style={qrButtonStyle}
+                onPress={handleQrPress}
                 activeOpacity={0.85}
             >
                 <Image source={require("../images/qr.png")} style={styles.qrIcon} />
@@ -215,6 +253,9 @@ const styles = StyleSheet.create({
     },
     menuWrapper: {
         position: "absolute",
+    },
+    scrollContent: {
+        paddingBottom: 140,
     },
     qrButton: {
         position: "absolute",

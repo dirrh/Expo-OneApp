@@ -1,11 +1,12 @@
-import React from "react";
+import React, { memo } from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 
 type Props = {
   onActivate: () => void;
 };
 
-export function BenefitsSection({ onActivate }: Props) {
+// memo() zabraňuje zbytočným renderom ak sa props nezmenia
+export const BenefitsSection = memo(function BenefitsSection({ onActivate }: Props) {
   return (
     <View>
       {/* BENEFIT 1 - Activated */}
@@ -33,7 +34,7 @@ export function BenefitsSection({ onActivate }: Props) {
       </View>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   card: {

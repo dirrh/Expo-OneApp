@@ -1,4 +1,4 @@
-import React from "react";
+import React, { memo } from "react";
 import { View, Text, Image, StyleSheet } from "react-native";
 
 type Props = {
@@ -10,7 +10,8 @@ type Props = {
   category?: string;
 };
 
-export function HeroInfo({ title, rating, ratingCount, distance, hours, category }: Props) {
+// memo() zabraňuje zbytočným renderom ak sa props nezmenia
+export const HeroInfo = memo(function HeroInfo({ title, rating, ratingCount, distance, hours, category }: Props) {
   const badgeLabel = category || "Fitness";
   return (
     <View style={styles.container}>
@@ -52,7 +53,7 @@ export function HeroInfo({ title, rating, ratingCount, distance, hours, category
       </View>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {

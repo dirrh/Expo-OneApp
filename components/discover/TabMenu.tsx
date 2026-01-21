@@ -1,4 +1,4 @@
-import React from "react";
+import React, { memo } from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { TouchableOpacity } from "react-native-gesture-handler";
 
@@ -9,7 +9,8 @@ type Props = {
   width: number;
 };
 
-export function TabMenu({ items, active, onChange, width }: Props) {
+// memo() zabraňuje zbytočným renderom ak sa props nezmenia
+export const TabMenu = memo(function TabMenu({ items, active, onChange, width }: Props) {
   return (
     <View style={styles.container}>
       {items.map((x) => {
@@ -32,7 +33,7 @@ export function TabMenu({ items, active, onChange, width }: Props) {
       })}
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {

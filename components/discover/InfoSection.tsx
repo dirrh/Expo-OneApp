@@ -1,5 +1,5 @@
-import React from "react";
-import { View, Text, StyleSheet, Linking, Platform } from "react-native";
+import React, { memo, useCallback, useMemo, useState, useEffect } from "react";
+import { View, Text, StyleSheet, Linking, Platform, InteractionManager, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { TouchableOpacity } from "react-native-gesture-handler";
 import Mapbox, { Camera, MapView, PointAnnotation } from "@rnmapbox/maps";
@@ -17,6 +17,7 @@ type Props = {
     coordinates?: [number, number]; // [lng, lat]
 };
 
+// Helper funkcia mimo komponentu - nepotrebuje byť v rendereri
 function isToday(day: string) {
     const todayIndex = new Date().getDay();
     const days = [
@@ -32,7 +33,8 @@ function isToday(day: string) {
     return days[todayIndex] === day;
 }
 
-export function InfoSection({
+// memo() zabraňuje zbytočným renderom ak sa props nezmenia
+export const InfoSection = memo(function InfoSection({
     hours,
     address,
     phone,
@@ -40,17 +42,33 @@ export function InfoSection({
     website,
     coordinates,
 }: Props) {
-    // Default koordináty (Nitra) ak nie sú poskytnuté
-    const mapCoords = coordinates || [18.0936, 48.3061];
+    // Odložené renderovanie mapy - počká kým skončia animácie/interakcie
+    const [mapReady, setMapReady] = useState(false);
 
-    const handleNavigate = () => {
+    useEffect(() => {
+        // InteractionManager počká kým skončia všetky animácie
+        const handle = InteractionManager.runAfterInteractions(() => {
+            setMapReady(true);
+        });
+
+        return () => handle.cancel();
+    }, []);
+
+    // useMemo() - hodnota sa prepočíta len keď sa zmení coordinates
+    const mapCoords = useMemo(
+        () => coordinates || [18.0936, 48.3061],
+        [coordinates]
+    );
+
+    // useCallback() - funkcia sa nevytvára nanovo pri každom rendereri
+    const handleNavigate = useCallback(() => {
         if (!address) return;
 
         const encodedAddress = encodeURIComponent(address);
         const url = `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
 
         Linking.openURL(url);
-    };
+    }, [address]);
 
     return (
         <View style={styles.container}>
@@ -115,9 +133,14 @@ export function InfoSection({
                 </TouchableOpacity>
             </View>
 
-            {/* MAP */}
+            {/* MAP - odložené renderovanie pre plynulejšie prechody */}
             <View style={styles.mapContainer}>
-                {Platform.OS !== "web" ? (
+                {!mapReady ? (
+                    // Placeholder kým sa mapa načítava
+                    <View style={[styles.map, styles.mapLoading]}>
+                        <ActivityIndicator size="small" color="#EB8100" />
+                    </View>
+                ) : Platform.OS !== "web" ? (
                     <MapView
                         style={styles.map}
                         styleURL={Mapbox.StyleURL.Street}
@@ -157,7 +180,7 @@ export function InfoSection({
             </View>
         </View>
     );
-}
+});
 
 const styles = StyleSheet.create({
     container: {
@@ -255,6 +278,12 @@ const styles = StyleSheet.create({
 
     mapPlaceholder: {
         backgroundColor: "#E5E7EB",
+        justifyContent: "center",
+        alignItems: "center",
+    },
+
+    mapLoading: {
+        backgroundColor: "#F5F5F5",
         justifyContent: "center",
         alignItems: "center",
     },
