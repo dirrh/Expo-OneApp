@@ -124,48 +124,6 @@ function DiscoverBranchOverlay({
 
   return (
     <View style={containerStyle} pointerEvents="box-none">
-      {/* Horná časť - prepínač kategórií */}
-      <View style={styles.branchOverlayHandle}>
-        {/* Riadok s kategóriami (zobrazuje sa len ak je otvorený) */}
-        {categoriesOpen && (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.categoryRow}
-          >
-            {filterOptions.map((option) => {
-              const active = appliedFilter === option;
-              return (
-                <TouchableOpacity
-                  key={option}
-                  style={[styles.categoryIconBtn, active && styles.categoryIconBtnActive]}
-                  activeOpacity={0.85}
-                  onPress={() => handleCategoryPress(option)}
-                >
-                  <Image source={filterIcons[option]} style={styles.categoryIcon} />
-                  {/* Zobrazíme názov len ak je kategória aktívna */}
-                  {active && (
-                    <Text style={[styles.categoryLabel, styles.categoryLabelActive]}>{t(option)}</Text>
-                  )}
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        )}
-        
-        {/* Tlačidlo na otvorenie/zatvorenie kategórií */}
-        <TouchableOpacity
-          activeOpacity={0.85}
-          onPress={handleToggleCategories}
-          style={[styles.branchOverlayHandleToggle, categoriesOpen && styles.branchOverlayHandleToggleOpen]}
-        >
-          <Image
-            source={require("../../images/button.png")}
-            style={[styles.branchOverlayHandleIcon, categoriesOpen && styles.branchOverlayHandleIconOpen]}
-          />
-        </TouchableOpacity>
-      </View>
-
       {/* Horizontálny carousel s kartami pobočiek */}
       <FlatList
         data={branches}

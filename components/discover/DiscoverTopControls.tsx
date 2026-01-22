@@ -22,6 +22,7 @@ export default function DiscoverTopControls({
   cameraRef,
   t,
   onLocationSheetChange,
+  hasActiveFilter,
 }: DiscoverTopControlsProps) {
   const locationRef = useRef<BottomSheet>(null);
   const selectedOptionLabel = useMemo(() => {
@@ -96,6 +97,7 @@ export default function DiscoverTopControls({
         </View>
 
         <View style={styles.actionsRow} pointerEvents="auto">
+          {/* Filter button - s indikátorom aktívneho filtra */}
           {o && (
             <TouchableOpacity
               style={styles.roundBtn}
@@ -105,28 +107,50 @@ export default function DiscoverTopControls({
                 filterRef.current?.expand();
               }}
             >
-              <Image source={require("../../images/filter.png")} />
+              <Image source={require("../../images/filter.png")} style={styles.actionBtnIcon} />
+              {hasActiveFilter && (
+                <Image
+                  source={require("../../images/filter_active.png")}
+                  style={styles.filterActiveIndicator}
+                />
+              )}
             </TouchableOpacity>
           )}
 
+          {/* List button - zatial nikam nevedie */}
           {o && (
             <TouchableOpacity
               style={styles.roundBtn}
               activeOpacity={0.85}
               onPress={() => {
-                const target = userCoord ?? [18.091, 48.3069];
-                cameraRef.current?.setCamera({
-                  centerCoordinate: target,
-                  zoomLevel: 14,
-                  animationDuration: 800,
-                });
+                // TODO: list view
               }}
             >
-              <Image source={require("../../images/navigation.png")} />
+              <Image source={require("../../images/list.png")} style={styles.actionBtnIcon} />
             </TouchableOpacity>
           )}
         </View>
       </View>
+
+      {/* Centrovanie button - dole vpravo */}
+      {o && (
+        <View style={[styles.centerBtnContainer, { bottom: 155 }]} pointerEvents="box-none">
+          <TouchableOpacity
+            style={styles.roundBtn}
+            activeOpacity={0.85}
+            onPress={() => {
+              const target = userCoord ?? [18.091, 48.3069];
+              cameraRef.current?.setCamera({
+                centerCoordinate: target,
+                zoomLevel: 14,
+                animationDuration: 800,
+              });
+            }}
+          >
+            <Image source={require("../../images/navigation.png")} style={styles.actionBtnIcon} />
+          </TouchableOpacity>
+        </View>
+      )}
 
       <DiscoverLocationSheet
         locationRef={locationRef}

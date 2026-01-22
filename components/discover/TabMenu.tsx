@@ -15,20 +15,20 @@ export const TabMenu = memo(function TabMenu({ items, active, onChange, width }:
     <View style={styles.container}>
       {items.map((x) => {
         const isActive = active === x;
-        return (
-          <TouchableOpacity
-            key={x}
-            onPress={() => onChange(x)}
+  return (
+        <TouchableOpacity
+          key={x}
+          onPress={() => onChange(x)}
             style={[
               styles.tab,
               { width },
               isActive && styles.tabActive,
             ]}
-          >
+        >
             <Text style={[styles.tabText, isActive && styles.tabTextActive]}>
               {x}
             </Text>
-          </TouchableOpacity>
+        </TouchableOpacity>
         );
       })}
     </View>

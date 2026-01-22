@@ -2,7 +2,7 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import CustomTabBar from "./CustomTabBar";
 
 import HomeScreen from "../screens/HomeScreen";
-import BenefitsScreen from "../screens/BenefitsScreen";
+import FeedScreen from "../screens/FeedScreen";
 import DiscoverScreen from "../screens/DiscoverScreen";
 import ProfileScreen from "../screens/profile/ProfileScreen";
 import ProtectedRoute from "./ProtectedRoute";
@@ -28,8 +28,8 @@ export default function Tabs() {
       </Tab.Screen>
 
       {/* VEREJNÉ - bez prihlásenia */}
-      <Tab.Screen name={t("Benefits")} component={BenefitsScreen} />
       <Tab.Screen name={t("Discover")} component={DiscoverScreen} />
+      <Tab.Screen name="Feed" component={FeedScreen} />
       <Tab.Screen
         name="Search"
         component={DiscoverScreen}

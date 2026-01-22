@@ -106,6 +106,7 @@ export interface DiscoverTopControlsProps {
   cameraRef: RefObject<Camera>;
   t: (key: string) => string;
   onLocationSheetChange?: (index: number) => void;
+  hasActiveFilter?: boolean;
 }
 
 export interface DiscoverLocationSearchResult {

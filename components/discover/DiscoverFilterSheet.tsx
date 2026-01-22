@@ -27,6 +27,22 @@ export default function DiscoverFilterSheet({
   t,
 }: DiscoverFilterSheetProps) {
   const ratingOptions = ["4.7", "4.5", "4.0", "3.5"];
+  const categoryEmojis: Record<string, string> = {
+    Fitness: "🏋️‍♂️",
+    Relax: "🧖‍♀️",
+    Beauty: "💄",
+    Gastro: "🍽️",
+  };
+  const subcategoryEmojis: Record<string, string> = {
+    Vegan: "🌱",
+    Coffee: "☕",
+    Seafood: "🦐",
+    Pizza: "🍕",
+    Sushi: "🍣",
+    "Fast Food": "🍟",
+    Asian: "🥢",
+    Beer: "🍺",
+  };
 
   return (
     <BottomSheet
@@ -71,14 +87,7 @@ export default function DiscoverFilterSheet({
                       }
                       activeOpacity={0.85}
                     >
-                    <Image
-                      source={
-                        active
-                          ? require("../../images/star_blank.png")
-                          : require("../../images/star_black.png")
-                      }
-                      style={styles.ratingStar}
-                    />
+                    <Text style={[styles.ratingEmoji, active && styles.ratingEmojiActive]}>⭐</Text>
                     <Text style={[styles.ratingText, active && styles.ratingTextActive]}>{value}</Text>
                   </TouchableOpacity>
                 );
@@ -111,7 +120,9 @@ export default function DiscoverFilterSheet({
                     onPress={() => setFilter(option)}
                     key={option}
                   >
-                    <Image source={filterIcons[option]} />
+                    <Text style={{ fontSize: 18, lineHeight: 18 }}>
+                      {categoryEmojis[option] ?? "🏷️"}
+                    </Text>
                     <Text
                       style={{
                         fontWeight: "600",
@@ -144,36 +155,39 @@ export default function DiscoverFilterSheet({
             <View style={{ flexDirection: "row", flexWrap: "wrap", marginHorizontal: 10 }}>
               {subcategories.map((subs) => {
                 const active = sub.has(subs);
+                const emoji = subcategoryEmojis[subs];
 
                 return (
                   <TouchableOpacity
                     key={subs}
-                    onPress={() => {
-                      toggle(subs);
-                    }}
+                    onPress={() => toggle(subs)}
                     activeOpacity={0.85}
                     style={{
                       borderRadius: 20,
-                      padding: 15,
+                      paddingVertical: 12,
+                      paddingHorizontal: 14,
                       borderWidth: 1,
                       borderColor: active ? "transparent" : "#eee",
                       backgroundColor: active ? "#EB8100" : "#FFFFFF",
                       marginLeft: 0,
                       marginTop: 10,
                       marginRight: 12,
-                      width: subcategoryChipWidth,
+                      alignSelf: "flex-start",
                       justifyContent: "center",
                     }}
                   >
                     <Text
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
                       style={{
                         fontWeight: "600",
                         fontSize: 16,
                         color: active ? "white" : "black",
                         textAlign: "center",
+                        includeFontPadding: false,
                       }}
                     >
-                      {t(subs)}
+                      {emoji ? `${emoji} ` : ""}{t(subs)}
                     </Text>
                   </TouchableOpacity>
                 );

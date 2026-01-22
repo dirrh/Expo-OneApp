@@ -10,6 +10,7 @@ import FavoriteBranchesScreen from "./screens/FavoriteBranchesScreen";
 import SettingsScreen from "./screens/profile/SettingsScreen";
 import UserAccountScreen from "./screens/profile/UserAccountScreen"
 import LanguageScreen from "./screens/profile/LanguageScreen";
+import BenefitsScreen from "./screens/BenefitsScreen";
 
 import SignupScreen from "./screens/LoginRegister/SignupScreen";
 import ForgottenPasswordScreen from "./screens/LoginRegister/ForgotPasswordScreen";
@@ -134,6 +135,10 @@ export default function App() {
               <Stack.Screen
                 name="Language"
                 component={LanguageScreen}
+              />
+              <Stack.Screen
+                name="Benefits"
+                component={BenefitsScreen}
               />
               <Stack.Screen
                 name="BusinessDetailScreen"

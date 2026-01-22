@@ -192,6 +192,23 @@ export const styles = StyleSheet.create({
           elevation: 8,
         }),
   },
+  actionBtnIcon: {
+    width: 20,
+    height: 20,
+    resizeMode: "contain",
+  },
+  filterActiveIndicator: {
+    position: "absolute",
+    top: -2,
+    right: -2,
+    width: 12,
+    height: 12,
+  },
+  centerBtnContainer: {
+    position: "absolute",
+    right: 16,
+    zIndex: 10,
+  },
   locationSheetContainer: {
     zIndex: 20,
     elevation: 20,
@@ -546,6 +563,13 @@ export const styles = StyleSheet.create({
   ratingStar: {
     width: 16,
     height: 16,
+  },
+  ratingEmoji: {
+    fontSize: 16,
+    lineHeight: 16,
+  },
+  ratingEmojiActive: {
+    // Emoji farbu nezmeníš, ale nech je aspoň konzistentná výška
   },
   ratingText: {
     fontSize: 16,

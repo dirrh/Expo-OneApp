@@ -1,5 +1,4 @@
 import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { Ionicons, MaterialCommunityIcons, Feather } from "@expo/vector-icons";
 
 export default function CustomTabBar({ state, descriptors, navigation }: any) {
   const focusedOptions = descriptors[state.routes[state.index].key]?.options;
@@ -21,49 +20,61 @@ export default function CustomTabBar({ state, descriptors, navigation }: any) {
 
         const isFocused = state.index === index;
 
-        // Vlastné ikonky podľa názvu tabu
-        let icon = null;
+        // Ikony z images/menu (b = black, w = white)
+        const getTabKey = () => {
+          // route.name je niekedy preložený, tak používame aj label
+          const name = String(route.name);
+          const lbl = String(label);
 
-        if (route.name === "QR") {
-          icon = (
-            <MaterialCommunityIcons
-              name="qrcode-scan"
-              size={24}
-              color={isFocused ? "black" : "#999"}
-            />
-          );
-        } else if (route.name === "Benefits" || route.name === "Výhody") {
-          icon = (
-            <Ionicons
-              name="ticket-outline"
-              size={24}
-              color={isFocused ? "black" : "#999"}
-            />
-          );
-        } else if (route.name === "Discover" || route.name === "Objavte" || route.name === "Objevit") {
-          icon = (
-            <Feather
-              name="compass"
-              size={24}
-              color={isFocused ? "black" : "#999"}
-            />
-          );
-        } else if (route.name === "Search") {
-          icon = (
-            <Image
-              source={require("../images/search.png")}
-              style={[styles.searchIcon, { tintColor: isFocused ? "black" : "#999" }]}
-            />
-          );
-        } else if (route.name === "Profile" || route.name === "Profil") {
-          icon = (
-            <Ionicons
-              name="person-outline"
-              size={24}
-              color={isFocused ? "black" : "#999"}
-            />
-          );
-        }
+          if (name === "QR") return "qr";
+          if (name === "Feed" || lbl === "Feed") return "feed";
+          if (name === "Search" || lbl === "Search") return "search";
+
+          if (
+            name === "Discover" ||
+            name === "Objavte" ||
+            name === "Objevit" ||
+            lbl === "Discover" ||
+            lbl === "Objavte" ||
+            lbl === "Objevit"
+          ) return "discover";
+
+          if (
+            name === "Profile" ||
+            name === "Profil" ||
+            lbl === "Profile" ||
+            lbl === "Profil"
+          ) return "profile";
+
+          return null;
+        };
+
+        const tabKey = getTabKey();
+        const sources = {
+          qr: {
+            b: require("../images/menu/scanQR_b.png"),
+            w: require("../images/menu/scanQR_w.png"),
+          },
+          feed: {
+            b: require("../images/menu/feed_b.png"),
+            w: require("../images/menu/feed_w.png"),
+          },
+          discover: {
+            b: require("../images/menu/pin_b.png"),
+            w: require("../images/menu/pin_w.png"),
+          },
+          search: {
+            b: require("../images/menu/search_b.png"),
+            w: require("../images/menu/search_w.png"),
+          },
+          profile: {
+            b: require("../images/menu/user_b.png"),
+            w: require("../images/menu/user_w.png"),
+          },
+        } as const;
+
+        const iconSource =
+          tabKey ? (isFocused ? sources[tabKey].b : sources[tabKey].w) : null;
 
         const onPress = () => {
           navigation.navigate(route.name);
@@ -75,7 +86,7 @@ export default function CustomTabBar({ state, descriptors, navigation }: any) {
             onPress={onPress}
             style={styles.tabButton}
           >
-            {icon}
+            {iconSource ? <Image source={iconSource} style={styles.icon} /> : null}
             <Text style={[styles.label, isFocused && styles.labelFocused]}>
               {label}
             </Text>
@@ -100,6 +111,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  icon: {
+    width: 20,
+    height: 20,
+    resizeMode: "contain",
+  },
   label: {
     fontSize: 12,
     color: "#999",
@@ -108,10 +124,5 @@ const styles = StyleSheet.create({
   labelFocused: {
     color: "black",
     fontWeight: "600",
-  },
-  searchIcon: {
-    width: 24,
-    height: 24,
-    resizeMode: "contain",
   },
 });

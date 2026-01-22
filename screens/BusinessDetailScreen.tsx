@@ -15,13 +15,11 @@ import { InfoSection } from "../components/discover/InfoSection";
 import { ReviewsSection } from "../components/discover/ReviewsSection";
 import { normalizeBranch } from "../lib/data/normalizers";
 import { useAuth } from "../lib/AuthContext";
-import { useTranslation } from "react-i18next";
 
 export default function BusinessDetailScreen() {
     const navigation = useNavigation<any>();
     const route = useRoute<any>();
     const { user } = useAuth();
-    const { t } = useTranslation();
     const branchParam = route.params?.branch;
     const branch = normalizeBranch(branchParam ?? {});
 
@@ -124,19 +122,19 @@ export default function BusinessDetailScreen() {
 
     const handleActivateBenefit = useCallback(() => {
         if (user) {
-            navigation.navigate("Tabs", { screen: t("Benefits") });
+            navigation.navigate("Benefits");
         } else {
             sheetRef.current?.expand();
         }
-    }, [user, navigation, t]);
+    }, [user, navigation]);
 
     const handleQrPress = useCallback(() => {
         if (user) {
-            navigation.navigate("Tabs", { screen: t("Benefits") });
+            navigation.navigate("Benefits");
         } else {
             navigation.navigate("Login");
         }
-    }, [user, navigation, t]);
+    }, [user, navigation]);
 
     const handleLogin = useCallback(
         () => navigation.navigate("Login"),

@@ -263,6 +263,7 @@ export default function DiscoverScreen() {
         cameraRef={cameraRef}
         t={t}
         onLocationSheetChange={handleLocationSheetChange}
+        hasActiveFilter={filters.hasActiveFilter}
       />
 
       <DiscoverSearchSheet
