@@ -20,6 +20,7 @@ import OnboardingScreen from "./screens/OnboardingScreen";
 import SavedLocationsScreen from "./screens/profile/SavedLocationsScreen";
 import EditLocationScreen from "./screens/profile/EditLocationScreen";
 import DiscoverScreen from "./screens/DiscoverScreen";
+import DiscoverListScreen from "./screens/DiscoverListScreen";
 
 import { TextEncoder, TextDecoder } from "text-encoding";
 import { useFonts } from "expo-font";
@@ -165,6 +166,7 @@ export default function App() {
                 component={SavedLocationsScreen}
               />
               <Stack.Screen name="Discover" component={DiscoverScreen} />
+              <Stack.Screen name="DiscoverList" component={DiscoverListScreen} />
               <Stack.Screen name="EditLocation" component={EditLocationScreen}/>
             </Stack.Navigator>
           </NavigationContainer>

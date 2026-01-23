@@ -1,6 +1,7 @@
 import React, { useMemo, useRef } from "react";
 import { Image, Pressable, Text, View } from "react-native";
 import { TouchableOpacity } from "react-native-gesture-handler";
+import { useNavigation } from "@react-navigation/native";
 import type BottomSheet from "@gorhom/bottom-sheet";
 import { styles } from "./discoverStyles";
 import type { DiscoverTopControlsProps } from "../../lib/interfaces";
@@ -24,6 +25,7 @@ export default function DiscoverTopControls({
   onLocationSheetChange,
   hasActiveFilter,
 }: DiscoverTopControlsProps) {
+  const navigation = useNavigation<any>();
   const locationRef = useRef<BottomSheet>(null);
   const selectedOptionLabel = useMemo(() => {
     const saved = location.find((item) => item.isSaved && item.label === option);
@@ -117,13 +119,14 @@ export default function DiscoverTopControls({
             </TouchableOpacity>
           )}
 
-          {/* List button - zatial nikam nevedie */}
+          {/* List button - presmerovanie na zoznam pobočiek */}
           {o && (
             <TouchableOpacity
               style={styles.roundBtn}
               activeOpacity={0.85}
               onPress={() => {
-                // TODO: list view
+                setOpen(false);
+                navigation.navigate("DiscoverList", { userCoord });
               }}
             >
               <Image source={require("../../images/list.png")} style={styles.actionBtnIcon} />

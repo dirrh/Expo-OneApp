@@ -1,6 +1,5 @@
 import React from "react";
 import { View, StyleSheet, ImageBackground, Image, Text, TouchableOpacity, Platform } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import BranchCard from "../components/BranchCard";
 
@@ -15,16 +14,20 @@ export default function FeedScreen() {
                 resizeMode="cover"
             >
                 {/* Top bar - posunuta pod notch */}
-                <View style={[styles.topBar, { marginTop: insets.top + 8 }]}>
-                    <TouchableOpacity style={styles.locationBtn} activeOpacity={0.85}>
-                        <Ionicons name="location-outline" size={16} color="#000" />
-                        <Text style={styles.locationText}>Your Location</Text>
-                        <Ionicons name="chevron-down" size={16} color="#000" />
-                    </TouchableOpacity>
+                <View style={[styles.topBar, { marginTop: insets.top + 16 }]}>
+                    <View style={styles.card}>
+                        <TouchableOpacity style={styles.row} activeOpacity={0.85}>
+                            <Image source={require("../images/pin.png")} style={styles.rowIcon} resizeMode="contain" />
+                            <Text style={styles.rowTextBold} numberOfLines={1}>Your Location</Text>
+                            <Image source={require("../images/options.png")} style={styles.caret} resizeMode="contain" />
+                        </TouchableOpacity>
+                    </View>
 
-                    <TouchableOpacity style={styles.filterBtn} activeOpacity={0.85}>
-                        <Ionicons name="options-outline" size={18} color="#000" />
-                    </TouchableOpacity>
+                    <View style={styles.actionsRow}>
+                        <TouchableOpacity style={styles.roundBtn} activeOpacity={0.85}>
+                            <Image source={require("../images/filter.png")} style={styles.actionBtnIcon} />
+                        </TouchableOpacity>
+                    </View>
                 </View>
 
                 {/* Like/Share buttons - individualne ikonky */}
@@ -76,51 +79,62 @@ const styles = StyleSheet.create({
     },
     topBar: {
         flexDirection: "row",
-        alignItems: "center",
+        alignItems: "flex-start",
         justifyContent: "space-between",
         paddingHorizontal: 16,
     },
-    locationBtn: {
+    card: {
+        flex: 1,
+        maxWidth: 200,
+        marginRight: 24,
+        backgroundColor: "white",
+        borderRadius: 18,
+        overflow: "hidden",
+        ...(Platform.OS === "web"
+            ? { boxShadow: "0 6px 12px rgba(0, 0, 0, 0.14)" }
+            : {
+                shadowColor: "#000",
+                shadowOpacity: 0.14,
+                shadowRadius: 12,
+                shadowOffset: { width: 0, height: 6 },
+                elevation: 10,
+            }),
+    },
+    row: {
+        height: 44,
+        paddingHorizontal: 12,
         flexDirection: "row",
         alignItems: "center",
-        gap: 6,
-        backgroundColor: "#fff",
-        borderRadius: 20,
-        paddingHorizontal: 14,
-        paddingVertical: 10,
-        ...Platform.select({
-            web: { boxShadow: "0 2px 8px rgba(0, 0, 0, 0.15)" },
-            default: {
-                shadowColor: "#000",
-                shadowOpacity: 0.15,
-                shadowRadius: 8,
-                shadowOffset: { width: 0, height: 2 },
-                elevation: 4,
-            },
-        }),
+        gap: 10,
     },
-    locationText: {
-        fontSize: 14,
-        fontWeight: "600",
-        color: "#000",
+    rowIcon: { width: 18, height: 18 },
+    rowTextBold: { flex: 1, fontWeight: "700" },
+    caret: { width: 16, height: 16, opacity: 0.7 },
+    actionsRow: {
+        flexDirection: "row",
+        gap: 12,
     },
-    filterBtn: {
-        width: 40,
-        height: 40,
-        borderRadius: 14,
-        backgroundColor: "#fff",
+    roundBtn: {
+        width: 44,
+        height: 44,
+        borderRadius: 15,
+        backgroundColor: "white",
         alignItems: "center",
         justifyContent: "center",
-        ...Platform.select({
-            web: { boxShadow: "0 2px 8px rgba(0, 0, 0, 0.15)" },
-            default: {
+        ...(Platform.OS === "web"
+            ? { boxShadow: "0 5px 10px rgba(0, 0, 0, 0.12)" }
+            : {
                 shadowColor: "#000",
-                shadowOpacity: 0.15,
-                shadowRadius: 8,
-                shadowOffset: { width: 0, height: 2 },
-                elevation: 4,
-            },
-        }),
+                shadowOpacity: 0.12,
+                shadowRadius: 10,
+                shadowOffset: { width: 0, height: 5 },
+                elevation: 8,
+            }),
+    },
+    actionBtnIcon: {
+        width: 20,
+        height: 20,
+        resizeMode: "contain",
     },
     actionsColumn: {
         position: "absolute",
