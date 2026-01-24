@@ -173,20 +173,29 @@ export const useDiscoverData = ({
    * Transformácia zoskupených markerov na zobraziteľné položky
    * - Ak má skupina 1 položku → normálny pin
    * - Ak má skupina viac položiek → čierny multi-pin
+   * 
+   * Rating sa formátuje tu raz pri vytváraní markerov,
+   * nie pri každom renderovaní mapy
    */
   const markerItems = useMemo<DiscoverMapMarker[]>(() => {
     return groupedMarkers.map((group) => {
-      // Skupina s 1 položkou → vrátime pôvodný marker
+      // Skupina s 1 položkou → vrátime pôvodný marker s pred-formátovaným ratingom
       if (group.items.length === 1) {
-        return group.items[0];
+        const item = group.items[0];
+        return {
+          ...item,
+          ratingFormatted: item.ratingFormatted ?? item.rating.toFixed(1),
+        };
       }
 
       // Skupina s viacerými položkami → vytvoríme multi-pin
+      const maxRating = Math.max(...group.items.map((i) => i.rating));
       return {
         id: group.id,
         coord: { lng: group.lng, lat: group.lat },
         icon: MULTI_MARKER_ICON,
-        rating: Math.max(...group.items.map((i) => i.rating)),  // najvyššie hodnotenie
+        rating: maxRating,
+        ratingFormatted: maxRating.toFixed(1),
         category: "Multi" as const,
       };
     });

@@ -77,7 +77,7 @@ const PopupItem = memo(function PopupItem({
             source={require("../../images/star_black.png")}
             style={popupStyles.starIcon}
           />
-          <Text style={popupStyles.ratingText}>{item.rating.toFixed(1)}</Text>
+          <Text style={popupStyles.ratingText}>{item.ratingFormatted ?? item.rating.toFixed(1)}</Text>
         </View>
       </View>
       {!isLast && <View style={popupStyles.divider} />}

@@ -1,20 +1,73 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import {
   View,
   StyleSheet,
-  ScrollView,
+  FlatList,
   Text,
   Image,
   Platform,
-  ActivityIndicator,
+  useWindowDimensions,
 } from "react-native";
 import { TouchableOpacity } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { useTranslation } from "react-i18next";
 import BranchCard from "../components/BranchCard";
+import { Skeleton } from "../components/Skeleton";
 import { useDataSource } from "../lib/data/useDataSource";
 import type { DiscoverMapMarker, DiscoverCategory } from "../lib/interfaces";
+
+// Skeleton pre BranchCard - zobrazuje sa počas načítavania
+function SkeletonBranchCard() {
+  return (
+    <View style={skeletonStyles.card}>
+      {/* Skeleton obrázka */}
+      <Skeleton width={88} height={88} borderRadius={14} />
+      {/* Skeleton obsahu */}
+      <View style={skeletonStyles.content}>
+        <Skeleton width="70%" height={18} borderRadius={4} />
+        <View style={skeletonStyles.metaRow}>
+          <Skeleton width={50} height={14} borderRadius={4} />
+          <Skeleton width={60} height={14} borderRadius={4} />
+          <Skeleton width={70} height={14} borderRadius={4} />
+        </View>
+        <View style={skeletonStyles.bottomRow}>
+          <Skeleton width={140} height={28} borderRadius={14} />
+          <Skeleton width={50} height={14} borderRadius={4} />
+        </View>
+      </View>
+    </View>
+  );
+}
+
+// Štýly pre skeleton
+const skeletonStyles = StyleSheet.create({
+  card: {
+    flexDirection: "row",
+    backgroundColor: "#fff",
+    borderRadius: 18,
+    padding: 14,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#E8E8E8",
+  },
+  content: {
+    flex: 1,
+    marginLeft: 14,
+    justifyContent: "center",
+    gap: 8,
+  },
+  metaRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  bottomRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 4,
+  },
+});
 
 // Placeholder obrázky pre kategórie
 const CATEGORY_IMAGES: Record<DiscoverCategory, any> = {
@@ -68,12 +121,24 @@ interface NearbyBranch {
 // Fallback poloha - centrum Nitry
 const NITRA_CENTER: [number, number] = [18.091, 48.3069];
 
+// Výška jednej BranchCard vrátane marginu (126px karta + 16px margin)
+const CARD_HEIGHT = 142;
+const DEG_TO_RAD = Math.PI / 180;
+
 export default function DiscoverListScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const { t } = useTranslation();
+  const { height: screenHeight } = useWindowDimensions();
   const dataSource = useDataSource();
+
+  // Výpočet počtu skeleton kariet podľa výšky obrazovky
+  const skeletonCount = useMemo(() => {
+    const headerHeight = insets.top + 76;
+    const availableHeight = screenHeight - headerHeight;
+    return Math.ceil(availableHeight / CARD_HEIGHT);
+  }, [screenHeight, insets.top]);
 
   // Získame userCoord z route params alebo použijeme fallback
   const userLocation: [number, number] = route.params?.userCoord ?? NITRA_CENTER;
@@ -84,45 +149,55 @@ export default function DiscoverListScreen() {
   // Načítanie markerov
   useEffect(() => {
     let isMounted = true;
-
     const loadData = async () => {
       try {
         const markersData = await dataSource.getMarkers();
-        if (isMounted) {
-          setMarkers(markersData);
-        }
+        if (isMounted) setMarkers(markersData);
       } catch (error) {
         console.error("Error loading markers:", error);
       } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
+        if (isMounted) setLoading(false);
       }
     };
-
     loadData();
-
-    return () => {
-      isMounted = false;
-    };
+    return () => { isMounted = false; };
   }, [dataSource]);
 
   // Filtrovanie a zoradenie pobočiek do 2km
+  // Používame bounding box filter a predpočítané konštanty pre rýchlejšie výpočty
   const nearbyBranches = useMemo<NearbyBranch[]>(() => {
     if (!userLocation || markers.length === 0) return [];
 
     const [userLng, userLat] = userLocation;
+    const MAX_DIST_KM = 2;
+    
+    // Konštanty pre rýchly pred-filter
+    const LAT_DEGREE_KM = 111; 
+    const MAX_LAT_DIFF = MAX_DIST_KM / LAT_DEGREE_KM;
+    // Longitude stupeň sa skracuje s kosínusom šírky
+    const userLatRad = userLat * DEG_TO_RAD;
+    const MAX_LNG_DIFF = MAX_DIST_KM / (LAT_DEGREE_KM * Math.cos(userLatRad));
 
-    return markers
-      .filter((m) => m.category !== "Multi") // Vynechať multi-piny
-      .map((marker) => {
-        const distanceKm = getDistanceKm(
-          userLat,
-          userLng,
-          marker.coord.lat,
-          marker.coord.lng
-        );
-        return {
+    const results: NearbyBranch[] = [];
+
+    for (const marker of markers) {
+      if (marker.category === "Multi") continue;
+
+      const mCoord = marker.coord;
+      
+      // 1. Rýchly Bounding Box filter (Lat)
+      const latDiff = Math.abs(mCoord.lat - userLat);
+      if (latDiff > MAX_LAT_DIFF) continue;
+
+      // 2. Rýchly Bounding Box filter (Lng)
+      const lngDiff = Math.abs(mCoord.lng - userLng);
+      if (lngDiff > MAX_LNG_DIFF) continue;
+
+      // 3. Presný výpočet len pre tie, čo prešli boxom
+      const distanceKm = getDistanceKm(userLat, userLng, mCoord.lat, mCoord.lng);
+
+      if (distanceKm <= MAX_DIST_KM) {
+        results.push({
           id: marker.id,
           title: marker.title || formatTitle(marker.id),
           image: CATEGORY_IMAGES[marker.category as DiscoverCategory] || CATEGORY_IMAGES.Fitness,
@@ -133,11 +208,43 @@ export default function DiscoverListScreen() {
           category: marker.category as DiscoverCategory,
           discount: "20% discount on first entry",
           moreCount: 1,
-        };
-      })
-      .filter((b) => b.distanceKm <= 2) // Len do 2km
-      .sort((a, b) => a.distanceKm - b.distanceKm); // Zoradiť podľa vzdialenosti
+        });
+      }
+    }
+
+    return results.sort((a, b) => a.distanceKm - b.distanceKm);
   }, [userLocation, markers]);
+
+  // Definujeme presnú výšku položiek pre FlatList
+  // To umožňuje preskočiť výpočet rozloženia a zlepšuje plynulosť skrolovania
+  const getItemLayout = useCallback(
+    (_: any, index: number) => ({
+      length: CARD_HEIGHT,
+      offset: CARD_HEIGHT * index,
+      index,
+    }),
+    []
+  );
+
+  // Render funkcia pre FlatList (memoizovaná)
+  const renderBranchItem = useCallback(
+    ({ item }: { item: NearbyBranch }) => (
+      <BranchCard
+        title={item.title}
+        image={item.image}
+        rating={item.rating}
+        distance={item.distance}
+        hours={item.hours}
+        category={item.category}
+        discount={item.discount}
+        moreCount={item.moreCount}
+      />
+    ),
+    []
+  );
+
+  // Key extractor pre FlatList
+  const keyExtractor = useCallback((item: NearbyBranch) => item.id, []);
 
   return (
     <View style={styles.container}>
@@ -186,40 +293,39 @@ export default function DiscoverListScreen() {
 
       {/* List */}
       {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#EB8100" />
-          <Text style={styles.loadingText}>Loading nearby places...</Text>
+        <View style={styles.skeletonContainer}>
+          <Skeleton width={120} height={14} borderRadius={4} style={{ marginBottom: 12 }} />
+          {Array.from({ length: skeletonCount }).map((_, index) => (
+            <SkeletonBranchCard key={index} />
+          ))}
         </View>
       ) : nearbyBranches.length === 0 ? (
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyText}>No places found within 2 km</Text>
         </View>
       ) : (
-        <ScrollView
+        <FlatList
+          data={nearbyBranches}
+          renderItem={renderBranchItem}
+          keyExtractor={keyExtractor}
+          getItemLayout={getItemLayout}
           style={styles.list}
           contentContainerStyle={[
             styles.listContent,
             { paddingBottom: insets.bottom + 16 },
           ]}
           showsVerticalScrollIndicator={false}
-        >
-          <Text style={styles.resultCount}>
-            {nearbyBranches.length} {nearbyBranches.length === 1 ? "place" : "places"} within 2 km
-          </Text>
-          {nearbyBranches.map((branch) => (
-            <BranchCard
-              key={branch.id}
-              title={branch.title}
-              image={branch.image}
-              rating={branch.rating}
-              distance={branch.distance}
-              hours={branch.hours}
-              category={branch.category}
-              discount={branch.discount}
-              moreCount={branch.moreCount}
-            />
-          ))}
-        </ScrollView>
+          ListHeaderComponent={
+            <Text style={styles.resultCount}>
+              {nearbyBranches.length} {nearbyBranches.length === 1 ? "place" : "places"} within 2 km
+            </Text>
+          }
+          // Nastavenia pre efektívne vykresľovanie zoznamu
+          initialNumToRender={8}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          removeClippedSubviews={Platform.OS !== "web"}
+        />
       )}
     </View>
   );
@@ -298,15 +404,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 8,
   },
-  loadingContainer: {
+  skeletonContainer: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: "#666",
+    paddingHorizontal: 16,
+    paddingTop: 8,
   },
   emptyContainer: {
     flex: 1,

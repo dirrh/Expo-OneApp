@@ -72,6 +72,14 @@ export const useDiscoverCamera = ({
   // Ref na Mapbox kameru - používame na programatické ovládanie
   const cameraRef = useRef<Camera>(null);
 
+  // Throttling konfigurácia pre aktualizácie kamery
+  // Obmedzujeme frekvenciu aktualizácií stavu na max. každých 150ms
+  // aby sa znížil počet renderov počas pohybu mapou
+  const THROTTLE_INTERVAL = 150;
+  const lastUpdateTimeRef = useRef<number>(0);
+  const pendingUpdateRef = useRef<{ center: [number, number]; zoom: number } | null>(null);
+  const throttleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // === STAVOVÉ PREMENNÉ ===
   const [userCoord, setUserCoord] = useState<[number, number] | null>(null);  // poloha usera
   const [mapCenter, setMapCenter] = useState<[number, number]>(cityCenter);   // stred mapy
@@ -122,36 +130,73 @@ export const useDiscoverCamera = ({
   /**
    * Handler pre zmenu pozície kamery (keď user scrolluje/zoomuje mapu)
    * 
+   * Používame throttling na zníženie počtu renderov počas pohybu:
+   * - Globálny stav sa aktualizuje okamžite (pre tab switching)
+   * - React stav sa aktualizuje max. každých 150ms
+   * - Posledná pozícia sa vždy zachytí cez pending update
+   * 
    * @param center - nový stred mapy
    * @param zoom - nový zoom level
    * @param isUserGesture - či to bolo spôsobené gestom používateľa
    */
   const handleCameraChanged = useCallback(
     (center: [number, number], zoom: number, isUserGesture?: boolean) => {
-      // Aktualizujeme stav
-      setMapZoom(zoom);
-      setMapCenter(center);
-      
-      // Uložíme pozíciu pre prípad prepnutia tabu
+      // 1. Vždy uložíme pozíciu pre prípad prepnutia tabu (bez throttlingu)
       lastDiscoverCameraState = { center, zoom };
 
-      // Ak user manuálne posunul mapu preč od vybranej lokácie, resetujeme výber
+      // 2. Uložíme ako pending update (pre prípad, že timeout ešte beží)
+      pendingUpdateRef.current = { center, zoom };
+
+      // 3. Skontrolujeme, či môžeme aktualizovať React stav
+      const now = Date.now();
+      const timeSinceLastUpdate = now - lastUpdateTimeRef.current;
+
+      if (timeSinceLastUpdate >= THROTTLE_INTERVAL) {
+        // Môžeme aktualizovať okamžite
+        lastUpdateTimeRef.current = now;
+        pendingUpdateRef.current = null;
+        setMapZoom(zoom);
+        setMapCenter(center);
+      } else {
+        // Naplánujeme odloženú aktualizáciu (ak ešte nie je naplánovaná)
+        if (!throttleTimeoutRef.current) {
+          const remainingTime = THROTTLE_INTERVAL - timeSinceLastUpdate;
+          throttleTimeoutRef.current = setTimeout(() => {
+            throttleTimeoutRef.current = null;
+            if (pendingUpdateRef.current) {
+              lastUpdateTimeRef.current = Date.now();
+              setMapZoom(pendingUpdateRef.current.zoom);
+              setMapCenter(pendingUpdateRef.current.center);
+              pendingUpdateRef.current = null;
+            }
+          }, remainingTime);
+        }
+      }
+
+      // 4. Ak user manuálne posunul mapu preč od vybranej lokácie, resetujeme výber
       if (!isUserGesture || !selectedOptionCoord) {
         return;
       }
       
-      // Vypočítame vzdialenosť od vybranej lokácie
       const [selectedLng, selectedLat] = selectedOptionCoord;
       const [centerLng, centerLat] = center;
       const distance = Math.hypot(selectedLng - centerLng, selectedLat - centerLat);
       
-      // Ak je vzdialenosť väčšia ako prah, resetujeme výber
       if (distance > 0.0005 && onOptionReset) {
         onOptionReset();
       }
     },
     [selectedOptionCoord, onOptionReset]
   );
+
+  // Cleanup timeout pri unmounte
+  useEffect(() => {
+    return () => {
+      if (throttleTimeoutRef.current) {
+        clearTimeout(throttleTimeoutRef.current);
+      }
+    };
+  }, []);
 
   /**
    * Vycentruje mapu na aktuálnu polohu používateľa

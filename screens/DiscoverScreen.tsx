@@ -23,6 +23,49 @@ import DiscoverSideFilterPanel from "../components/discover/DiscoverSideFilterPa
 // Constants
 const NITRA_CENTER: [number, number] = [18.091, 48.3069];
 const FILTER_OPTIONS: DiscoverCategory[] = ["Fitness", "Gastro", "Relax", "Beauty"];
+
+/**
+ * Vypočíta približnú veľkosť viditeľnej oblasti mapy v stupňoch
+ * Na základe zoom levelu (vyšší zoom = menšia oblasť)
+ * 
+ * Vzorec: Pri zoom 14 je vidno cca 0.02° lat/lng
+ * Každý zoom level zdvojnásobuje/polovičí oblasť
+ */
+const getViewportDelta = (zoom: number): number => {
+  // Pri zoom 14 je delta cca 0.03 (s rezervou)
+  // Zoom 15 = 0.015, Zoom 13 = 0.06, atď.
+  return 0.03 * Math.pow(2, 14 - zoom);
+};
+
+/**
+ * Filtruje markery podľa viditeľnej oblasti mapy
+ * Zobrazuje len tie markery, ktoré sú aktuálne viditeľné na obrazovke
+ */
+const filterMarkersByViewport = (
+  markers: DiscoverMapMarker[],
+  center: [number, number],
+  zoom: number
+): DiscoverMapMarker[] => {
+  // Pri nízkom zoome (clustre) vrátime všetky markery
+  if (zoom < 11) return markers;
+
+  const [centerLng, centerLat] = center;
+  const delta = getViewportDelta(zoom);
+  
+  // Pridáme 50% margin pre plynulé načítanie pri posune
+  const margin = delta * 0.5;
+  const deltaWithMargin = delta + margin;
+
+  const minLat = centerLat - deltaWithMargin;
+  const maxLat = centerLat + deltaWithMargin;
+  const minLng = centerLng - deltaWithMargin;
+  const maxLng = centerLng + deltaWithMargin;
+
+  return markers.filter((m) => {
+    const { lat, lng } = m.coord;
+    return lat >= minLat && lat <= maxLat && lng >= minLng && lng <= maxLng;
+  });
+};
 const FILTER_ICONS: Record<DiscoverCategory, ImageSourcePropType> = {
   Fitness: require("../images/icons/fitness/Fitness.png"),
   Gastro: require("../images/icons/gastro/Gastro.png"),
@@ -149,9 +192,16 @@ export default function DiscoverScreen() {
   const savedLocationMarkers = useSavedLocationMarkers(location);
 
   // Combined map markers (filter active = only filtered, otherwise include saved locations)
-  const mapMarkers = useMemo(
+  const allMapMarkers = useMemo(
     () => (filters.hasActiveFilter ? filteredMarkers : [...filteredMarkers, ...savedLocationMarkers]),
     [filters.hasActiveFilter, filteredMarkers, savedLocationMarkers]
+  );
+
+  // Filtrujeme markery podľa viditeľnej oblasti mapy
+  // Pri veľkom počte markerov to znižuje záťaž na JavaScript
+  const mapMarkers = useMemo(
+    () => filterMarkersByViewport(allMapMarkers, camera.mapCenter, camera.mapZoom),
+    [allMapMarkers, camera.mapCenter, camera.mapZoom]
   );
 
   // Sheet change handlers

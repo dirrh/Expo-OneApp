@@ -192,6 +192,11 @@ const buildCityClusterShape = (center: [number, number], count: number) => {
   return toFeatureCollection([cityFeature]);
 };
 
+/**
+ * Rozdeľuje názov ikony z markera
+ * Ak je to string a existuje v images, vráti ho
+ * Inak vytvorí nový záznam v images a vráti vygenerovaný názov
+ */
 const resolveMarkerIconName = (
   markerIcon: DiscoverMapProps["filteredMarkers"][number]["icon"],
   images: IconRegistry,
@@ -211,17 +216,39 @@ const resolveMarkerIconName = (
   return iconName;
 };
 
-const buildMarkersShapeAndImages = (
+/**
+ * Vytvorí registráciu ikon pre markery
+ * Ikony sa registrujú separátne od GeoJSON shape, pretože sa menia menej často
+ */
+const buildImagesRegistry = (
   markers: DiscoverMapProps["filteredMarkers"],
   baseImages: IconRegistry
-) => {
+): { images: IconRegistry; iconNameByKey: Map<string, string> } => {
   const images: IconRegistry = { ...baseImages };
   const iconNameByKey = new Map<string, string>();
-  const features: Feature<Point, MarkerFeatureProps>[] = [];
 
   markers.forEach((marker) => {
+    resolveMarkerIconName(marker.icon, images, iconNameByKey);
+  });
+
+  return { images, iconNameByKey };
+};
+
+/**
+ * Vytvorí GeoJSON shape pre markery
+ * Používa existujúcu mapu ikon a pred-formátovaný rating z markerov
+ */
+const buildMarkersShape = (
+  markers: DiscoverMapProps["filteredMarkers"],
+  images: IconRegistry,
+  iconNameByKey: Map<string, string>
+): FeatureCollection<Point, MarkerFeatureProps> => {
+  const features: Feature<Point, MarkerFeatureProps>[] = [];
+
+  for (const marker of markers) {
     const iconName = resolveMarkerIconName(marker.icon, images, iconNameByKey);
-    const rating = marker.rating.toFixed(1);
+    // Použijeme pred-formátovaný rating ak existuje, inak formátujeme tu
+    const rating = marker.ratingFormatted ?? marker.rating.toFixed(1);
     const isMulti = marker.category === "Multi";
 
     features.push({
@@ -230,19 +257,30 @@ const buildMarkersShapeAndImages = (
       properties: {
         icon: iconName,
         rating,
-        isMulti, // pridal som multi
+        isMulti,
       },
       geometry: {
         type: "Point",
         coordinates: [marker.coord.lng, marker.coord.lat],
       },
     });
-  });
+  }
 
-  return {
-    images,
-    shape: toFeatureCollection(features),
-  };
+  return toFeatureCollection(features);
+};
+
+/**
+ * Vytvorí GeoJSON shape a registráciu ikon pre markery
+ * Interně používa buildImagesRegistry a buildMarkersShape
+ */
+const buildMarkersShapeAndImages = (
+  markers: DiscoverMapProps["filteredMarkers"],
+  baseImages: IconRegistry
+) => {
+  const { images, iconNameByKey } = buildImagesRegistry(markers, baseImages);
+  const shape = buildMarkersShape(markers, images, iconNameByKey);
+
+  return { images, shape };
 };
 
 export {
@@ -286,4 +324,6 @@ export {
 
   buildCityClusterShape,
   buildMarkersShapeAndImages,
+  buildImagesRegistry,
+  buildMarkersShape,
 };

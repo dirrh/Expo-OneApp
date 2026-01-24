@@ -60,6 +60,7 @@ export interface DiscoverMapMarker {
   groupId?: string;
   icon: ImageSourcePropType;
   rating: number;
+  ratingFormatted?: string; // Pred-formátovaný rating pre mapu
   category: DiscoverCategory | "Multi";
 }
 
