@@ -10,7 +10,6 @@ import {
   useWindowDimensions,
   PanResponder,
 } from "react-native";
-import Svg, { Path, Line } from "react-native-svg";
 
 interface Props {
   visible: boolean;
@@ -47,7 +46,9 @@ const SUBCATEGORY_EMOJIS: Record<string, string> = {
   Beer: "🍺",
   Gym: "🏋️",
   "Personal Training": "💪",
+  Training: "💪",
   "Group Classes": "👥",
+  Classes: "👥",
   Yoga: "🧘",
   Haircut: "✂️",
   Manicure: "💅",
@@ -62,7 +63,7 @@ const SUBCATEGORY_EMOJIS: Record<string, string> = {
 // Mapovanie subcategories na kategórie
 const CATEGORY_SUBCATEGORIES: Record<string, string[]> = {
   Gastro: ["Vegan", "Coffee", "Seafood", "Pizza", "Sushi", "Fast Food", "Asian", "Beer"],
-  Fitness: ["Gym", "Personal Training", "Group Classes", "Yoga"],
+  Fitness: ["Gym", "Training", "Classes", "Yoga"],
   Beauty: ["Haircut", "Manicure", "Pedicure", "Facial", "Massage"],
   Relax: ["Spa", "Wellness", "Massage", "Sauna"],
 };
@@ -82,7 +83,7 @@ export default function DiscoverSideFilterPanel({
   toggleSubcategory,
 }: Props) {
   const { width, height } = useWindowDimensions();
-  const PANEL_WIDTH = Math.min(width * 0.75, 380);
+  const PANEL_WIDTH = 272;
 
   // Animácie
   const translateX = useRef(new Animated.Value(PANEL_WIDTH)).current;
@@ -213,7 +214,7 @@ export default function DiscoverSideFilterPanel({
             styles.pullHandleContainer,
             {
               opacity: pullHandleOpacity,
-              top: height / 2 - 36,
+              top: height / 2 - 27,
             },
           ]}
           {...openPanResponder.panHandlers}
@@ -223,21 +224,7 @@ export default function DiscoverSideFilterPanel({
             onPress={onOpen}
             activeOpacity={0.7}
           >
-            <Svg width="24" height="72" viewBox="0 0 18 54" fill="none">
-              <Path
-                d="M0 18C0 8.05887 8.05888 0 18 0V54C8.05888 54 0 45.9411 0 36V18Z"
-                fill="white"
-              />
-              <Line
-                x1="5.5"
-                y1="38.9941"
-                x2="5.5"
-                y2="15.5002"
-                stroke="#AEAEAE"
-                strokeWidth="3"
-                strokeLinecap="round"
-              />
-            </Svg>
+            <View style={{ width: 3, height: 24, backgroundColor: "#AEAEAE", borderRadius: 3 }} />
           </TouchableOpacity>
         </Animated.View>
       )}
@@ -277,27 +264,11 @@ export default function DiscoverSideFilterPanel({
               style={styles.handleWrapper}
               {...closePanResponder.panHandlers}
             >
-              <Svg width="18" height="54" viewBox="0 0 18 54" fill="none">
-                <Path
-                  d="M0 18C0 8.05887 8.05888 0 18 0V54C8.05888 54 0 45.9411 0 36V18Z"
-                  fill="white"
-                />
-                <Line
-                  x1="5.5"
-                  y1="38.9941"
-                  x2="5.5"
-                  y2="15.5002"
-                  stroke="#AEAEAE"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                />
-              </Svg>
+              <View style={styles.pullHandle}>
+                <View style={{ width: 3, height: 24, backgroundColor: "#AEAEAE", borderRadius: 3 }} />
+              </View>
             </View>
           )}
-
-          <View style={styles.header}>
-            <Text style={styles.title}>Filters</Text>
-          </View>
 
           <View style={styles.contentContainer}>
             {/* Left Column - Categories */}
@@ -333,11 +304,12 @@ export default function DiscoverSideFilterPanel({
                       return (
                         <TouchableOpacity
                           key={cat}
-                          style={[styles.chip, isActive && styles.chipActive]}
+                          style={[styles.chip, styles.chipRow, isActive && styles.chipActive]}
                           onPress={() =>
                             setAppliedFilter(isActive ? null : cat)
                           }
                         >
+                          <Text style={styles.chipEmoji}>{emoji}</Text>
                           <Text
                             style={
                               isActive
@@ -345,7 +317,7 @@ export default function DiscoverSideFilterPanel({
                                 : styles.chipText
                             }
                           >
-                            {emoji} {cat}
+                            {cat}
                           </Text>
                         </TouchableOpacity>
                       );
@@ -409,35 +381,34 @@ export default function DiscoverSideFilterPanel({
                    </View>
                  </View>
 
-                {/* Subcategories - zobrazujú sa len pre vybranú kategóriu */}
-                {appliedFilter && CATEGORY_SUBCATEGORIES[appliedFilter] && (
-                  <View style={styles.sectionContainer}>
-                    <Text style={styles.sectionTitle}>Subcategories</Text>
-                    <View style={styles.chips}>
-                      {CATEGORY_SUBCATEGORIES[appliedFilter].map((s) => {
-                        const isActive = sub.has(s);
-                        const emoji = SUBCATEGORY_EMOJIS[s] || "";
-                        return (
-                          <TouchableOpacity
-                            key={s}
-                            style={[styles.chip, isActive && styles.chipActive]}
-                            onPress={() => toggleSubcategory(s)}
+                {/* Subcategories - zobrazujú sa vždy (default Gastro ak nie je vybraná kategória) */}
+                <View style={styles.sectionContainer}>
+                  <Text style={styles.sectionTitle}>Subcategories</Text>
+                  <View style={styles.chips}>
+                    {(CATEGORY_SUBCATEGORIES[appliedFilter ?? "Gastro"] || CATEGORY_SUBCATEGORIES.Gastro).map((s) => {
+                      const isActive = sub.has(s);
+                      const emoji = SUBCATEGORY_EMOJIS[s] || "";
+                      return (
+                        <TouchableOpacity
+                          key={s}
+                          style={[styles.chip, styles.chipRow, isActive && styles.chipActive]}
+                          onPress={() => toggleSubcategory(s)}
+                        >
+                          <Text style={styles.chipEmoji}>{emoji}</Text>
+                          <Text
+                            style={
+                              isActive
+                                ? styles.chipTextActive
+                                : styles.chipText
+                            }
                           >
-                            <Text
-                              style={
-                                isActive
-                                  ? styles.chipTextActive
-                                  : styles.chipText
-                              }
-                            >
-                              {emoji} {s}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
+                            {s}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
                   </View>
-                )}
+                </View>
               </ScrollView>
             </View>
           </View>
@@ -462,9 +433,10 @@ const styles = StyleSheet.create({
     right: 0,
     top: 0,
     bottom: 0,
-    backgroundColor: "#fff",
-    paddingHorizontal: 16,
-    paddingTop: 20,
+    backgroundColor: "#FFFFFF",
+    paddingTop: 55,
+    borderTopLeftRadius: 30,
+    borderBottomLeftRadius: 30,
     elevation: 10,
     shadowColor: "#000",
     shadowOffset: { width: -2, height: 0 },
@@ -473,38 +445,33 @@ const styles = StyleSheet.create({
   },
   handleWrapper: {
     position: "absolute",
-    left: -24,
+    left: -18,
     top: "50%",
-    width: 40,
-    height: 88,
+    marginTop: -27,
+    width: 18,
+    height: 54,
     justifyContent: "center",
     alignItems: "center",
     zIndex: 10000,
-  },
-  header: {
-    marginBottom: 20,
-    paddingRight: 4,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#000",
   },
   contentContainer: {
     flex: 1,
     flexDirection: "row",
   },
   leftColumn: {
-    flex: 1,
-    paddingRight: 8,
+    width: 116,
+    paddingLeft: 16,
+    paddingRight: 16,
+    borderRightWidth: 1,
+    borderRightColor: "#E4E4E7",
   },
   rightColumn: {
     flex: 1,
-    paddingLeft: 8,
+    paddingLeft: 16,
+    paddingRight: 16,
   },
   divider: {
-    width: 1,
-    backgroundColor: "#E0E0E0",
+    display: "none",
   },
   scrollView: {
     flex: 1,
@@ -513,59 +480,71 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   sectionContainer: {
-    marginBottom: 28,
+    marginBottom: 12,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#333",
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#000000",
     marginBottom: 12,
-
+    lineHeight: 21,
   },
   chips: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-    
+    flexDirection: "column",
+    alignItems: "flex-start",
+    gap: 12,
   },
   chip: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 24,
-    borderWidth: 1.5,
-    borderColor: "#E0E0E0",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 20,
+    borderWidth: 0.5,
+    borderColor: "#E4E4E7",
     backgroundColor: "#fff",
-    minHeight: 40,
     justifyContent: "center",
     alignItems: "center",
   },
+  chipRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  chipEmoji: {
+    fontSize: 16,
+    lineHeight: 20,
+  },
   chipActive: {
-    backgroundColor: "#FF7A00",
-    borderColor: "#FF7A00",
+    backgroundColor: "#EB8100",
+    borderColor: "#EB8100",
   },
   chipText: {
-    fontSize: 14,
-    color: "#333",
-    fontWeight: "500",
+    fontSize: 15,
+    color: "#000000",
+    fontWeight: "600",
+    lineHeight: 18,
   },
   chipTextActive: {
-    fontSize: 14,
-    color: "#fff",
+    fontSize: 15,
+    color: "#FFFFFF",
     fontWeight: "600",
+    lineHeight: 18,
   },
   pullHandleContainer: {
     position: "absolute",
     right: 0,
-    width: 24,
-    height: 72,
+    width: 18,
+    height: 54,
     justifyContent: "center",
     alignItems: "center",
     zIndex: 9998,
     pointerEvents: "auto",
   },
   pullHandle: {
-    width: 24,
-    height: 72,
+    width: 18,
+    height: 54,
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 20,
+    borderBottomLeftRadius: 20,
     justifyContent: "center",
     alignItems: "center",
   },

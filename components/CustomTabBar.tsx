@@ -28,7 +28,7 @@ export default function CustomTabBar({ state, descriptors, navigation }: any) {
 
           if (name === "QR") return "qr";
           if (name === "Feed" || lbl === "Feed") return "feed";
-          if (name === "Search" || lbl === "Search") return "search";
+          if (name === "Home" || lbl === "Home") return "home";
 
           if (
             name === "Discover" ||
@@ -59,13 +59,13 @@ export default function CustomTabBar({ state, descriptors, navigation }: any) {
             b: require("../images/menu/feed_b.png"),
             w: require("../images/menu/feed_w.png"),
           },
+          home: {
+            b: require("../images/home.png"),
+            w: require("../images/home.png"),
+          },
           discover: {
             b: require("../images/menu/pin_b.png"),
             w: require("../images/menu/pin_w.png"),
-          },
-          search: {
-            b: require("../images/menu/search_b.png"),
-            w: require("../images/menu/search_w.png"),
           },
           profile: {
             b: require("../images/menu/user_b.png"),

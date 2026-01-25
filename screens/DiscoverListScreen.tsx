@@ -125,6 +125,10 @@ const NITRA_CENTER: [number, number] = [18.091, 48.3069];
 const CARD_HEIGHT = 142;
 const DEG_TO_RAD = Math.PI / 180;
 
+// Možnosti triedenia
+const SORT_OPTIONS = ["Trending", "Top rated", "Open near you"] as const;
+type SortOption = typeof SORT_OPTIONS[number];
+
 export default function DiscoverListScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
@@ -132,6 +136,10 @@ export default function DiscoverListScreen() {
   const { t } = useTranslation();
   const { height: screenHeight } = useWindowDimensions();
   const dataSource = useDataSource();
+
+  // Stav pre sort dropdown
+  const [sortOption, setSortOption] = useState<SortOption>("Trending");
+  const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
 
   // Výpočet počtu skeleton kariet podľa výšky obrazovky
   const skeletonCount = useMemo(() => {
@@ -212,8 +220,16 @@ export default function DiscoverListScreen() {
       }
     }
 
-    return results.sort((a, b) => a.distanceKm - b.distanceKm);
-  }, [userLocation, markers]);
+    // Triedenie podľa vybranej možnosti
+    switch (sortOption) {
+      case "Top rated":
+        return results.sort((a, b) => b.rating - a.rating);
+      case "Open near you":
+      case "Trending":
+      default:
+        return results.sort((a, b) => a.distanceKm - b.distanceKm);
+    }
+  }, [userLocation, markers, sortOption]);
 
   // Definujeme presnú výšku položiek pre FlatList
   // To umožňuje preskočiť výpočet rozloženia a zlepšuje plynulosť skrolovania
@@ -268,27 +284,58 @@ export default function DiscoverListScreen() {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.actionsRow}>
-          {/* Filter button */}
-          <TouchableOpacity style={styles.roundBtn} activeOpacity={0.85}>
-            <Image
-              source={require("../images/filter.png")}
-              style={styles.actionBtnIcon}
-            />
-          </TouchableOpacity>
+        {/* Cancel button - návrat späť */}
+        <TouchableOpacity
+          style={styles.cancelBtn}
+          activeOpacity={0.85}
+          onPress={() => navigation.goBack()}
+        >
+          <Text style={styles.cancelText}>Cancel</Text>
+        </TouchableOpacity>
+      </View>
 
-          {/* Map button - návrat na mapu */}
-          <TouchableOpacity
-            style={styles.roundBtn}
-            activeOpacity={0.85}
-            onPress={() => navigation.goBack()}
-          >
-            <Image
-              source={require("../images/menu/compass_b.png")}
-              style={styles.actionBtnIcon}
-            />
-          </TouchableOpacity>
-        </View>
+      {/* Sort dropdown */}
+      <View style={styles.sortContainer}>
+        <TouchableOpacity
+          style={styles.sortDropdown}
+          activeOpacity={0.85}
+          onPress={() => setSortDropdownOpen(!sortDropdownOpen)}
+        >
+          <Text style={styles.sortText}>{sortOption}</Text>
+          <Image
+            source={require("../images/options.png")}
+            style={[styles.sortCaret, sortDropdownOpen && styles.sortCaretOpen]}
+            resizeMode="contain"
+          />
+        </TouchableOpacity>
+
+        {sortDropdownOpen && (
+          <View style={styles.sortMenu}>
+            {SORT_OPTIONS.map((option) => (
+              <TouchableOpacity
+                key={option}
+                style={[
+                  styles.sortMenuItem,
+                  sortOption === option && styles.sortMenuItemActive,
+                ]}
+                activeOpacity={0.85}
+                onPress={() => {
+                  setSortOption(option);
+                  setSortDropdownOpen(false);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.sortMenuText,
+                    sortOption === option && styles.sortMenuTextActive,
+                  ]}
+                >
+                  {option}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
       </View>
 
       {/* List */}
@@ -315,11 +362,6 @@ export default function DiscoverListScreen() {
             { paddingBottom: insets.bottom + 16 },
           ]}
           showsVerticalScrollIndicator={false}
-          ListHeaderComponent={
-            <Text style={styles.resultCount}>
-              {nearbyBranches.length} {nearbyBranches.length === 1 ? "place" : "places"} within 2 km
-            </Text>
-          }
           // Nastavenia pre efektívne vykresľovanie zoznamu
           initialNumToRender={8}
           maxToRenderPerBatch={10}
@@ -334,68 +376,99 @@ export default function DiscoverListScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5F5F5",
+    backgroundColor: "#FFFFFF",
   },
   header: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingBottom: 16,
-    backgroundColor: "#F5F5F5",
+    backgroundColor: "#FFFFFF",
   },
   card: {
-    flex: 1,
-    maxWidth: 200,
-    marginRight: 24,
     backgroundColor: "white",
-    borderRadius: 18,
-    overflow: "hidden",
-    ...(Platform.OS === "web"
-      ? { boxShadow: "0 6px 12px rgba(0, 0, 0, 0.14)" }
-      : {
-          shadowColor: "#000",
-          shadowOpacity: 0.14,
-          shadowRadius: 12,
-          shadowOffset: { width: 0, height: 6 },
-          elevation: 10,
-        }),
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "#E4E4E7",
   },
   row: {
     height: 44,
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 8,
   },
   rowIcon: { width: 18, height: 18 },
-  rowTextBold: { flex: 1, fontWeight: "700" },
-  caret: { width: 16, height: 16, opacity: 0.7 },
-  actionsRow: {
-    flexDirection: "row",
-    gap: 12,
+  rowTextBold: { fontWeight: "600", fontSize: 14 },
+  caret: { width: 14, height: 14, opacity: 0.5, marginLeft: 4 },
+  cancelBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 8,
   },
-  roundBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 15,
-    backgroundColor: "white",
+  cancelText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#000",
+  },
+  sortContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    zIndex: 100,
+  },
+  sortDropdown: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    gap: 6,
+  },
+  sortText: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#000",
+  },
+  sortCaret: {
+    width: 16,
+    height: 16,
+    opacity: 0.5,
+  },
+  sortCaretOpen: {
+    transform: [{ rotate: "180deg" }],
+  },
+  sortMenu: {
+    position: "absolute",
+    top: 40,
+    left: 16,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#E4E4E7",
+    paddingVertical: 8,
+    minWidth: 180,
     ...(Platform.OS === "web"
-      ? { boxShadow: "0 5px 10px rgba(0, 0, 0, 0.12)" }
+      ? { boxShadow: "0 8px 24px rgba(0, 0, 0, 0.15)" }
       : {
           shadowColor: "#000",
-          shadowOpacity: 0.12,
-          shadowRadius: 10,
-          shadowOffset: { width: 0, height: 5 },
-          elevation: 8,
+          shadowOpacity: 0.15,
+          shadowRadius: 24,
+          shadowOffset: { width: 0, height: 8 },
+          elevation: 12,
         }),
   },
-  actionBtnIcon: {
-    width: 20,
-    height: 20,
-    resizeMode: "contain",
+  sortMenuItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  sortMenuItemActive: {
+    backgroundColor: "#FFF5EB",
+  },
+  sortMenuText: {
+    fontSize: 16,
+    fontWeight: "500",
+    color: "#333",
+  },
+  sortMenuTextActive: {
+    color: "#EB8100",
+    fontWeight: "600",
   },
   list: {
     flex: 1,
@@ -419,11 +492,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#666",
     textAlign: "center",
-  },
-  resultCount: {
-    fontSize: 14,
-    color: "#666",
-    marginBottom: 12,
-    fontWeight: "500",
   },
 });

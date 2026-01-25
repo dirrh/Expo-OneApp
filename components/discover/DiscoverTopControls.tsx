@@ -99,23 +99,17 @@ export default function DiscoverTopControls({
         </View>
 
         <View style={styles.actionsRow} pointerEvents="auto">
-          {/* Filter button - s indikátorom aktívneho filtra */}
+          {/* Search button - otvorí vyhľadávací sheet */}
           {o && (
             <TouchableOpacity
               style={styles.roundBtn}
               activeOpacity={0.85}
               onPress={() => {
                 setOpen(false);
-                filterRef.current?.expand();
+                _sheetRef.current?.expand();
               }}
             >
-              <Image source={require("../../images/filter.png")} style={styles.actionBtnIcon} />
-              {hasActiveFilter && (
-                <Image
-                  source={require("../../images/filter_active.png")}
-                  style={styles.filterActiveIndicator}
-                />
-              )}
+              <Image source={require("../../images/search.png")} style={styles.actionBtnIcon} />
             </TouchableOpacity>
           )}
 

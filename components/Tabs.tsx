@@ -28,13 +28,9 @@ export default function Tabs() {
       </Tab.Screen>
 
       {/* VEREJNÉ - bez prihlásenia */}
-      <Tab.Screen name={t("Discover")} component={DiscoverScreen} />
       <Tab.Screen name="Feed" component={FeedScreen} />
-      <Tab.Screen
-        name="Search"
-        component={DiscoverScreen}
-        options={{ tabBarLabel: t("Search") }}
-      />
+      <Tab.Screen name="Home" component={FeedScreen} />
+      <Tab.Screen name={t("Discover")} component={DiscoverScreen} />
 
       {/* CHRÁNENÝ - vyžaduje prihlásenie */}
       <Tab.Screen name={t("Profile")}>
