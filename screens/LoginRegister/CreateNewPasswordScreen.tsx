@@ -1,6 +1,16 @@
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  KeyboardAvoidingView,
+  ScrollView,
+  Platform,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function CreateNewPasswordScreen() {
   const [password, setPassword] = useState("");
@@ -9,43 +19,59 @@ export default function CreateNewPasswordScreen() {
   const { t } = useTranslation();
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        <ScrollView
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Header */}
+          <Text style={styles.title}>{t("createNewPassword")}</Text>
+          <Text style={styles.subtitle}>
+            {t("newSubtitle")}
+          </Text>
 
-      {/* Header */}
-      <Text style={styles.title}>{t("createNewPassword")}</Text>
-      <Text style={styles.subtitle}>
-        {t("newSubtitle")}
-      </Text>
+          {/* Heslo */}
+          <TextInput
+            placeholder={t("password")}
+            style={styles.input}
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+          />
 
-      {/* Heslo */}
-      <TextInput
-        placeholder={t("password")}
-        style={styles.input}
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-      />
+          {/* Confirm Heslo */}
+          <TextInput
+            placeholder={t("confirmPassword")}
+            style={styles.input}
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+            secureTextEntry
+          />
 
-      {/* Confirm Heslo */}
-      <TextInput
-        placeholder={t("confirmPassword")}
-        style={styles.input}
-        value={confirmPassword}
-        onChangeText={setConfirmPassword}
-        secureTextEntry
-      />
-
-      {/* Continue */}
-      <TouchableOpacity style={styles.button}>
-        <Text style={styles.buttonText}>{t("continue")}</Text>
-      </TouchableOpacity>
-    </View>
+          {/* Continue */}
+          <TouchableOpacity style={styles.button}>
+            <Text style={styles.buttonText}>{t("continue")}</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#fff",
+  },
+  flex: {
+    flex: 1,
+  },
+  content: {
+    flexGrow: 1,
     padding: 24,
     justifyContent: "center",
   },

@@ -2,7 +2,20 @@ import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import React, { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, Alert, ActivityIndicator } from "react-native";
+import {
+    View,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    StyleSheet,
+    Image,
+    Alert,
+    ActivityIndicator,
+    KeyboardAvoidingView,
+    ScrollView,
+    Platform,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "../../lib/supabaseClient";
 import { useAuth } from "../../lib/AuthContext";
@@ -113,109 +126,120 @@ export default function LoginScreen() {
     };
 
     return (
-        <View style={styles.container}>
-            {/* Header */}
-            <TouchableOpacity onPress={() => navigation.navigate("Tabs", { screen: t("Discover") })}>
-                <Ionicons name="arrow-back" size={24} />
-            </TouchableOpacity>
-            <Text style={styles.title}>{t("loginTitle")}</Text>
-            <Text style={styles.subtitle}>{t("loginSubtitle")}</Text>
-
-            {/* Email */}
-            <View style={styles.inputWrapper}>
-                <Ionicons name="mail-outline" size={20} style={styles.inputIcon} />
-                <TextInput
-                    placeholder={t("email")}
-                    style={styles.input}
-                    value={email}
-                    onChangeText={setEmail}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    editable={!loading}
-                />
-            </View>
-
-            {/* Password */}
-            <View style={styles.inputWrapper}>
-                <Ionicons name="lock-closed-outline" size={20} style={styles.inputIcon} />
-                <TextInput
-                    placeholder={t("password")}
-                    style={styles.input}
-                    value={password}
-                    onChangeText={setPassword}
-                    secureTextEntry={!showPassword}
-                    editable={!loading}
-                />
-                <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-                    <Ionicons
-                        name={showPassword ? "eye-outline" : "eye-off-outline"}
-                        size={20}
-                        style={styles.eyeIcon}
-                    />
-                </TouchableOpacity>
-            </View>
-
-            {/* Forgot Password */}
-            <TouchableOpacity 
-                onPress={() => navigation.navigate("ForgottenPassword")} 
-                style={styles.forgotPassword}
-                disabled={loading}
+        <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+            <KeyboardAvoidingView
+                style={styles.flex}
+                behavior={Platform.OS === "ios" ? "padding" : "height"}
             >
-                <Text style={styles.forgotPasswordText}>{t("forgotPassword")}</Text>
-            </TouchableOpacity>
+                <ScrollView
+                    contentContainerStyle={styles.content}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                >
+                    {/* Header */}
+                    <TouchableOpacity onPress={() => navigation.navigate("Tabs", { screen: t("Discover") })}>
+                        <Ionicons name="arrow-back" size={24} />
+                    </TouchableOpacity>
+                    <Text style={styles.title}>{t("loginTitle")}</Text>
+                    <Text style={styles.subtitle}>{t("loginSubtitle")}</Text>
 
-            {/* Login Button */}
-            <TouchableOpacity 
-                style={[styles.button, loading && styles.buttonDisabled]} 
-                onPress={handleLogin}
-                disabled={loading}
-            >
-                {loading ? (
-                    <ActivityIndicator color="#fff" />
-                ) : (
-                    <Text style={styles.buttonText}>{t("login")}</Text>
-                )}
-            </TouchableOpacity>
+                    {/* Email */}
+                    <View style={styles.inputWrapper}>
+                        <Ionicons name="mail-outline" size={20} style={styles.inputIcon} />
+                        <TextInput
+                            placeholder={t("email")}
+                            style={styles.input}
+                            value={email}
+                            onChangeText={setEmail}
+                            keyboardType="email-address"
+                            autoCapitalize="none"
+                            editable={!loading}
+                        />
+                    </View>
 
-            {/* Sign up link */}
-            <TouchableOpacity onPress={() => navigation.navigate("Signup")} disabled={loading}>
-                <Text style={styles.signin}>
-                    {t("dont")}
-                    <Text style={styles.signinLink}>{t("signup")}</Text>
-                </Text>
-            </TouchableOpacity>
+                    {/* Password */}
+                    <View style={styles.inputWrapper}>
+                        <Ionicons name="lock-closed-outline" size={20} style={styles.inputIcon} />
+                        <TextInput
+                            placeholder={t("password")}
+                            style={styles.input}
+                            value={password}
+                            onChangeText={setPassword}
+                            secureTextEntry={!showPassword}
+                            editable={!loading}
+                        />
+                        <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                            <Ionicons
+                                name={showPassword ? "eye-outline" : "eye-off-outline"}
+                                size={20}
+                                style={styles.eyeIcon}
+                            />
+                        </TouchableOpacity>
+                    </View>
 
-            {/* Divider */}
-            <View style={styles.dividerRow}>
-                <View style={styles.divider} />
-                <Text style={styles.or}>{t("or")}</Text>
-                <View style={styles.divider} />
-            </View>
+                    {/* Forgot Password */}
+                    <TouchableOpacity 
+                        onPress={() => navigation.navigate("ForgottenPassword")} 
+                        style={styles.forgotPassword}
+                        disabled={loading}
+                    >
+                        <Text style={styles.forgotPasswordText}>{t("forgotPassword")}</Text>
+                    </TouchableOpacity>
 
-            {/* Social login */}
-            <View style={styles.socialRow}>
-                <TouchableOpacity style={styles.socialButton} onPress={handleGoogleLogin} disabled={loading}>
-                    <Image
-                        source={{ uri: "https://cdn-icons-png.flaticon.com/512/2991/2991148.png" }}
-                        style={styles.socialIcon}
-                    />
-                </TouchableOpacity>
+                    {/* Login Button */}
+                    <TouchableOpacity 
+                        style={[styles.button, loading && styles.buttonDisabled]} 
+                        onPress={handleLogin}
+                        disabled={loading}
+                    >
+                        {loading ? (
+                            <ActivityIndicator color="#fff" />
+                        ) : (
+                            <Text style={styles.buttonText}>{t("login")}</Text>
+                        )}
+                    </TouchableOpacity>
 
-                <TouchableOpacity style={styles.socialButton} onPress={handleAppleLogin} disabled={loading}>
-                    <Image
-                        source={{ uri: "https://cdn-icons-png.flaticon.com/512/0/747.png" }}
-                        style={styles.socialIcon}
-                    />
-                </TouchableOpacity>
+                    {/* Sign up link */}
+                    <TouchableOpacity onPress={() => navigation.navigate("Signup")} disabled={loading}>
+                        <Text style={styles.signin}>
+                            {t("dont")}
+                            <Text style={styles.signinLink}>{t("signup")}</Text>
+                        </Text>
+                    </TouchableOpacity>
 
-                <TouchableOpacity style={styles.socialButton} onPress={handleFacebookLogin} disabled={loading}>
-                    <Image
-                        source={{ uri: "https://cdn-icons-png.flaticon.com/512/5968/5968764.png" }}
-                        style={styles.socialIcon}
-                    />
-                </TouchableOpacity>
-            </View>
-        </View>
+                    {/* Divider */}
+                    <View style={styles.dividerRow}>
+                        <View style={styles.divider} />
+                        <Text style={styles.or}>{t("or")}</Text>
+                        <View style={styles.divider} />
+                    </View>
+
+                    {/* Social login */}
+                    <View style={styles.socialRow}>
+                        <TouchableOpacity style={styles.socialButton} onPress={handleGoogleLogin} disabled={loading}>
+                            <Image
+                                source={{ uri: "https://cdn-icons-png.flaticon.com/512/2991/2991148.png" }}
+                                style={styles.socialIcon}
+                            />
+                        </TouchableOpacity>
+
+                        <TouchableOpacity style={styles.socialButton} onPress={handleAppleLogin} disabled={loading}>
+                            <Image
+                                source={{ uri: "https://cdn-icons-png.flaticon.com/512/0/747.png" }}
+                                style={styles.socialIcon}
+                            />
+                        </TouchableOpacity>
+
+                        <TouchableOpacity style={styles.socialButton} onPress={handleFacebookLogin} disabled={loading}>
+                            <Image
+                                source={{ uri: "https://cdn-icons-png.flaticon.com/512/5968/5968764.png" }}
+                                style={styles.socialIcon}
+                            />
+                        </TouchableOpacity>
+                    </View>
+                </ScrollView>
+            </KeyboardAvoidingView>
+        </SafeAreaView>
     );
 }
 
@@ -223,8 +247,14 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: "#fff",
+    },
+    flex: {
+        flex: 1,
+    },
+    content: {
+        flexGrow: 1,
         padding: 24,
-        paddingTop: 30,
+        paddingTop: 16,
     },
     title: {
         fontSize: 26,

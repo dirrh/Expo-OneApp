@@ -5,10 +5,14 @@ import {
     TextInput,
     TouchableOpacity,
     StyleSheet,
+    KeyboardAvoidingView,
+    ScrollView,
+    Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { useTranslation } from "react-i18next";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function ForgotPasswordScreen() {
     const [email, setEmail] = useState("");
@@ -18,47 +22,63 @@ export default function ForgotPasswordScreen() {
     const { t } = useTranslation();
 
     return (
-        <View style={styles.container}>
+        <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+            <KeyboardAvoidingView
+                style={styles.flex}
+                behavior={Platform.OS === "ios" ? "padding" : "height"}
+            >
+                <ScrollView
+                    contentContainerStyle={styles.content}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                >
+                    {/* Header */}
+                    <TouchableOpacity onPress={() => navigation.goBack()}>
+                        <Ionicons name="arrow-back" size={24} />
+                    </TouchableOpacity>
+                    <Text style={styles.title}>{t("forgotPassword")}</Text>
+                    <Text style={styles.subtitle}>
+                        {t("forgotSubtitle")}
+                    </Text>
 
-            {/* Header */}
-            <TouchableOpacity onPress={() => navigation.goBack()}>
-                <Ionicons name="arrow-back" size={24} />
-            </TouchableOpacity>
-            <Text style={styles.title}>{t("forgotPassword")}</Text>
-            <Text style={styles.subtitle}>
-                {t("forgotSubtitle")}
-            </Text>
+                    {/* Email input */}
+                    <View style={styles.inputWrapper}>
+                        <Ionicons
+                            name="mail-outline"
+                            size={20}
+                            style={styles.inputIcon}
+                        />
 
-            {/* Email input */}
-            <View style={styles.inputWrapper}>
-                <Ionicons
-                    name="mail-outline"
-                    size={20}
-                    style={styles.inputIcon}
-                />
+                        <TextInput
+                            placeholder={t("email")}
+                            style={styles.input}
+                            value={email}
+                            onChangeText={setEmail}
+                            keyboardType="email-address"
+                        />
+                    </View>
 
-                <TextInput
-                    placeholder={t("email")}
-                    style={styles.input}
-                    value={email}
-                    onChangeText={setEmail}
-                    keyboardType="email-address"
-                />
-            </View>
-
-            {/* Continue button */}
-            <TouchableOpacity style={styles.button}>
-                <Text style={styles.buttonText}>{t("continue")}</Text>
-            </TouchableOpacity>
-        </View>
+                    {/* Continue button */}
+                    <TouchableOpacity style={styles.button}>
+                        <Text style={styles.buttonText}>{t("continue")}</Text>
+                    </TouchableOpacity>
+                </ScrollView>
+            </KeyboardAvoidingView>
+        </SafeAreaView>
     );
 }
 const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: "#fff",
+    },
+    flex: {
+        flex: 1,
+    },
+    content: {
+        flexGrow: 1,
         padding: 24,
-        paddingTop: 30,
+        paddingTop: 16,
     },
     title: {
         fontSize: 26,

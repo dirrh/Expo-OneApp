@@ -1,10 +1,12 @@
 import React from "react";
-import { View, StyleSheet, ImageBackground, Image, Text, TouchableOpacity, Platform } from "react-native";
+import { View, StyleSheet, ImageBackground, Image, Text, TouchableOpacity, Platform, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import BranchCard from "../components/BranchCard";
 
 export default function FeedScreen() {
     const insets = useSafeAreaInsets();
+    const { height: screenHeight } = useWindowDimensions();
+    const actionsBottom = Math.max(insets.bottom + 120, Math.round(screenHeight * 0.22));
 
     return (
         <View style={styles.container}>
@@ -31,7 +33,7 @@ export default function FeedScreen() {
                 </View>
 
                 {/* Like/Share buttons - individualne ikonky */}
-                <View style={styles.actionsColumn}>
+                <View style={[styles.actionsColumn, { bottom: actionsBottom }]}>
                     <TouchableOpacity style={styles.actionBtn} activeOpacity={0.8}>
                         <Image
                             source={require("../images/feed/heart.png")}
@@ -139,7 +141,6 @@ const styles = StyleSheet.create({
     actionsColumn: {
         position: "absolute",
         right: 16,
-        bottom: 185,
         alignItems: "center",
         gap: 20,
     },

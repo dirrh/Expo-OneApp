@@ -2,7 +2,20 @@ import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, Alert, ActivityIndicator } from "react-native";
+import {
+    View,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    StyleSheet,
+    Image,
+    Alert,
+    ActivityIndicator,
+    KeyboardAvoidingView,
+    ScrollView,
+    Platform,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { supabase } from "../../lib/supabaseClient";
 
 export default function SignupScreen() {
@@ -117,120 +130,131 @@ export default function SignupScreen() {
     };
 
     return (
-        <View style={styles.container}>
-            {/* Header */}
-            <TouchableOpacity onPress={() => navigation.navigate('Tabs', { screen: 'Discover' })}>
-                <Ionicons name="arrow-back" size={24} />
-            </TouchableOpacity>
-            <Text style={styles.title}>{t("createAccount")}</Text>
-            <Text style={styles.subtitle}>{t("createSubtitle")}</Text>
-
-            {/* Email */}
-            <View style={styles.inputWrapper}>
-                <Ionicons name="mail-outline" size={20} style={styles.inputIcon} />
-                <TextInput
-                    placeholder={t("email")}
-                    style={styles.input}
-                    value={email}
-                    onChangeText={setEmail}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    editable={!loading}
-                />
-            </View>
-
-            {/* Password */}
-            <View style={styles.inputWrapper}>
-                <Ionicons name="lock-closed-outline" size={20} style={styles.inputIcon} />
-                <TextInput
-                    placeholder={t("password")}
-                    style={styles.input}
-                    value={password}
-                    onChangeText={setPassword}
-                    secureTextEntry={!showPassword}
-                    editable={!loading}
-                />
-                <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-                    <Ionicons
-                        name={showPassword ? "eye-outline" : "eye-off-outline"}
-                        size={20}
-                        style={styles.eyeIcon}
-                    />
-                </TouchableOpacity>
-            </View>
-
-            {/* Confirm Password */}
-            <View style={styles.inputWrapper}>
-                <Ionicons name="lock-closed-outline" size={20} style={styles.inputIcon} />
-                <TextInput
-                    placeholder={t("confirmPassword")}
-                    style={styles.input}
-                    value={confirmPassword}
-                    onChangeText={setConfirmPassword}
-                    secureTextEntry={!showConfirmPassword}
-                    editable={!loading}
-                />
-                <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
-                    <Ionicons
-                        name={showConfirmPassword ? "eye-outline" : "eye-off-outline"}
-                        size={20}
-                        style={styles.eyeIcon}
-                    />
-                </TouchableOpacity>
-            </View>
-
-            {/* Create Account Button */}
-            <TouchableOpacity 
-                style={[styles.button, loading && styles.buttonDisabled]} 
-                onPress={handleSignup}
-                disabled={loading}
+        <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+            <KeyboardAvoidingView
+                style={styles.flex}
+                behavior={Platform.OS === "ios" ? "padding" : "height"}
             >
-                {loading ? (
-                    <ActivityIndicator color="#fff" />
-                ) : (
-                    <Text style={styles.buttonText}>{t("createAccount")}</Text>
-                )}
-            </TouchableOpacity>
+                <ScrollView
+                    contentContainerStyle={styles.content}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                >
+                    {/* Header */}
+                    <TouchableOpacity onPress={() => navigation.navigate('Tabs', { screen: 'Discover' })}>
+                        <Ionicons name="arrow-back" size={24} />
+                    </TouchableOpacity>
+                    <Text style={styles.title}>{t("createAccount")}</Text>
+                    <Text style={styles.subtitle}>{t("createSubtitle")}</Text>
 
-            {/* Sign in link */}
-            <TouchableOpacity onPress={() => navigation.navigate("Login")} disabled={loading}>
-                <Text style={styles.signin}>
-                    {t("already")}
-                    <Text style={styles.signinLink}>{t("sign")}</Text>
-                </Text>
-            </TouchableOpacity>
+                    {/* Email */}
+                    <View style={styles.inputWrapper}>
+                        <Ionicons name="mail-outline" size={20} style={styles.inputIcon} />
+                        <TextInput
+                            placeholder={t("email")}
+                            style={styles.input}
+                            value={email}
+                            onChangeText={setEmail}
+                            keyboardType="email-address"
+                            autoCapitalize="none"
+                            editable={!loading}
+                        />
+                    </View>
 
-            {/* Divider */}
-            <View style={styles.dividerRow}>
-                <View style={styles.divider} />
-                <Text style={styles.or}>{t("or")}</Text>
-                <View style={styles.divider} />
-            </View>
+                    {/* Password */}
+                    <View style={styles.inputWrapper}>
+                        <Ionicons name="lock-closed-outline" size={20} style={styles.inputIcon} />
+                        <TextInput
+                            placeholder={t("password")}
+                            style={styles.input}
+                            value={password}
+                            onChangeText={setPassword}
+                            secureTextEntry={!showPassword}
+                            editable={!loading}
+                        />
+                        <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                            <Ionicons
+                                name={showPassword ? "eye-outline" : "eye-off-outline"}
+                                size={20}
+                                style={styles.eyeIcon}
+                            />
+                        </TouchableOpacity>
+                    </View>
 
-            {/* Social signup */}
-            <View style={styles.socialRow}>
-                <TouchableOpacity style={styles.socialButton} onPress={handleGoogleSignup} disabled={loading}>
-                    <Image
-                        source={{ uri: "https://cdn-icons-png.flaticon.com/512/2991/2991148.png" }}
-                        style={styles.socialIcon}
-                    />
-                </TouchableOpacity>
+                    {/* Confirm Password */}
+                    <View style={styles.inputWrapper}>
+                        <Ionicons name="lock-closed-outline" size={20} style={styles.inputIcon} />
+                        <TextInput
+                            placeholder={t("confirmPassword")}
+                            style={styles.input}
+                            value={confirmPassword}
+                            onChangeText={setConfirmPassword}
+                            secureTextEntry={!showConfirmPassword}
+                            editable={!loading}
+                        />
+                        <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
+                            <Ionicons
+                                name={showConfirmPassword ? "eye-outline" : "eye-off-outline"}
+                                size={20}
+                                style={styles.eyeIcon}
+                            />
+                        </TouchableOpacity>
+                    </View>
 
-                <TouchableOpacity style={styles.socialButton} onPress={handleAppleSignup} disabled={loading}>
-                    <Image
-                        source={{ uri: "https://cdn-icons-png.flaticon.com/512/0/747.png" }}
-                        style={styles.socialIcon}
-                    />
-                </TouchableOpacity>
+                    {/* Create Account Button */}
+                    <TouchableOpacity 
+                        style={[styles.button, loading && styles.buttonDisabled]} 
+                        onPress={handleSignup}
+                        disabled={loading}
+                    >
+                        {loading ? (
+                            <ActivityIndicator color="#fff" />
+                        ) : (
+                            <Text style={styles.buttonText}>{t("createAccount")}</Text>
+                        )}
+                    </TouchableOpacity>
 
-                <TouchableOpacity style={styles.socialButton} onPress={handleFacebookSignup} disabled={loading}>
-                    <Image
-                        source={{ uri: "https://cdn-icons-png.flaticon.com/512/5968/5968764.png" }}
-                        style={styles.socialIcon}
-                    />
-                </TouchableOpacity>
-            </View>
-        </View>
+                    {/* Sign in link */}
+                    <TouchableOpacity onPress={() => navigation.navigate("Login")} disabled={loading}>
+                        <Text style={styles.signin}>
+                            {t("already")}
+                            <Text style={styles.signinLink}>{t("sign")}</Text>
+                        </Text>
+                    </TouchableOpacity>
+
+                    {/* Divider */}
+                    <View style={styles.dividerRow}>
+                        <View style={styles.divider} />
+                        <Text style={styles.or}>{t("or")}</Text>
+                        <View style={styles.divider} />
+                    </View>
+
+                    {/* Social signup */}
+                    <View style={styles.socialRow}>
+                        <TouchableOpacity style={styles.socialButton} onPress={handleGoogleSignup} disabled={loading}>
+                            <Image
+                                source={{ uri: "https://cdn-icons-png.flaticon.com/512/2991/2991148.png" }}
+                                style={styles.socialIcon}
+                            />
+                        </TouchableOpacity>
+
+                        <TouchableOpacity style={styles.socialButton} onPress={handleAppleSignup} disabled={loading}>
+                            <Image
+                                source={{ uri: "https://cdn-icons-png.flaticon.com/512/0/747.png" }}
+                                style={styles.socialIcon}
+                            />
+                        </TouchableOpacity>
+
+                        <TouchableOpacity style={styles.socialButton} onPress={handleFacebookSignup} disabled={loading}>
+                            <Image
+                                source={{ uri: "https://cdn-icons-png.flaticon.com/512/5968/5968764.png" }}
+                                style={styles.socialIcon}
+                            />
+                        </TouchableOpacity>
+                    </View>
+                </ScrollView>
+            </KeyboardAvoidingView>
+        </SafeAreaView>
     );
 }
 
@@ -238,8 +262,14 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: "#fff",
+    },
+    flex: {
+        flex: 1,
+    },
+    content: {
+        flexGrow: 1,
         padding: 24,
-        paddingTop: 30,
+        paddingTop: 16,
     },
     title: {
         fontSize: 26,

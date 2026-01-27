@@ -8,7 +8,9 @@ import {
   SafeAreaView,
   Alert,
   Platform,
+  useWindowDimensions,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { useTranslation } from "react-i18next";
@@ -24,6 +26,8 @@ export default function ProfileScreen() {
   const navigation = useNavigation<any>();
   const { t } = useTranslation();
   const { signOut, user } = useAuth();
+  const insets = useSafeAreaInsets();
+  const { width: screenWidth } = useWindowDimensions();
 
   const [menuOpen, setMenuOpen] = useState(false);
   
@@ -68,7 +72,7 @@ export default function ProfileScreen() {
   return (
     <SafeAreaView style={styles.container}>
       {/* HEADER */}
-      <View style={styles.header}>
+      <View style={[styles.header, { marginTop: insets.top + 8 }]}>
         <View style={styles.headerLeft}>
           <View style={styles.avatar} />
           <Text style={styles.name}>{userName}</Text>
@@ -85,7 +89,7 @@ export default function ProfileScreen() {
 
       {/* DROPDOWN MENU */}
       {menuOpen && (
-        <View style={styles.dropdown}>
+        <View style={[styles.dropdown, { top: insets.top + 56, width: Math.min(240, screenWidth - 40) }]}>
           <DropdownItem
             icon="person-outline"
             label={t("userAccount")}
@@ -277,7 +281,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginTop: 40,
     marginBottom: 20,
   },
 

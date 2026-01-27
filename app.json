@@ -14,6 +14,7 @@
     },
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "com.anonymous.GEOAPP",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "This app uses your location to show your position on the map."
       }
@@ -24,15 +25,25 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"],
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ],
       "intentFilters": [
         {
           "action": "VIEW",
           "data": [
-            { "scheme": "geoapp" },
-            { "scheme": "exp+geoapp" }
+            {
+              "scheme": "geoapp"
+            },
+            {
+              "scheme": "exp+geoapp"
+            }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
     },
@@ -45,6 +56,12 @@
       },
       "MAPBOX_TOKEN": "pk.eyJ1IjoianNnY2l0eSIsImEiOiJjbWJ6YjRmOWUwY2E1Mm9xeHJkbGY4a3V5In0.xH1_hbHZbdGtO6yamCy87w"
     },
-    "owner": "extynt"
+    "owner": "extynt",
+    "runtimeVersion": {
+      "policy": "sdkVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/3c9074e6-f845-4fe9-b080-690c626b77c0"
+    }
   }
 }

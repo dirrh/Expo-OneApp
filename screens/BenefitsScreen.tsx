@@ -1,21 +1,27 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, TouchableWithoutFeedback, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Modal, TouchableWithoutFeedback, useWindowDimensions, ScrollView } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function BenefitsScreen() {
   const [ActualTab, setActualTab] = useState<"Activated" | "Claimed">("Activated");
   const [QRcode, setQRCode] = useState<boolean>(false);
   const { width: screenWidth } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const qrPadding = 24;
   const qrSize = Math.max(200, Math.floor(Math.min(320, screenWidth - 32 - qrPadding * 2)));
 
   const { t } = useTranslation();
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.text_benefits}>{t("myBenefits")}</Text>
-      <View style={styles.button_group}>
+    <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+      <ScrollView
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
+        showsVerticalScrollIndicator={false}
+      >
+        <Text style={[styles.text_benefits, { marginTop: insets.top + 16 }]}>{t("myBenefits")}</Text>
+        <View style={styles.button_group}>
 
         <TouchableOpacity
           onPress={() => setActualTab("Activated")} style={ActualTab === 'Activated' ? styles.button1Active : styles.button1}>
@@ -33,41 +39,42 @@ export default function BenefitsScreen() {
 
       </View>
 
-      <View style={styles.text_container}>
-        <Text style={styles.text_benefits_lower}>
-          {t("textBenefitsLower")}
-        </Text>
-
-        <Text style={styles.text_normal}>
-          {t("textNormal")}
-        </Text>
-
-        <TouchableOpacity
-          onPress={() => setQRCode(true)} disabled={ActualTab === 'Claimed'} style={ActualTab === 'Activated' ? styles.button3 : styles.button3_claimed}>
-          <Text style={ActualTab === 'Activated' ? styles.button3_text : styles.button3_text_claimed}>
-            {ActualTab === 'Activated' ? t("showQR") : t("claimed")}
+        <View style={styles.text_container}>
+          <Text style={styles.text_benefits_lower}>
+            {t("textBenefitsLower")}
           </Text>
-        </TouchableOpacity>
 
-        <Modal visible={QRcode} transparent animationType='fade'>
-          <TouchableWithoutFeedback onPress={() => setQRCode(false)}>
-            <View style={styles.button_backdrop}>
-              <View style={styles.container_qr}>
-                <QRCode
-                  value="Skuska"
-                  size={qrSize}
-                  backgroundColor="white"
-                  color="black"
-                  logoBorderRadius={5}
-                >
-                </QRCode>
+          <Text style={styles.text_normal}>
+            {t("textNormal")}
+          </Text>
+
+          <TouchableOpacity
+            onPress={() => setQRCode(true)} disabled={ActualTab === 'Claimed'} style={ActualTab === 'Activated' ? styles.button3 : styles.button3_claimed}>
+            <Text style={ActualTab === 'Activated' ? styles.button3_text : styles.button3_text_claimed}>
+              {ActualTab === 'Activated' ? t("showQR") : t("claimed")}
+            </Text>
+          </TouchableOpacity>
+
+          <Modal visible={QRcode} transparent animationType='fade'>
+            <TouchableWithoutFeedback onPress={() => setQRCode(false)}>
+              <View style={styles.button_backdrop}>
+                <View style={styles.container_qr}>
+                  <QRCode
+                    value="Skuska"
+                    size={qrSize}
+                    backgroundColor="white"
+                    color="black"
+                    logoBorderRadius={5}
+                  >
+                  </QRCode>
+                </View>
+                <Text style={styles.text_hours}>09:55</Text>
               </View>
-              <Text style={styles.text_hours}>09:55</Text>
-            </View>
-          </TouchableWithoutFeedback>
-        </Modal>
-      </View>
-    </View>
+            </TouchableWithoutFeedback>
+          </Modal>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -75,6 +82,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
+  },
+  content: {
+    flexGrow: 1,
   },
   text_benefits: {
     fontSize: 22,

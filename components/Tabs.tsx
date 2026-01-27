@@ -2,6 +2,7 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import CustomTabBar from "./CustomTabBar";
 
 import HomeScreen from "../screens/HomeScreen";
+import QRScreen from "../screens/QRScreen";
 import FeedScreen from "../screens/FeedScreen";
 import DiscoverScreen from "../screens/DiscoverScreen";
 import ProfileScreen from "../screens/profile/ProfileScreen";
@@ -22,14 +23,14 @@ export default function Tabs() {
       <Tab.Screen name="QR">
         {() => (
           <ProtectedRoute>
-            <HomeScreen />
+            <QRScreen />
           </ProtectedRoute>
         )}
       </Tab.Screen>
 
       {/* VEREJNÉ - bez prihlásenia */}
       <Tab.Screen name="Feed" component={FeedScreen} />
-      <Tab.Screen name="Home" component={FeedScreen} />
+      <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name={t("Discover")} component={DiscoverScreen} />
 
       {/* CHRÁNENÝ - vyžaduje prihlásenie */}

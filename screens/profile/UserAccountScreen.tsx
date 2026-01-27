@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { useNavigation } from "@react-navigation/native";
 import {
   View,
@@ -7,10 +7,12 @@ import {
   ScrollView,
   StyleSheet,
   TextInput,
-  SafeAreaView,
   Alert,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../lib/AuthContext";
@@ -21,6 +23,7 @@ export default function UserAccountScreen() {
   const navigation = useNavigation<any>();
   const { t } = useTranslation();
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
 
   // Načítame aktuálne údaje z emailu
   const initialName = extractNameFromEmail(user?.email);
@@ -156,64 +159,74 @@ export default function UserAccountScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* CONTENT */}
-      <ScrollView contentContainerStyle={styles.content}>
-        {/* HEADER */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Ionicons name="arrow-back" size={24} />
-          </TouchableOpacity>
-          <Text style={styles.title}>{t("userAccount")}</Text>
-        </View>
-
-        {/* FIRST NAME */}
-        <Text style={styles.label}>{t("firstName") || "First Name"}</Text>
-        <TextInput
-          value={firstName}
-          onChangeText={setFirstName}
-          editable={!loading}
-          style={[styles.input, !loading && styles.inputEditable]}
-          placeholder={t("firstName") || "First Name"}
-        />
-
-        {/* LAST NAME */}
-        <Text style={styles.label}>{t("lastName") || "Last Name"}</Text>
-        <TextInput
-          value={lastName}
-          onChangeText={setLastName}
-          editable={!loading}
-          style={[styles.input, !loading && styles.inputEditable]}
-          placeholder={t("lastName") || "Last Name"}
-        />
-
-        {/* EMAIL */}
-        <Text style={styles.label}>Email</Text>
-        <TextInput
-          value={email}
-          onChangeText={setEmail}
-          editable={!loading}
-          keyboardType="email-address"
-          autoCapitalize="none"
-          style={[styles.input, !loading && styles.inputEditable]}
-          placeholder="email@example.com"
-        />
-      </ScrollView>
-
-      {/* SAVE BUTTON – FIXNE DOLE */}
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={[styles.saveButton, loading && styles.saveButtonDisabled]}
-          onPress={handleSave}
-          disabled={loading}
+    <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={insets.top}
+      >
+        {/* CONTENT */}
+        <ScrollView
+          contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 140 }]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.saveText}>{t("save")}</Text>
-          )}
-        </TouchableOpacity>
-      </View>
+          {/* HEADER */}
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => navigation.goBack()}>
+              <Ionicons name="arrow-back" size={24} />
+            </TouchableOpacity>
+            <Text style={styles.title}>{t("userAccount")}</Text>
+          </View>
+
+          {/* FIRST NAME */}
+          <Text style={styles.label}>{t("firstName") || "First Name"}</Text>
+          <TextInput
+            value={firstName}
+            onChangeText={setFirstName}
+            editable={!loading}
+            style={[styles.input, !loading && styles.inputEditable]}
+            placeholder={t("firstName") || "First Name"}
+          />
+
+          {/* LAST NAME */}
+          <Text style={styles.label}>{t("lastName") || "Last Name"}</Text>
+          <TextInput
+            value={lastName}
+            onChangeText={setLastName}
+            editable={!loading}
+            style={[styles.input, !loading && styles.inputEditable]}
+            placeholder={t("lastName") || "Last Name"}
+          />
+
+          {/* EMAIL */}
+          <Text style={styles.label}>Email</Text>
+          <TextInput
+            value={email}
+            onChangeText={setEmail}
+            editable={!loading}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            style={[styles.input, !loading && styles.inputEditable]}
+            placeholder="email@example.com"
+          />
+        </ScrollView>
+
+        {/* SAVE BUTTON – FIXNE DOLE */}
+        <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
+          <TouchableOpacity
+            style={[styles.saveButton, loading && styles.saveButtonDisabled]}
+            onPress={handleSave}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.saveText}>{t("save")}</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -224,10 +237,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#fff",
   },
+  flex: {
+    flex: 1,
+  },
 
   content: {
     paddingHorizontal: 20,
-    paddingBottom: 120, // aby obsah nebol prekrytý buttonom
   },
 
   header: {
@@ -272,7 +287,7 @@ const styles = StyleSheet.create({
 
   footer: {
     position: "absolute",
-    bottom: 20,
+    bottom: 0,
     left: 20,
     right: 20,
   },
