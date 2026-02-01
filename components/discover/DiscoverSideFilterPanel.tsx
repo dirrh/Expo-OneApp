@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import {
   Animated,
   StyleSheet,
@@ -8,9 +8,14 @@ import {
   TouchableOpacity,
   ScrollView,
   useWindowDimensions,
-  PanResponder,
   Image,
 } from "react-native";
+import {
+  PanGestureHandler,
+  State,
+  type PanGestureHandlerGestureEvent,
+  type PanGestureHandlerStateChangeEvent,
+} from "react-native-gesture-handler";
 import { useTranslation } from "react-i18next";
 
 interface Props {
@@ -93,66 +98,17 @@ export default function DiscoverSideFilterPanel({
 
   // Animácie
   const translateX = useRef(new Animated.Value(PANEL_WIDTH)).current;
+  const dragX = useRef(new Animated.Value(0)).current;
+  const translateXValue = useRef(PANEL_WIDTH);
+  const dragStartX = useRef(PANEL_WIDTH);
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   const pullHandleOpacity = useRef(new Animated.Value(visible ? 0 : 1)).current;
 
   // Discover state (zatiaľ nič nerobí)
   const [discoverOptions, setDiscoverOptions] = React.useState<Set<string>>(new Set());
 
-  // Pan responder pre zatvorenie panelu (swipe doprava)
-  const closePanResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        return Math.abs(gestureState.dx) > 5 && gestureState.dx > 0;
-      },
-      onPanResponderGrant: () => {
-        translateX.setOffset((translateX as any)._value || 0);
-        translateX.setValue(0);
-      },
-      onPanResponderMove: (_, gestureState) => {
-        const dx = Math.max(0, Math.min(PANEL_WIDTH, gestureState.dx));
-        translateX.setValue(dx);
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        translateX.flattenOffset();
-        if (gestureState.dx > PANEL_WIDTH / 3 || gestureState.vx > 0.5) {
-          closePanel();
-        } else {
-          openPanel();
-        }
-      },
-    })
-  ).current;
-
-  // Pan responder pre otvorenie panelu (swipe zľava doprava z handle)
-  const openPanResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        return Math.abs(gestureState.dx) > 5 && gestureState.dx < 0;
-      },
-      onPanResponderGrant: () => {
-        const currentValue = (translateX as any)._value || PANEL_WIDTH;
-        translateX.setOffset(currentValue);
-        translateX.setValue(0);
-      },
-      onPanResponderMove: (_, gestureState) => {
-        const dx = Math.max(-PANEL_WIDTH, Math.min(0, gestureState.dx));
-        translateX.setValue(dx);
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        translateX.flattenOffset();
-        if (Math.abs(gestureState.dx) > PANEL_WIDTH / 3 || gestureState.vx < -0.5) {
-          onOpen();
-        } else {
-          translateX.setValue(PANEL_WIDTH);
-        }
-      },
-    })
-  ).current;
-
   const openPanel = () => {
+    dragX.setValue(0);
     Animated.parallel([
       Animated.timing(translateX, {
         toValue: 0,
@@ -173,6 +129,7 @@ export default function DiscoverSideFilterPanel({
   };
 
   const closePanel = () => {
+    dragX.setValue(0);
     Animated.parallel([
       Animated.timing(translateX, {
         toValue: PANEL_WIDTH,
@@ -195,6 +152,13 @@ export default function DiscoverSideFilterPanel({
   };
 
   useEffect(() => {
+    const id = translateX.addListener(({ value }) => {
+      translateXValue.current = value;
+    });
+    return () => translateX.removeListener(id);
+  }, [translateX]);
+
+  useEffect(() => {
     if (visible) {
       openPanel();
     } else {
@@ -209,6 +173,7 @@ export default function DiscoverSideFilterPanel({
   useEffect(() => {
     if (!visible) {
       translateX.setValue(PANEL_WIDTH);
+      dragX.setValue(0);
       backdropOpacity.setValue(0);
       pullHandleOpacity.setValue(1);
     }
@@ -230,36 +195,90 @@ export default function DiscoverSideFilterPanel({
   const selectedCategories = filterOptions.filter((cat) => appliedFilters.has(cat));
   const isFilterActive = appliedFilters.size > 0 || rating.size > 0 || sub.size > 0;
 
+  const panelTranslateX = useMemo(
+    () => Animated.diffClamp(Animated.add(translateX, dragX), 0, PANEL_WIDTH),
+    [translateX, dragX, PANEL_WIDTH]
+  );
+
+  const handleGestureEvent = useCallback(
+    (event: PanGestureHandlerGestureEvent) => {
+      dragX.setValue(event.nativeEvent.translationX);
+    },
+    [dragX]
+  );
+
+  const handleGestureStateChange = (event: PanGestureHandlerStateChangeEvent) => {
+    const { state, translationX, velocityX } = event.nativeEvent;
+    if (state === State.BEGAN) {
+      dragStartX.current = translateXValue.current;
+      dragX.setValue(0);
+      return;
+    }
+    if (state !== State.END && state !== State.CANCELLED && state !== State.FAILED) {
+      return;
+    }
+
+    const current = Math.max(0, Math.min(PANEL_WIDTH, dragStartX.current + translationX));
+    translateX.setValue(current);
+    dragX.setValue(0);
+
+    const projected = current + velocityX * 120;
+    if (projected > PANEL_WIDTH / 2) {
+      closePanel();
+    } else {
+      openPanel();
+      onOpen();
+    }
+  };
+
   return (
     <>
       {/* Pull Handle - viditeľný keď panel nie je otvorený */}
       {!visible && (
-        <Animated.View
-          style={[
-            styles.pullHandleContainer,
-            {
-              opacity: pullHandleOpacity,
-              top: height / 2 - 27,
-            },
-          ]}
-          {...openPanResponder.panHandlers}
-        >
-          <TouchableOpacity
-            style={[
-              styles.pullHandle,
-              isFilterActive ? styles.pullHandleActive : styles.pullHandleInactive,
-            ]}
-            onPress={onOpen}
-            activeOpacity={0.7}
+        <>
+          <PanGestureHandler
+            onGestureEvent={handleGestureEvent}
+            onHandlerStateChange={handleGestureStateChange}
+            activeOffsetX={[-10, 999]}
+            failOffsetY={[-10, 10]}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
-            <View
+            <Animated.View
               style={[
-                styles.pullHandleLine,
-                isFilterActive ? styles.pullHandleLineActive : styles.pullHandleLineInactive,
+                styles.pullHandleContainer,
+                {
+                  opacity: pullHandleOpacity,
+                  top: height / 2 - 27,
+                },
               ]}
-            />
-          </TouchableOpacity>
-        </Animated.View>
+            >
+              <TouchableOpacity
+                style={[
+                  styles.pullHandle,
+                  isFilterActive ? styles.pullHandleActive : styles.pullHandleInactive,
+                ]}
+                onPress={onOpen}
+                activeOpacity={0.7}
+              >
+                <View
+                  style={[
+                    styles.pullHandleLine,
+                    isFilterActive ? styles.pullHandleLineActive : styles.pullHandleLineInactive,
+                  ]}
+                />
+              </TouchableOpacity>
+            </Animated.View>
+          </PanGestureHandler>
+
+          <PanGestureHandler
+            onGestureEvent={handleGestureEvent}
+            onHandlerStateChange={handleGestureStateChange}
+            activeOffsetX={[-10, 999]}
+            failOffsetY={[-10, 10]}
+          >
+            <View style={styles.edgeSwipeZone} pointerEvents="box-only" />
+          </PanGestureHandler>
+        </>
       )}
 
       <View
@@ -287,30 +306,35 @@ export default function DiscoverSideFilterPanel({
             styles.panel,
             {
               width: PANEL_WIDTH,
-              transform: [{ translateX }],
+              transform: [{ translateX: panelTranslateX }],
             },
           ]}
         >
           {/* Orange Handle - pre swipe gesture na zatvorenie */}
           {visible && (
-            <View
-              style={styles.handleWrapper}
-              {...closePanResponder.panHandlers}
+            <PanGestureHandler
+              onGestureEvent={handleGestureEvent}
+              onHandlerStateChange={handleGestureStateChange}
+              activeOffsetX={[-999, 10]}
+              failOffsetY={[-10, 10]}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <View
-                style={[
-                  styles.orangeHandle,
-                  isFilterActive ? styles.pullHandleActive : styles.pullHandleInactive,
-                ]}
-              >
+              <View style={styles.handleWrapper}>
                 <View
                   style={[
-                    styles.orangeHandleLine,
-                    isFilterActive ? styles.pullHandleLineActive : styles.pullHandleLineInactive,
+                    styles.orangeHandle,
+                    isFilterActive ? styles.pullHandleActive : styles.pullHandleInactive,
                   ]}
-                />
+                >
+                  <View
+                    style={[
+                      styles.orangeHandleLine,
+                      isFilterActive ? styles.pullHandleLineActive : styles.pullHandleLineInactive,
+                    ]}
+                  />
+                </View>
               </View>
-            </View>
+            </PanGestureHandler>
           )}
 
           {/* Header */}
@@ -407,7 +431,7 @@ export default function DiscoverSideFilterPanel({
 
             {/* Rating */}
             <View style={styles.sectionRating}>
-              <Text style={styles.sectionTitle}>Rating</Text>
+              <Text style={styles.sectionTitle}>{t("rating")}</Text>
               <View style={styles.chipsGridRating}>
                 {["4.7", "4.5", "4.0", "3.5", "3.0"].map((r, index) => {
                   const isActive = rating.has(r);
@@ -450,7 +474,7 @@ export default function DiscoverSideFilterPanel({
 
             {/* Discover (zatiaľ nič nerobí) */}
             <View style={styles.sectionDiscover}>
-              <Text style={styles.sectionTitle}>Discover</Text>
+              <Text style={styles.sectionTitle}>{t("Discover")}</Text>
               <View style={styles.chipsGrid}>
                 {DISCOVER_OPTIONS.map((option, index) => {
                   const isActive = discoverOptions.has(option);
@@ -465,7 +489,7 @@ export default function DiscoverSideFilterPanel({
                       onPress={() => toggleDiscover(option)}
                     >
                       <Text style={[styles.chipText, isActive && styles.chipTextActive]}>
-                        {option}
+                        {t(option)}
                       </Text>
                     </TouchableOpacity>
                   );
@@ -680,5 +704,14 @@ const styles = StyleSheet.create({
     width: 3,
     height: 22,
     borderRadius: 2,
+  },
+  edgeSwipeZone: {
+    position: "absolute",
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: 24,
+    backgroundColor: "transparent",
+    zIndex: 9997,
   },
 });

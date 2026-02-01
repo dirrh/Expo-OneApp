@@ -97,6 +97,11 @@ function DiscoverBranchOverlay({
     [cardContainerStyle, navigation]
   );
 
+  const renderSeparator = useCallback(
+    () => <View style={{ width: cardGap }} />,
+    [cardGap]
+  );
+
   // === HANDLERY ===
 
   /**
@@ -136,7 +141,7 @@ function DiscoverBranchOverlay({
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={listContentStyle}
-        ItemSeparatorComponent={() => <View style={{ width: cardGap }} />}
+        ItemSeparatorComponent={renderSeparator}
         snapToInterval={branchCardWidth + cardGap}
         snapToAlignment="start"
         decelerationRate="fast"          // rýchle zastavenie

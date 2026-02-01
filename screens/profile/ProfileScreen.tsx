@@ -210,8 +210,8 @@ export default function ProfileScreen() {
             rating={4.6}
             distance="1.7 km"
             hours="9:00 - 21:00"
-            discount="20% discount on first entry"
-            offers={["20% discount on first entry", "1 Free entry for friend"]}
+            discount={t("offer_discount20")}
+            offers={[t("offer_discount20"), t("offer_freeEntryFriend")]}
             moreCount={2}
             address="Chrenovská 16, Nitra"
             phone="+421 903 776 925"
@@ -228,8 +228,8 @@ export default function ProfileScreen() {
             rating={4.6}
             distance="1.7 km"
             hours="9:00 - 21:00"
-            discount="20% discount on first entry"
-            offers={["20% discount on first entry", "1 Free entry for friend"]}
+            discount={t("offer_discount15Today")}
+            offers={[t("offer_discount15Today"), t("offer_twoForOne")]}
             moreCount={3}
             address="Trieda Andreja Hlinku 3, Nitra"
             phone="+421 911 222 333"
@@ -246,8 +246,8 @@ export default function ProfileScreen() {
             rating={4.6}
             distance="1.7 km"
             hours="9:00 - 21:00"
-            discount="20% discount on first entry"
-            offers={["20% discount on first entry", "1 Free entry for friend"]}
+            discount={t("offer_firstMonthFree")}
+            offers={[t("offer_firstMonthFree"), t("offer_personalTrainer")]}
             moreCount={5}
             address="Mostná 42, Nitra"
             phone="+421 904 555 666"

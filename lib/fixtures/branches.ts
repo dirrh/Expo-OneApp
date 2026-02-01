@@ -1,5 +1,13 @@
 import type { BranchData } from "../interfaces";
 
+// Offer keys - tieto sa prekladajú cez t() kde sa používajú
+const OFFER_KEYS = {
+  discount20: "offer_discount20",
+  freeEntryFriend: "offer_freeEntryFriend",
+  discount15Today: "offer_discount15Today",
+  firstMonthFree: "offer_firstMonthFree",
+};
+
 export const branchesFixture: BranchData[] = [
   {
     id: "gym_365",
@@ -9,8 +17,8 @@ export const branchesFixture: BranchData[] = [
     category: "Fitness",
     distance: "1.7 km",
     hours: "9:00 - 21:00",
-    discount: "20% discount on first entry",
-    offers: ["20% discount on first entry", "1 Free entry for friend"],
+    discount: OFFER_KEYS.discount20,
+    offers: [OFFER_KEYS.discount20, OFFER_KEYS.freeEntryFriend],
     moreCount: 2,
     address: "Chrenovska 16, Nitra",
     phone: "+421903776925",
@@ -25,8 +33,8 @@ export const branchesFixture: BranchData[] = [
     category: "Fitness",
     distance: "1.7 km",
     hours: "9:00 - 21:00",
-    discount: "20% discount on first entry",
-    offers: ["20% discount on first entry", "1 Free entry for friend"],
+    discount: OFFER_KEYS.discount15Today,
+    offers: [OFFER_KEYS.discount15Today, OFFER_KEYS.freeEntryFriend],
     moreCount: 3,
     address: "Trieda Andreja Hlinku 3, Nitra",
     phone: "+421911222333",
@@ -41,8 +49,8 @@ export const branchesFixture: BranchData[] = [
     category: "Fitness",
     distance: "1.7 km",
     hours: "9:00 - 21:00",
-    discount: "20% discount on first entry",
-    offers: ["20% discount on first entry", "1 Free entry for friend"],
+    discount: OFFER_KEYS.firstMonthFree,
+    offers: [OFFER_KEYS.firstMonthFree, OFFER_KEYS.freeEntryFriend],
     moreCount: 5,
     address: "Mostna 42, Nitra",
     phone: "+421904555666",
@@ -57,6 +65,8 @@ export const branchesFixture: BranchData[] = [
     image: require("../../assets/klub.jpg"),
     distance: "1.5 km",
     hours: "9:00 - 21:00",
+    discount: OFFER_KEYS.discount20,
+    offers: [OFFER_KEYS.discount20],
   },
   {
     id: "Diamond barber",
@@ -66,5 +76,7 @@ export const branchesFixture: BranchData[] = [
     image: require("../../assets/royal.jpg"),
     distance: "1.5 km",
     hours: "9:00 - 21:00",
+    discount: OFFER_KEYS.discount20,
+    offers: [OFFER_KEYS.discount20],
   },
 ];

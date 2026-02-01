@@ -2,6 +2,12 @@ import { Image, ImageSourcePropType, Platform } from "react-native";
 import type { Feature, FeatureCollection, Point } from "geojson";
 import type { BranchData, DiscoverMapProps } from "../../lib/interfaces";
 
+// Offer keys pre preklady
+const OFFER_KEYS = {
+  discount20: "offer_discount20",
+  freeEntryFriend: "offer_freeEntryFriend",
+};
+
 const DUMMY_BRANCH: BranchData = {
   title: "365 GYM Nitra",
   image: require("../../assets/365.jpg"),
@@ -9,14 +15,22 @@ const DUMMY_BRANCH: BranchData = {
   category: "Fitness",
   distance: "1.7 km",
   hours: "9:00 - 21:00",
-  discount: "20% discount on first entry",
-  offers: ["20% discount on first entry", "1 Free entry for friend"],
+  // Tieto budú preložené cez t() kde sa DUMMY_BRANCH používa
+  discount: OFFER_KEYS.discount20,
+  offers: [OFFER_KEYS.discount20, OFFER_KEYS.freeEntryFriend],
   moreCount: 2,
   address: "Chrenovská 16, Nitra",
   phone: "+421903776925",
   email: "info@365gym.sk",
   website: "https://365gym.sk",
 };
+
+// Helper funkcia na preloženie DUMMY_BRANCH offers
+const translateBranchOffers = (branch: BranchData, t: (key: string) => string): BranchData => ({
+  ...branch,
+  discount: branch.discount ? t(branch.discount) : undefined,
+  offers: branch.offers?.map(offer => t(offer)),
+});
 
 const CLUSTER_IMAGE = require("../../images/group_pin.png");
 const FILTER_CLUSTER_IMAGE = require("../../images/filter_pin.png");
@@ -286,6 +300,8 @@ const buildMarkersShapeAndImages = (
 
 export {
   DUMMY_BRANCH,
+  translateBranchOffers,
+  OFFER_KEYS,
   CITY_CLUSTER_ZOOM,
   CLUSTER_MAX_ZOOM,
   CLUSTERING_MAX_ZOOM,

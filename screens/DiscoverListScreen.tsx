@@ -231,14 +231,14 @@ export default function DiscoverListScreen() {
         distanceKm,
         hours: "9:00 - 21:00",
         category: marker.category as DiscoverCategory,
-        discount: "20% discount on first entry",
-        offers: ["20% discount on first entry", "1 Free entry for friend"],
-        moreCount: 1,
+        discount: t("offer_discount20"),
+        offers: [t("offer_discount20"), t("offer_freeEntryFriend"), t("offer_discount10Monthly"), t("offer_firstMonthFree")],
+        moreCount: 3,
       });
     }
 
     return results;
-  }, [userLocation, markers]);
+  }, [userLocation, markers, t]);
 
   const visibleBranches = useMemo<NearbyBranch[]>(() => {
     if (allBranches.length === 0) return [];
@@ -428,6 +428,7 @@ export default function DiscoverListScreen() {
           // Nastavenia pre efektívne vykresľovanie zoznamu
           initialNumToRender={8}
           maxToRenderPerBatch={10}
+          updateCellsBatchingPeriod={50}
           windowSize={5}
           removeClippedSubviews={Platform.OS !== "web"}
         />

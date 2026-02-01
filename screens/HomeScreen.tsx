@@ -2,7 +2,7 @@ import React, { memo, useCallback, useMemo } from "react";
 import {
   FlatList,
   Image,
-  ScrollView,
+  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -49,22 +49,20 @@ const ServiceCard = memo(
           <Text style={styles.serviceMetaText}>{item.hours}</Text>
         </View>
       </View>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.serviceOfferRow}
-      >
-        {item.discount && (
-          <View style={styles.serviceBadge}>
-            <Text style={styles.serviceBadgeText}>{item.discount}</Text>
-          </View>
-        )}
-        {item.moreCount ? (
-          <View style={styles.serviceBadge}>
-            <Text style={styles.serviceBadgeText}>+{item.moreCount} more</Text>
-          </View>
-        ) : null}
-      </ScrollView>
+      {(item.discount || item.moreCount) && (
+        <View style={styles.serviceOfferRow}>
+          {item.discount ? (
+            <View style={styles.serviceBadge}>
+              <Text style={styles.serviceBadgeText}>{item.discount}</Text>
+            </View>
+          ) : null}
+          {item.moreCount ? (
+            <View style={styles.serviceBadge}>
+              <Text style={styles.serviceBadgeText}>+{item.moreCount} more</Text>
+            </View>
+          ) : null}
+        </View>
+      )}
     </TouchableOpacity>
   );
   }
@@ -119,20 +117,20 @@ export default function HomeScreen() {
     []
   );
 
-  const sectionList = [
-    { title: t("openNearYou"), data: openNearYou },
-    { title: t("trending"), data: trending },
-    { title: t("topRated"), data: topRated },
-  ];
+  const sectionList = useMemo(
+    () => [
+      { key: "openNearYou", title: t("openNearYou"), data: openNearYou },
+      { key: "trending", title: t("trending"), data: trending },
+      { key: "topRated", title: t("topRated"), data: topRated },
+    ],
+    [openNearYou, trending, topRated, t]
+  );
 
-  return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={[
-        styles.containerContent,
-        { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 24 },
-      ]}
-    >
+  const sectionKeyExtractor = useCallback((item: { key: string }) => item.key, []);
+  const sectionSeparator = useCallback(() => <View style={{ height: 0 }} />, []);
+
+  const listHeader = useMemo(
+    () => (
       <View style={styles.topRow}>
         <TouchableOpacity style={styles.locationChip} activeOpacity={0.9}>
           <Image source={require("../images/pin.png")} style={styles.locationIcon} />
@@ -143,33 +141,92 @@ export default function HomeScreen() {
           <Image source={require("../images/search.png")} style={styles.searchIcon} />
         </TouchableOpacity>
       </View>
+    ),
+    [t]
+  );
 
-      {sectionList.map((section) => (
-        <View key={section.title} style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>{section.title}</Text>
+  const sectionItemSeparator = useCallback(
+    () => <View style={{ width: cardGap }} />,
+    [cardGap]
+  );
+
+  const navigation = useNavigation<any>();
+
+  const handleShowMore = useCallback(
+    (sectionKey: string, sectionTitle: string) => {
+      navigation.navigate("ShowMore", { section: sectionKey, title: sectionTitle });
+    },
+    [navigation]
+  );
+
+  const renderSection = useCallback(
+    ({ item }: { item: { key: string; title: string; data: BranchData[] } }) => (
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>{item.title}</Text>
+          <TouchableOpacity 
+            onPress={() => handleShowMore(item.key, item.title)}
+            activeOpacity={0.7}
+          >
             <Text style={styles.sectionMore}>{t("showMore")}</Text>
-          </View>
-          <FlatList
-            data={section.data}
-            renderItem={renderService}
-            keyExtractor={keyExtractor}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={[styles.servicesRow, { paddingRight: sidePadding + peekWidth }]}
-            ItemSeparatorComponent={() => <View style={{ width: cardGap }} />}
-            snapToInterval={cardWidth + cardGap}
-            snapToAlignment="start"
-            decelerationRate="fast"
-            getItemLayout={(_, index) => ({
-              length: cardWidth + cardGap,
-              offset: index * (cardWidth + cardGap),
-              index,
-            })}
-          />
+          </TouchableOpacity>
         </View>
-      ))}
-    </ScrollView>
+        <FlatList
+          data={item.data}
+          renderItem={renderService}
+          keyExtractor={keyExtractor}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={[styles.servicesRow, { paddingRight: sidePadding + peekWidth }]}
+          ItemSeparatorComponent={sectionItemSeparator}
+          snapToInterval={cardWidth + cardGap}
+          snapToAlignment="start"
+          decelerationRate="fast"
+          getItemLayout={(_, index) => ({
+            length: cardWidth + cardGap,
+            offset: index * (cardWidth + cardGap),
+            index,
+          })}
+          initialNumToRender={3}
+          maxToRenderPerBatch={5}
+          windowSize={3}
+          removeClippedSubviews
+        />
+      </View>
+    ),
+    [
+      cardGap,
+      cardWidth,
+      handleShowMore,
+      keyExtractor,
+      peekWidth,
+      renderService,
+      sectionItemSeparator,
+      sidePadding,
+      t,
+    ]
+  );
+
+  const contentStyle = useMemo(
+    () => [
+      styles.containerContent,
+      { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 24 },
+    ],
+    [insets.bottom, insets.top]
+  );
+
+  return (
+    <FlatList
+      data={sectionList}
+      keyExtractor={sectionKeyExtractor}
+      renderItem={renderSection}
+      ListHeaderComponent={listHeader}
+      ItemSeparatorComponent={sectionSeparator}
+      style={styles.container}
+      contentContainerStyle={contentStyle}
+      showsVerticalScrollIndicator={false}
+      removeClippedSubviews={Platform.OS !== "web"}
+    />
   );
 }
 

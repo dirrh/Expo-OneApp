@@ -54,6 +54,8 @@ export type BranchData = {
 export interface BranchCardProps extends BranchData {
   onPress?: (branch: BranchData) => void;
   cardPaddingBottom?: number;
+  badgePosition?: "bottom" | "inline";
+  badgeInlineOffset?: number;
 }
 
 export interface DiscoverMapMarker {

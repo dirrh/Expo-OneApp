@@ -18,13 +18,14 @@ import {
   TouchableOpacity,
   useWindowDimensions,
   Platform,
-  ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { BranchCardProps, BranchData } from "../lib/interfaces";
 import { useNavigation } from "@react-navigation/native";
+import { useTranslation } from "react-i18next";
 
 function BranchCard(props: BranchCardProps) {
+  const { t } = useTranslation();
   // Rozbalíme všetky props
   const {
     title,
@@ -36,8 +37,9 @@ function BranchCard(props: BranchCardProps) {
     discount,
     offers,
     moreCount,
-    badgeVariant,
     cardPaddingBottom,
+    badgePosition,
+    badgeInlineOffset,
     address,
     phone,
     email,
@@ -74,6 +76,10 @@ function BranchCard(props: BranchCardProps) {
   const badgePaddingH = useMemo(() => Math.round(12 * scale), [scale]);
   const badgePaddingV = useMemo(() => Math.round(4 * scale), [scale]);
   const badgeGap = useMemo(() => Math.round(8 * scale), [scale]);
+  const badgeInlineOffsetScaled = useMemo(() => {
+    if (typeof badgeInlineOffset !== "number") return null;
+    return Math.round(badgeInlineOffset * scale);
+  }, [badgeInlineOffset, scale]);
 
   const resolvedOffers = useMemo(() => {
     if (offers && offers.length > 0) return offers;
@@ -83,8 +89,6 @@ function BranchCard(props: BranchCardProps) {
     if (typeof moreCount === "number") return moreCount;
     return Math.max(0, resolvedOffers.length - (resolvedOffers.length > 0 ? 1 : 0));
   }, [moreCount, resolvedOffers.length]);
-  const useMoreVariant = badgeVariant === "more";
-
   /**
    * Štýl pre obrázok - kombinujeme základný štýl s dynamickou veľkosťou
    * useMemo zabezpečí, že sa nevytvára nový objekt pri každom renderi
@@ -141,6 +145,8 @@ function BranchCard(props: BranchCardProps) {
     }
   };
 
+  const inlineBadges = badgePosition === "inline";
+
   return (
     <TouchableOpacity
       activeOpacity={0.9}
@@ -151,7 +157,7 @@ function BranchCard(props: BranchCardProps) {
       <Image source={image} style={imageStyle} resizeMode="cover" />
 
       {/* Obsah karty */}
-      <View style={styles.branchContent}>
+      <View style={[styles.branchContent, inlineBadges && styles.branchContentInline]}>
         <View style={styles.topContent}>
           {/* Title */}
           <Text style={[styles.branchTitle, { fontSize: titleSize }]} numberOfLines={1}>
@@ -159,7 +165,7 @@ function BranchCard(props: BranchCardProps) {
           </Text>
 
           {/* Meta row */}
-          <View style={styles.metaRow}>
+          <View style={[styles.metaRow, inlineBadges && styles.metaRowInline]}>
             <View style={styles.metaItem}>
               <Ionicons name="star" size={Math.round(13 * scale)} color="#FFD000" />
               <Text style={[styles.metaText, { fontSize: metaSize }]}>{rating}</Text>
@@ -177,37 +183,25 @@ function BranchCard(props: BranchCardProps) {
 
         {/* Offers row */}
         {resolvedOffers.length > 0 && (
-          useMoreVariant ? (
-            <View style={[styles.badgeRow, { gap: badgeGap }]}>
-              {resolvedOffers[0] ? (
-                <View style={[styles.badge, { paddingHorizontal: badgePaddingH, paddingVertical: badgePaddingV }]}>
-                  <Text style={[styles.badgeText, { fontSize: badgeFontSize }]} numberOfLines={1}>
-                    {resolvedOffers[0]}
-                  </Text>
-                </View>
-              ) : null}
-              {resolvedMoreCount > 0 ? (
-                <Text style={[styles.moreText, { fontSize: metaSize }]}>+ {resolvedMoreCount} more</Text>
-              ) : null}
-            </View>
-          ) : (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={[styles.badgeRow, { gap: badgeGap }]}
-            >
-              {resolvedOffers.map((offer, index) => (
-                <View
-                  key={`${offer}-${index}`}
-                  style={[styles.badge, { paddingHorizontal: badgePaddingH, paddingVertical: badgePaddingV }]}
-                >
-                  <Text style={[styles.badgeText, { fontSize: badgeFontSize }]} numberOfLines={1}>
-                    {offer}
-                  </Text>
-                </View>
-              ))}
-            </ScrollView>
-          )
+          <View
+            style={[
+              styles.badgeRow,
+              { gap: badgeGap },
+              inlineBadges && styles.badgeRowInline,
+              inlineBadges && badgeInlineOffsetScaled !== null && { marginTop: badgeInlineOffsetScaled },
+            ]}
+          >
+            {resolvedOffers[0] ? (
+              <View style={[styles.badge, { paddingHorizontal: badgePaddingH, paddingVertical: badgePaddingV }]}>
+                <Text style={[styles.badgeText, { fontSize: badgeFontSize }]} numberOfLines={1}>
+                  {resolvedOffers[0]}
+                </Text>
+              </View>
+            ) : null}
+            {resolvedMoreCount > 0 ? (
+              <Text style={[styles.moreText, { fontSize: metaSize }]}>+ {resolvedMoreCount} {t("more")}</Text>
+            ) : null}
+          </View>
         )}
       </View>
     </TouchableOpacity>
@@ -248,7 +242,11 @@ const styles = StyleSheet.create({
   // Obsahová časť (pravá strana)
   branchContent: {
     flex: 1,
-    justifyContent: "space-between",
+    justifyContent: "flex-start",
+  },
+  branchContentInline: {
+    justifyContent: "flex-start",
+    gap: 0,
   },
   topContent: {
     flexShrink: 1,
@@ -265,8 +263,11 @@ const styles = StyleSheet.create({
   metaRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 8,
+    marginBottom: 17,
     flexWrap: "nowrap",
+  },
+  metaRowInline: {
+    marginBottom: 2,
   },
 
   metaItem: {
@@ -293,6 +294,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingRight: 4,
+  },
+  badgeRowInline: {
+    marginTop: 2,
   },
 
   // Badge so zľavou (oranžový)

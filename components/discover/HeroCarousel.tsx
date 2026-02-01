@@ -1,5 +1,5 @@
-import React from "react";
-import { FlatList, Image, View } from "react-native";
+import React, { useCallback } from "react";
+import { FlatList, Image, Platform, View } from "react-native";
 
 type Props = {
   data: any[];
@@ -10,7 +10,24 @@ type Props = {
 };
 
 export function HeroCarousel({ data, height, width, index, onIndexChange }: Props) {
-  
+  const renderItem = useCallback(
+    ({ item }: { item: any }) => (
+      <View style={{ width, height }}>
+        <Image source={item.image} style={{ width: "100%", height: "100%" }} />
+      </View>
+    ),
+    [height, width]
+  );
+
+  const getItemLayout = useCallback(
+    (_: any, i: number) => ({
+      length: width,
+      offset: width * i,
+      index: i,
+    }),
+    [width]
+  );
+
   return (
     <>
       <FlatList
@@ -23,11 +40,12 @@ export function HeroCarousel({ data, height, width, index, onIndexChange }: Prop
           const nextIndex = Math.round(e.nativeEvent.contentOffset.x / width);
           onIndexChange(nextIndex);
         }}
-        renderItem={({ item }) => (
-          <View style={{ width, height }}>
-            <Image source={item.image} style={{ width: "100%", height: "100%" }} />
-          </View>
-        )}
+        renderItem={renderItem}
+        getItemLayout={getItemLayout}
+        initialNumToRender={2}
+        maxToRenderPerBatch={3}
+        windowSize={3}
+        removeClippedSubviews={Platform.OS !== "web"}
       />
 
       <View style={{ position: "absolute", bottom: 10, flexDirection: "row", alignSelf: "center" }}>

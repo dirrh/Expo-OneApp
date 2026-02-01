@@ -1,14 +1,47 @@
-import React, { memo, useMemo } from "react";
+import React, { memo, useMemo, useRef, useCallback } from "react";
 import { View, StyleSheet, ImageBackground, Image, Text, TouchableOpacity, Platform, useWindowDimensions, FlatList } from "react-native";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
+import { Video, ResizeMode } from "expo-av";
 import BranchCard from "../components/BranchCard";
 
-const REELS = [
+type ReelType = "image" | "video";
+
+interface ReelItem {
+    id: string;
+    type: ReelType;
+    background?: any;
+    video?: any;
+    branch: {
+        title: string;
+        image: any;
+        rating: number;
+        distance: string;
+        hours: string;
+        category: string;
+        offerKeys: string[];
+    };
+}
+
+// Offer keys for translation
+const OFFER_KEYS = {
+    discount20: "offer_discount20",
+    freeEntryFriend: "offer_freeEntryFriend",
+    discount10Monthly: "offer_discount10Monthly",
+    discount15Today: "offer_discount15Today",
+    twoForOne: "offer_twoForOne",
+    firstMonthFree: "offer_firstMonthFree",
+    personalTrainer: "offer_personalTrainer",
+    discount25Weekend: "offer_discount25Weekend",
+    freeTowel: "offer_freeTowel",
+};
+
+const REELS_DATA = [
     {
         id: "reel-1",
-        background: require("../assets/gym1.jpg"),
+        type: "image" as ReelType,
+        background: require("../assets/feed1.jpg"),
         branch: {
             title: "RED ROYAL GYM",
             image: require("../assets/365.jpg"),
@@ -16,13 +49,13 @@ const REELS = [
             distance: "1.7 km",
             hours: "9:00 - 21:00",
             category: "Fitness",
-            discount: "20% discount on first entry",
-            offers: ["20% discount on first entry", "1 Free entry for friend"],
+            offerKeys: [OFFER_KEYS.discount20, OFFER_KEYS.freeEntryFriend],
         },
     },
     {
         id: "reel-2",
-        background: require("../assets/gym2.jpg"),
+        type: "video" as ReelType,
+        video: require("../assets/vertical1.mp4"),
         branch: {
             title: "GYM KLUB",
             image: require("../assets/klub.jpg"),
@@ -30,13 +63,13 @@ const REELS = [
             distance: "2.1 km",
             hours: "8:00 - 22:00",
             category: "Fitness",
-            discount: "Free entry for friend",
-            offers: ["Free entry for friend", "10% off monthly pass"],
+            offerKeys: [OFFER_KEYS.freeEntryFriend, OFFER_KEYS.discount10Monthly],
         },
     },
     {
         id: "reel-3",
-        background: require("../assets/gym3.jpg"),
+        type: "image" as ReelType,
+        background: require("../assets/feed2.jpg"),
         branch: {
             title: "DIAMOND GYM",
             image: require("../assets/royal.jpg"),
@@ -44,13 +77,40 @@ const REELS = [
             distance: "1.3 km",
             hours: "7:00 - 20:00",
             category: "Fitness",
-            discount: "15% discount today",
-            offers: ["15% discount today", "2 entries for the price of 1"],
+            offerKeys: [OFFER_KEYS.discount15Today, OFFER_KEYS.twoForOne],
+        },
+    },
+    {
+        id: "reel-4",
+        type: "video" as ReelType,
+        video: require("../assets/vertical2.mp4"),
+        branch: {
+            title: "FLEX FITNESS",
+            image: require("../assets/klub.jpg"),
+            rating: 4.8,
+            distance: "0.9 km",
+            hours: "6:00 - 23:00",
+            category: "Fitness",
+            offerKeys: [OFFER_KEYS.firstMonthFree, OFFER_KEYS.personalTrainer],
+        },
+    },
+    {
+        id: "reel-5",
+        type: "image" as ReelType,
+        background: require("../assets/feed3.jpg"),
+        branch: {
+            title: "POWER ZONE",
+            image: require("../assets/royal.jpg"),
+            rating: 4.5,
+            distance: "3.2 km",
+            hours: "7:00 - 22:00",
+            category: "Fitness",
+            offerKeys: [OFFER_KEYS.discount25Weekend, OFFER_KEYS.freeTowel],
         },
     },
 ];
 
-const ReelItem = memo(
+const ReelItemComponent = memo(
     ({
         item,
         height,
@@ -58,63 +118,98 @@ const ReelItem = memo(
         insetsTop,
         tabBarHeight,
         insetsBottom,
+        isVisible,
     }: {
-        item: typeof REELS[number];
+        item: ReelItem;
         height: number;
         actionsBottom: number;
         insetsTop: number;
         tabBarHeight: number;
         insetsBottom: number;
+        isVisible: boolean;
     }) => {
         const { t } = useTranslation();
+        const videoRef = useRef<Video>(null);
+
+        // Translate offers
+        const translatedOffers = item.branch.offerKeys.map(key => t(key));
+
+        // Overlay content (shared between image and video)
+        const OverlayContent = (
+            <>
+                {/* Top bar - posunuta pod notch */}
+                <View style={[styles.topBar, { marginTop: insetsTop + 16 }]}>
+                    <View style={styles.card}>
+                        <TouchableOpacity style={styles.row} activeOpacity={0.85}>
+                            <Image source={require("../images/pin.png")} style={styles.rowIcon} resizeMode="contain" />
+                            <Text style={styles.rowTextBold} numberOfLines={1}>
+                                {t("yourLocation")}
+                            </Text>
+                            <Image source={require("../images/options.png")} style={styles.caret} resizeMode="contain" />
+                        </TouchableOpacity>
+                    </View>
+                </View>
+
+                {/* Like/Share buttons */}
+                <View style={[styles.actionsColumn, { bottom: actionsBottom }]}>
+                    <TouchableOpacity style={styles.actionBtn} activeOpacity={0.8}>
+                        <Image source={require("../images/feed/heart.png")} style={styles.actionIcon} resizeMode="contain" />
+                        <Text style={styles.actionLabel}>{t("like")}</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity style={styles.actionBtn} activeOpacity={0.8}>
+                        <Image source={require("../images/feed/share.png")} style={styles.actionIcon} resizeMode="contain" />
+                        <Text style={styles.actionLabel}>{t("share")}</Text>
+                    </TouchableOpacity>
+                </View>
+
+                {/* Branch card */}
+                <View
+                    style={[
+                        styles.branchCardWrap,
+                        { marginBottom: 16 },
+                    ]}
+                >
+                    <BranchCard
+                        title={item.branch.title}
+                        image={item.branch.image}
+                        rating={item.branch.rating}
+                        distance={item.branch.distance}
+                        hours={item.branch.hours}
+                        category={item.branch.category}
+                        offers={translatedOffers}
+                        badgePosition="inline"
+                        badgeInlineOffset={16}
+                    />
+                </View>
+            </>
+        );
+
+        if (item.type === "video" && item.video) {
+            return (
+                <View style={[styles.reel, { height }]}>
+                    <View style={styles.videoContainer}>
+                        <Video
+                            ref={videoRef}
+                            source={item.video}
+                            style={styles.video}
+                            resizeMode={ResizeMode.COVER}
+                            shouldPlay={isVisible}
+                            isLooping
+                            isMuted
+                        />
+                        <View style={styles.videoOverlay}>
+                            {OverlayContent}
+                        </View>
+                    </View>
+                </View>
+            );
+        }
+
         return (
             <View style={[styles.reel, { height }]}>
                 <ImageBackground source={item.background} style={styles.hero} resizeMode="cover">
-                    {/* Top bar - posunuta pod notch */}
-                    <View style={[styles.topBar, { marginTop: insetsTop + 16 }]}>
-                        <View style={styles.card}>
-                            <TouchableOpacity style={styles.row} activeOpacity={0.85}>
-                                <Image source={require("../images/pin.png")} style={styles.rowIcon} resizeMode="contain" />
-                                <Text style={styles.rowTextBold} numberOfLines={1}>
-                                    {t("yourLocation")}
-                                </Text>
-                                <Image source={require("../images/options.png")} style={styles.caret} resizeMode="contain" />
-                            </TouchableOpacity>
-                        </View>
-
-                    </View>
-
-                    {/* Like/Share buttons */}
-                    <View style={[styles.actionsColumn, { bottom: actionsBottom }]}>
-                        <TouchableOpacity style={styles.actionBtn} activeOpacity={0.8}>
-                            <Image source={require("../images/feed/heart.png")} style={styles.actionIcon} resizeMode="contain" />
-                            <Text style={styles.actionLabel}>{t("like")}</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity style={styles.actionBtn} activeOpacity={0.8}>
-                            <Image source={require("../images/feed/share.png")} style={styles.actionIcon} resizeMode="contain" />
-                            <Text style={styles.actionLabel}>{t("share")}</Text>
-                        </TouchableOpacity>
-                    </View>
-
-                    {/* Branch card */}
-                    <View
-                        style={[
-                            styles.branchCardWrap,
-                            { marginBottom: 16 },
-                        ]}
-                    >
-                        <BranchCard
-                            title={item.branch.title}
-                            image={item.branch.image}
-                            rating={item.branch.rating}
-                            distance={item.branch.distance}
-                            hours={item.branch.hours}
-                            category={item.branch.category}
-                            discount={item.branch.discount}
-                            offers={item.branch.offers}
-                        />
-                    </View>
+                    {OverlayContent}
                 </ImageBackground>
             </View>
         );
@@ -125,24 +220,37 @@ export default function FeedScreen() {
     const insets = useSafeAreaInsets();
     const tabBarHeight = useBottomTabBarHeight();
     const { height: screenHeight } = useWindowDimensions();
+    const [visibleIndex, setVisibleIndex] = React.useState(0);
+    
     const actionsBottom = useMemo(
         () => Math.max(120, Math.round(screenHeight * 0.22)),
         [screenHeight]
     );
 
+    const onViewableItemsChanged = useCallback(({ viewableItems }: any) => {
+        if (viewableItems.length > 0) {
+            setVisibleIndex(viewableItems[0].index ?? 0);
+        }
+    }, []);
+
+    const viewabilityConfig = useMemo(() => ({
+        itemVisiblePercentThreshold: 50,
+    }), []);
+
     return (
         <View style={styles.container}>
             <FlatList
-                data={REELS}
+                data={REELS_DATA}
                 keyExtractor={(item) => item.id}
-                renderItem={({ item }) => (
-                    <ReelItem
+                renderItem={({ item, index }) => (
+                    <ReelItemComponent
                         item={item}
                         height={screenHeight}
                         actionsBottom={actionsBottom}
                         insetsTop={insets.top}
                         tabBarHeight={tabBarHeight}
                         insetsBottom={insets.bottom}
+                        isVisible={index === visibleIndex}
                     />
                 )}
                 showsVerticalScrollIndicator={false}
@@ -150,12 +258,19 @@ export default function FeedScreen() {
                 snapToInterval={screenHeight}
                 snapToAlignment="start"
                 decelerationRate="fast"
+                initialNumToRender={2}
+                maxToRenderPerBatch={3}
+                windowSize={5}
+                updateCellsBatchingPeriod={50}
+                removeClippedSubviews={Platform.OS !== "web"}
                 getItemLayout={(_, index) => ({
                     length: screenHeight,
                     offset: screenHeight * index,
                     index,
                 })}
                 style={{ height: screenHeight }}
+                onViewableItemsChanged={onViewableItemsChanged}
+                viewabilityConfig={viewabilityConfig}
             />
         </View>
     );
@@ -171,6 +286,17 @@ const styles = StyleSheet.create({
     },
     hero: {
         flex: 1,
+        justifyContent: "space-between",
+    },
+    videoContainer: {
+        flex: 1,
+        backgroundColor: "#000",
+    },
+    video: {
+        ...StyleSheet.absoluteFillObject,
+    },
+    videoOverlay: {
+        ...StyleSheet.absoluteFillObject,
         justifyContent: "space-between",
     },
     topBar: {

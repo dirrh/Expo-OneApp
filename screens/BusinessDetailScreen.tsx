@@ -117,13 +117,28 @@ export default function BusinessDetailScreen() {
         { id: "1", image: safeBranch.image },
     ];
 
-    const reviews = useMemo(() => [
+    const [userReviews, setUserReviews] = useState<Array<{
+        id: string;
+        name: string;
+        rating: number;
+        text: string;
+        daysAgo: number;
+        likes: number;
+        comments: Array<{ id: string; name: string; text: string; daysAgo: number }>;
+    }>>([]);
+
+    const baseReviews = useMemo(() => [
         {
             id: "1",
             name: "Martin Kováč",
             rating: 5,
             text: t("reviewText1"),
             daysAgo: 2,
+            likes: 8,
+            comments: [
+                { id: "c1-1", name: "365 GYM", text: t("replyThankYou"), daysAgo: 1 },
+                { id: "c1-2", name: "Jozef Novák", text: t("replyAgree"), daysAgo: 1 },
+            ],
         },
         {
             id: "2",
@@ -131,8 +146,83 @@ export default function BusinessDetailScreen() {
             rating: 4,
             text: t("reviewText2"),
             daysAgo: 5,
+            likes: 12,
+            comments: [
+                { id: "c2-1", name: "365 GYM", text: t("replyPeakHours"), daysAgo: 4 },
+            ],
+        },
+        {
+            id: "3",
+            name: "Jana Nováková",
+            rating: 5,
+            text: t("reviewText3"),
+            daysAgo: 7,
+            likes: 15,
+            comments: [],
+        },
+        {
+            id: "4",
+            name: "Tomáš Fiala",
+            rating: 5,
+            text: t("reviewText4"),
+            daysAgo: 12,
+            likes: 6,
+            comments: [],
+        },
+        {
+            id: "5",
+            name: "Eva Bieliková",
+            rating: 3,
+            text: t("reviewText5"),
+            daysAgo: 14,
+            likes: 4,
+            comments: [
+                { id: "c5-1", name: "365 GYM", text: t("replyParking"), daysAgo: 13 },
+            ],
+        },
+        {
+            id: "6",
+            name: "Michal Štefánik",
+            rating: 5,
+            text: t("reviewText6"),
+            daysAgo: 18,
+            likes: 21,
+            comments: [],
+        },
+        {
+            id: "7",
+            name: "Lucia Černá",
+            rating: 4,
+            text: t("reviewText7"),
+            daysAgo: 23,
+            likes: 9,
+            comments: [],
+        },
+        {
+            id: "8",
+            name: "Andrej Molnár",
+            rating: 5,
+            text: t("reviewText8"),
+            daysAgo: 30,
+            likes: 17,
+            comments: [],
         },
     ], [t]);
+
+    const reviews = useMemo(() => [...userReviews, ...baseReviews], [userReviews, baseReviews]);
+
+    const handleAddReview = useCallback((rating: number, text: string) => {
+        const newReview = {
+            id: `user-${Date.now()}`,
+            name: user?.email?.split("@")[0] || "Anonymous",
+            rating,
+            text,
+            daysAgo: 0,
+            likes: 0,
+            comments: [],
+        };
+        setUserReviews(prev => [newReview, ...prev]);
+    }, [user]);
 
     // Memoizované handlery - nevytvárajú sa nanovo pri každom rendereri
     const handleBack = useCallback(() => navigation.goBack(), [navigation]);
@@ -291,7 +381,7 @@ export default function BusinessDetailScreen() {
 
                 <View style={sectionWrapperStyle}>
                 {activeTab === "news" && (
-                    <NewsSection title={safeBranch.title} />
+                    <NewsSection title={safeBranch.title} branchImage={safeBranch.image} />
                 )}
 
                 {activeTab === "benefits" && (
@@ -313,6 +403,8 @@ export default function BusinessDetailScreen() {
                         rating={safeBranch.rating}
                         total={reviews.length}
                         reviews={reviews}
+                        branchName={safeBranch.title}
+                        onAddReview={handleAddReview}
                     />
                 )}
 

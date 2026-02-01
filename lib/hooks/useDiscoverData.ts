@@ -9,7 +9,7 @@ import { useEffect, useState, useMemo, useCallback } from "react";
 import { ImageSourcePropType } from "react-native";
 import type { BranchData, DiscoverCategory, DiscoverMapMarker } from "../interfaces";
 import { useDataSource } from "../data/useDataSource";
-import { DUMMY_BRANCH } from "../constants/discover";
+import { DUMMY_BRANCH, translateBranchOffers } from "../constants/discover";
 import { formatTitleFromId, getRatingForId } from "../data/normalizers";
 
 // Ikonka pre multi-pin (keď je viac pobočiek na jednom mieste)
@@ -101,12 +101,14 @@ export const useDiscoverData = ({
         // Ak bol komponent odmountnutý, nič nerobíme
         if (!active) return;
         
-        // Preložíme textové hodnoty
+        // Preložíme textové hodnoty vrátane offers
         const translated = branchData.map((branch) => ({
           ...branch,
           title: t(branch.title),
           distance: t(branch.distance),
           hours: t(branch.hours),
+          discount: branch.discount ? t(branch.discount) : undefined,
+          offers: branch.offers?.map(offer => t(offer)),
         }));
         
         setBranches(translated);
@@ -224,10 +226,13 @@ export const useDiscoverData = ({
         (resolvedCategory ? CATEGORY_PLACEHOLDER_IMAGES[resolvedCategory] : undefined) ??
         DUMMY_BRANCH.image;
 
+      // Preložíme DUMMY_BRANCH offers
+      const translatedDummy = translateBranchOffers(DUMMY_BRANCH, t);
+
       // Vrátime kompletný objekt pobočky
       return {
         id: marker.id,
-        ...DUMMY_BRANCH,           // základné hodnoty
+        ...translatedDummy,        // základné hodnoty (preložené)
         ...override,               // vlastné hodnoty
         title,
         category: resolvedCategory ?? DUMMY_BRANCH.category ?? "Fitness",
@@ -237,7 +242,7 @@ export const useDiscoverData = ({
         image,
       };
     },
-    [markerBranchOverrides]
+    [markerBranchOverrides, t]
   );
 
   /**
