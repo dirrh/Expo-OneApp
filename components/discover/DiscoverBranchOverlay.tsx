@@ -19,6 +19,10 @@ import BranchCard from "../BranchCard";
 import { styles } from "./discoverStyles";
 import type { DiscoverBranchOverlayProps, BranchCardProps } from "../../lib/interfaces";
 import { useNavigation } from "@react-navigation/native";
+import {
+  BRANCH_CARD_BASELINE_OFFSET,
+  BRANCH_CARD_OVERLAY_PADDING_Y,
+} from "../../lib/constants/layout";
 
 function DiscoverBranchOverlay({
   insetsBottom,        // spodný safe area inset (pre notch/home indicator)
@@ -39,14 +43,15 @@ function DiscoverBranchOverlay({
   const sideInset = Math.max(0, Math.floor((screenWidth - branchCardWidth) / 2));
   const navigation = useNavigation<any>();
   const discoverCardBottomPadding = 14;
+  const overlayBottomOffset = BRANCH_CARD_BASELINE_OFFSET;
 
   // === MEMOIZOVANÉ ŠTÝLY ===
   // Tieto štýly závisia od props, takže ich memoizujeme
 
   // Kontajner s dynamickým bottom (pre safe area)
   const containerStyle = useMemo(
-    () => [styles.branchOverlay, { bottom: insetsBottom }],
-    [insetsBottom]
+    () => [styles.branchOverlay, { bottom: insetsBottom + overlayBottomOffset }],
+    [insetsBottom, overlayBottomOffset]
   );
 
   // Kontajner pre kartu s dynamickou šírkou
@@ -171,6 +176,6 @@ export default memo(DiscoverBranchOverlay);
 // Lokálne štýly pre overlay
 const overlayStyles = StyleSheet.create({
   listContent: {
-    paddingVertical: 7,
+    paddingVertical: BRANCH_CARD_OVERLAY_PADDING_Y,
   },
 });

@@ -1,7 +1,9 @@
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import type BottomSheet from "@gorhom/bottom-sheet";
-import type { Camera } from "@rnmapbox/maps";
 import { ImageSourcePropType } from "react-native";
+import type { AppleMaps, GoogleMaps } from "expo-maps";
+
+export type MapViewRef = RefObject<AppleMaps.View | GoogleMaps.View>;
 
 export type DiscoverCategory = "Fitness" | "Gastro" | "Relax" | "Beauty";
 
@@ -64,6 +66,7 @@ export interface DiscoverMapMarker {
   title?: string;
   coord: { lng: number; lat: number };
   groupId?: string;
+  groupCount?: number;
   icon: ImageSourcePropType;
   rating: number;
   ratingFormatted?: string; // Pred-formátovaný rating pre mapu
@@ -71,9 +74,9 @@ export interface DiscoverMapMarker {
 }
 
 export interface DiscoverMapProps {
-  cameraRef: RefObject<Camera>;
+  cameraRef: MapViewRef;
   filteredMarkers: DiscoverMapMarker[];
-  onUserLocationUpdate: (coord: [number, number]) => void;
+  userCoord?: [number, number] | null;
   onCameraChanged: (
     center: [number, number],
     zoom: number,
@@ -81,19 +84,11 @@ export interface DiscoverMapProps {
   ) => void;
 
   onMarkerPress?: (id: string) => void;
-  onSelectedGroupPosition?: (x: number, y: number) => void;
 
-  selectedGroup?: {
-    coord: { lng: number; lat: number };
-    items: DiscoverMapMarker[];
-  } | null;
-
-  categoryIcons: Record<string, ImageSourcePropType>;
-
+  mapCenter?: [number, number];
   mapZoom?: number;
   cityCenter?: [number, number];
-  isFilterActive?: boolean;
-  iconRegistry?: Record<string, ImageSourcePropType>;
+  initialCamera?: { center: [number, number]; zoom: number } | null;
 }
 
 
@@ -110,7 +105,7 @@ export interface DiscoverTopControlsProps {
   onOpenSearch: () => void;
   userCoord: [number, number] | null;
   mainMapCenter?: [number, number] | null;
-  cameraRef: RefObject<Camera>;
+  cameraRef: MapViewRef;
   t: (key: string) => string;
   onLocationSheetChange?: (index: number) => void;
   hasActiveFilter?: boolean;
@@ -174,7 +169,7 @@ export interface LocationMapStepProps {
   onSave: () => void;
   setHasMapMoved: Dispatch<SetStateAction<boolean>>;
   setSelectedCoord: Dispatch<SetStateAction<[number, number]>>;
-  mapCameraRef: RefObject<Camera>;
+  mapCameraRef: MapViewRef;
 }
 
 export interface DiscoverSearchSheetProps {

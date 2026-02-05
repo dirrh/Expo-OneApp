@@ -39,9 +39,8 @@ npm install -g eas-cli
 V koreňovom priečinku projektu vytvorte súbor `.env` a doplňte hodnoty, ktoré vám poskytne autor projektu:
 
 ```env
-NEXT_PUBLIC_MAPBOX_TOKEN=VAS_MAPBOX_TOKEN
+EXPO_PUBLIC_GOOGLE_MAPS_API_KEY=VAS_GOOGLE_MAPS_API_KEY
 NEXT_PUBLIC_AVATAR_URL=\images\photo.png
-RNMAPBOX_MAPS_DOWNLOAD_TOKEN=VAS_MAPBOX_DOWNLOAD_TOKEN
 ```
 
 **Dôležité upozornenie:** Súbor `.env` obsahuje citlivé údaje a nesmie sa odosielať (commit) do Git repozitára. Overte, že je tento súbor uvedený v `.gitignore`.
@@ -98,7 +97,7 @@ Po dokončení procesu získate odkaz na stiahnutie `.apk` súboru v termináli 
 | :--- | :--- |
 | **Nesprávna poloha (napr. USA)** | Skontrolujte, či je v systéme Android zapnuté GPS a či má aplikácia udelené oprávnenie pre Presnú polohu. |
 | **Zmeny v kóde sa neprejavujú** | Reštartujte Metro bundler s vyčistením cache: `npx expo start --dev-client -c`. |
-| **Chyba pri sťahovaní máp** | Overte správnosť a platnosť `RNMAPBOX_MAPS_DOWNLOAD_TOKEN` v súbore `.env`. |
+| **Mapa sa nenačíta (Android)** | Overte správnosť `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY` v súbore `.env`. |
 | **Aplikácia padá pri štarte** | Odinštalujte starú verziu a nainštalujte najnovšie APK od autorov. Staré verzie nemusia byť kompatibilné s novým kódom. |
 | **Android Studio / ADB chyby** | Uistite sa, že máte správne nastavené systémové premenné (ANDROID_HOME) a v emulátore/zariadení je povolené Ladenie cez USB. |
 

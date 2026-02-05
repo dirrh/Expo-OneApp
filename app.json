@@ -53,8 +53,7 @@
     "extra": {
       "eas": {
         "projectId": "3c9074e6-f845-4fe9-b080-690c626b77c0"
-      },
-      "MAPBOX_TOKEN": "pk.eyJ1IjoianNnY2l0eSIsImEiOiJjbWJ6YjRmOWUwY2E1Mm9xeHJkbGY4a3V5In0.xH1_hbHZbdGtO6yamCy87w"
+      }
     },
     "owner": "extynt",
     "runtimeVersion": {

@@ -1,5 +1,6 @@
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type TabIconName = "cards" | "feed" | "home" | "discover" | "profile";
 
@@ -12,14 +13,17 @@ const TAB_ICONS: Record<TabIconName, keyof typeof Ionicons.glyphMap> = {
 };
 
 export default function CustomTabBar({ state, descriptors, navigation }: any) {
+  const insets = useSafeAreaInsets();
   const focusedOptions = descriptors[state.routes[state.index].key]?.options;
 
   if (focusedOptions?.tabBarStyle?.display === "none") {
     return null;
   }
 
+  const bottomInset = Math.max(insets.bottom, 6);
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { height: 64 + bottomInset, paddingBottom: bottomInset }]}>
       {state.routes.map((route: any, index: number) => {
         const { options } = descriptors[route.key];
         const label =

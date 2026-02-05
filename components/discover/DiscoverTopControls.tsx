@@ -7,6 +7,7 @@ import type BottomSheet from "@gorhom/bottom-sheet";
 import { styles } from "./discoverStyles";
 import type { DiscoverTopControlsProps } from "../../lib/interfaces";
 import DiscoverLocationSheet from "./DiscoverLocationSheet";
+import { setMapCamera } from "../../lib/maps/camera";
 
 export default function DiscoverTopControls({
   insetsTop,
@@ -149,11 +150,7 @@ export default function DiscoverTopControls({
                         setOption(opt.label);
                         setOpen(false);
                         if (opt.coord) {
-                          cameraRef.current?.setCamera({
-                            centerCoordinate: opt.coord,
-                            zoomLevel: 14,
-                            animationDuration: 800,
-                          });
+                          setMapCamera(cameraRef, { center: opt.coord, zoom: 14, durationMs: 800 });
                         }
                       }}
                       activeOpacity={0.85}
@@ -211,17 +208,13 @@ export default function DiscoverTopControls({
 
       {/* Centrovanie button - dole vpravo */}
       {o && (
-        <View style={[styles.centerBtnContainer, { bottom: 155 }]} pointerEvents="box-none">
+        <View style={[styles.centerBtnContainer, { bottom: 140 }]} pointerEvents="box-none">
           <TouchableOpacity
             style={styles.roundBtn}
             activeOpacity={0.85}
             onPress={() => {
               const target = userCoord ?? [18.091, 48.3069];
-              cameraRef.current?.setCamera({
-                centerCoordinate: target,
-                zoomLevel: 14,
-                animationDuration: 800,
-              });
+              setMapCamera(cameraRef, { center: target, zoom: 14, durationMs: 800 });
             }}
           >
             <Ionicons name="navigate-outline" size={22} color="#000" />

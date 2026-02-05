@@ -3,8 +3,10 @@ import { Image, Text, TextInput, View, Platform } from "react-native";
 import { TouchableOpacity } from "react-native-gesture-handler";
 import { Ionicons } from "@expo/vector-icons";
 import BottomSheet, { BottomSheetBackdrop, BottomSheetScrollView } from "@gorhom/bottom-sheet";
-import Mapbox, { Camera, MapView, UserLocation } from "@rnmapbox/maps";
+import { AppleMaps, GoogleMaps } from "expo-maps";
 import { styles } from "./discoverStyles";
+import { setMapCamera } from "../../lib/maps/camera";
+import { STATIC_MAP_ZOOM } from "../../lib/constants/discover";
 import type {
   DiscoverLocationSearchResult,
   DiscoverLocationSheetProps,
@@ -216,6 +218,13 @@ function LocationMapStep({
   setSelectedCoord,
   mapCameraRef,
 }: LocationMapStepProps) {
+  const initialCameraRef = useRef({
+    coordinates: {
+      latitude: selectedCoord[1],
+      longitude: selectedCoord[0],
+    },
+    zoom: STATIC_MAP_ZOOM,
+  });
   // Web fallback - Mapbox doesn't work on web
   if (Platform.OS === 'web') {
     return (
@@ -253,46 +262,41 @@ function LocationMapStep({
         </View>
 
         <View style={styles.locationMapWrapper}>
-          <MapView
-            style={styles.locationMap}
-            styleURL={Mapbox.StyleURL.Street}
-            scaleBarEnabled={false}
-            onCameraChanged={(state) => {
-              const center =
-                state?.properties?.center ??
-                (state as { geometry?: { coordinates?: number[] } })?.geometry?.coordinates;
-              if (!Array.isArray(center) || center.length < 2) {
-                return;
-              }
-              const isUserGesture = state?.gestures?.isGestureActive;
-              if (isUserGesture && !hasMapMoved) {
-                setHasMapMoved(true);
-              }
-              if (isUserGesture || hasMapMoved) {
-                setSelectedCoord([center[0], center[1]]);
-              }
-            }}
-          >
-            <Camera ref={mapCameraRef} centerCoordinate={selectedCoord} zoomLevel={14} />
-            <UserLocation
-              visible
-              onUpdate={(location) => {
-                if (hasMapMoved) {
+          {Platform.OS === "ios" ? (
+            <AppleMaps.View
+              ref={mapCameraRef}
+              style={styles.locationMap}
+              cameraPosition={initialCameraRef.current}
+              uiSettings={{ compassEnabled: false }}
+              onCameraMove={(event) => {
+                const { latitude, longitude } = event.coordinates ?? {};
+                if (typeof latitude !== "number" || typeof longitude !== "number") {
                   return;
                 }
-                const nextCoord: [number, number] = [
-                  location.coords.longitude,
-                  location.coords.latitude,
-                ];
-                setSelectedCoord(nextCoord);
-                mapCameraRef.current?.setCamera({
-                  centerCoordinate: nextCoord,
-                  zoomLevel: 14,
-                  animationDuration: 350,
-                });
+                if (!hasMapMoved) {
+                  setHasMapMoved(true);
+                }
+                setSelectedCoord([longitude, latitude]);
               }}
             />
-          </MapView>
+          ) : (
+            <GoogleMaps.View
+              ref={mapCameraRef}
+              style={styles.locationMap}
+              cameraPosition={initialCameraRef.current}
+              uiSettings={{ compassEnabled: false, zoomControlsEnabled: false }}
+              onCameraMove={(event) => {
+                const { latitude, longitude } = event.coordinates ?? {};
+                if (typeof latitude !== "number" || typeof longitude !== "number") {
+                  return;
+                }
+                if (!hasMapMoved) {
+                  setHasMapMoved(true);
+                }
+                setSelectedCoord([longitude, latitude]);
+              }}
+            />
+          )}
 
           <View style={styles.locationMapOverlay} pointerEvents="none">
             <View style={styles.locationMapLabel}>
@@ -341,7 +345,7 @@ export default function DiscoverLocationSheet({
   mainMapCenter,
   onLocationSheetChange,
 }: DiscoverLocationSheetProps) {
-  const mapCameraRef = useRef<Camera>(null);
+  const mapCameraRef = useRef<any>(null);
   const snapPoints = useMemo(() => ["15%", "92%"], []);
   const [locationStep, setLocationStep] = useState<LocationStep>("add");
   const [locationReturnStep, setLocationReturnStep] = useState<"add" | "search">("add");
@@ -417,11 +421,7 @@ export default function DiscoverLocationSheet({
     const target = userCoord ?? mainMapCenter ?? [18.091, 48.3069];
     setHasMapMoved(false);
     setSelectedCoord([target[0], target[1]]);
-    mapCameraRef.current?.setCamera({
-      centerCoordinate: target,
-      zoomLevel: 14,
-      animationDuration: 500,
-    });
+    setMapCamera(mapCameraRef, { center: target, zoom: STATIC_MAP_ZOOM, durationMs: 500 });
   }, [mainMapCenter, userCoord]);
 
   const handleLocationSheetChange = (index: number) => {
@@ -482,11 +482,7 @@ export default function DiscoverLocationSheet({
     }
     if (userCoord) {
       setSelectedCoord(userCoord);
-      mapCameraRef.current?.setCamera({
-        centerCoordinate: userCoord,
-        zoomLevel: 14,
-        animationDuration: 350,
-      });
+      setMapCamera(mapCameraRef, { center: userCoord, zoom: STATIC_MAP_ZOOM, durationMs: 350 });
       return;
     }
     if (mainMapCenter) {
@@ -498,11 +494,7 @@ export default function DiscoverLocationSheet({
     if (locationStep !== "map" || hasMapMoved) {
       return;
     }
-    mapCameraRef.current?.setCamera({
-      centerCoordinate: selectedCoord,
-      zoomLevel: 14,
-      animationDuration: 0,
-    });
+    setMapCamera(mapCameraRef, { center: selectedCoord, zoom: STATIC_MAP_ZOOM, durationMs: 0 });
   }, [locationStep, hasMapMoved, selectedCoord]);
 
   return (

@@ -7,12 +7,42 @@ export default ({ config }) => ({
   },
   plugins: [
     ...(config.plugins ?? []),
-    './plugins/withMapboxMaven',
     './plugins/withAndroidXFix',
     './plugins/withGradleProperties',
+    [
+      "expo-maps",
+      {
+        requestLocationPermission: true,
+        locationPermission: "Allow $(PRODUCT_NAME) to access your location.",
+      },
+    ],
+    [
+      "expo-build-properties",
+      {
+        ios: {
+          deploymentTarget: "18.0",
+        },
+      },
+    ],
+    [
+      "expo-location",
+      {
+        locationAlwaysAndWhenInUsePermission:
+          "Allow $(PRODUCT_NAME) to access your location.",
+      },
+    ],
     "expo-localization",
     "expo-asset",
   ],
+  android: {
+    ...config.android,
+    config: {
+      ...config.android?.config,
+      googleMaps: {
+        apiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY,
+      },
+    },
+  },
   web: {
     ...config.web,
     bundler: 'metro',
@@ -23,6 +53,5 @@ export default ({ config }) => ({
   },
   extra: {
     ...config.extra,
-    MAPBOX_TOKEN: process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? process.env.NEXT_PUBLIC_MAPBOX_TOKEN,
   },
 });

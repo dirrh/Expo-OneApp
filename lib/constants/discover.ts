@@ -1,6 +1,5 @@
-import { Image, ImageSourcePropType, Platform } from "react-native";
-import type { Feature, FeatureCollection, Point } from "geojson";
-import type { BranchData, DiscoverMapProps } from "../../lib/interfaces";
+import { ImageSourcePropType } from "react-native";
+import type { BranchData } from "../../lib/interfaces";
 
 // Offer keys pre preklady
 const OFFER_KEYS = {
@@ -32,271 +31,26 @@ const translateBranchOffers = (branch: BranchData, t: (key: string) => string): 
   offers: branch.offers?.map(offer => t(offer)),
 });
 
-const CLUSTER_IMAGE = require("../../images/group_pin.png");
-const FILTER_CLUSTER_IMAGE = require("../../images/filter_pin.png");
-const BADGE_IMAGE = require("../../images/badge.png");
-const STAR_IMAGE = require("../../images/star_white.png");
-const NAVIGATION_IMAGE = require("../../images/navigation.png");
-const getNavigationImageUri = () => {
-  if (Platform.OS === "web") {
-    // On web, require() may return a string or an object with default
-    const img = NAVIGATION_IMAGE as any;
-    if (typeof img === "string") return img;
-    if (img?.default) return img.default;
-    if (img?.uri) return img.uri;
-    // If Image.resolveAssetSource exists on web, try it
-    if (typeof Image.resolveAssetSource === "function") {
-      try {
-        const resolved = Image.resolveAssetSource(NAVIGATION_IMAGE);
-        return resolved?.uri || "";
-      } catch {
-        return "";
-      }
-    }
-    return "";
-  }
-  // On native platforms, use resolveAssetSource
-  return Image.resolveAssetSource(NAVIGATION_IMAGE).uri;
-};
-const NAVIGATION_IMAGE_URI = getNavigationImageUri();
 // === ZOOM LEVEL KONŠTANTY ===
-// Hierarchia zobrazovania:
-// 1. zoom >= CLUSTER_MAX_ZOOM (15+)  → jednotlivé markery s hodnotením
-// 2. zoom 11-15                       → menšie skupiny (natívne Mapbox clustre)
-// 3. zoom <= CITY_CLUSTER_ZOOM (11-)  → jeden cluster za celé mesto
+// Režimy zobrazovania:
+// 1. zoom <= FORCE_CLUSTER_ZOOM  → len clustre (min 2)
+// 2. zoom >= SINGLE_MODE_ZOOM    → len single piny
 const CITY_CLUSTER_ZOOM = 11;           // pod týmto = city cluster
-const CLUSTER_MAX_ZOOM = 15;            // nad týmto = jednotlivé markery
-const CLUSTERING_MAX_ZOOM = CLUSTER_MAX_ZOOM - 0.01;  // 14.99 - kedy clustering končí
-const CLUSTER_FADE_RANGE = 0.5;         // rozsah pre plynulý prechod
+const CLUSTER_MAX_ZOOM = 16;            // nad týmto = jednotlivé markery
+const FORCE_CLUSTER_ZOOM = 15;          // do tychto zoomov zobrazujeme iba clustre
+const SINGLE_MODE_ZOOM = 16;          // od tohto zoomu len single piny
 const DEFAULT_CAMERA_ZOOM = 14;
 const DEFAULT_CITY_CENTER: [number, number] = [18.091, 48.3069];
-const CLUSTER_DEFAULT_NAME = "clusterDefault";
-const CLUSTER_FILTER_NAME = "clusterFilter";
-const BADGE_IMAGE_NAME = "badge";
-const STAR_IMAGE_NAME = "star";
-const BADGE_BASE_OFFSET_X = 14;
-const BADGE_BASE_OFFSET_Y = -53;
-const BADGE_BASE_CENTER_Y = BADGE_BASE_OFFSET_Y - 8;
-const STAR_BASE_OFFSET_X = BADGE_BASE_OFFSET_X - 8;
-const STAR_BASE_OFFSET_Y = BADGE_BASE_CENTER_Y + 3;
-const TEXT_BASE_OFFSET_X = BADGE_BASE_OFFSET_X;
-const TEXT_BASE_OFFSET_Y = BADGE_BASE_CENTER_Y;
-const BADGE_BASE_WIDTH = 360;
 
-type MarkerFeatureProps = { icon: string; rating: string, isMulti?: boolean; };
-type IconRegistry = Record<string, any>;
+// === iOS/Android parity (approx) ===
+const IOS_ZOOM_OFFSET = 0;             // doladiĹĄ podÄľa potreby (+/- 0.25)
+const IOS_FORCE_CLUSTER_ZOOM = FORCE_CLUSTER_ZOOM;
+const IOS_SINGLE_MODE_ZOOM = SINGLE_MODE_ZOOM;
+const ANDROID_CLUSTER_CELL_PX = 90;
+const IOS_CLUSTER_CELL_PX = 80;        // ~Android - 10px
 
-
-const CLUSTER_FILTER = ["has", "point_count"] as const;
-const MARKER_FILTER = ["!", CLUSTER_FILTER] as const;
-const USER_PUCK_SCALE = ["interpolate", ["linear"], ["zoom"], 10, 1.0, 20, 4.0] as const;
-const USER_PUCK_PULSING = {
-  isEnabled: true,
-  color: "teal",
-  radius: 50.0,
-} as const;
-const NOT_MULTI_FILTER = [
-  "all",
-  MARKER_FILTER,
-  ["!=", ["get", "isMulti"], true],
-] as const;
-
-const BASE_IMAGES: IconRegistry = {
-  [CLUSTER_DEFAULT_NAME]: CLUSTER_IMAGE,
-  [CLUSTER_FILTER_NAME]: FILTER_CLUSTER_IMAGE,
-  [BADGE_IMAGE_NAME]: BADGE_IMAGE,
-  [STAR_IMAGE_NAME]: STAR_IMAGE,
-};
-
-// Clustre sú plne viditeľné a postupne miznú tesne pred CLUSTER_MAX_ZOOM
-const clusterFadeOut = [
-  "interpolate",
-  ["linear"],
-  ["zoom"],
-  CLUSTER_MAX_ZOOM - CLUSTER_FADE_RANGE,  // 14.5 = opacity 1
-  1,
-  CLUSTERING_MAX_ZOOM,                      // 14.99 = opacity 0
-  0,
-] as const;
-
-// Markery sa postupne objavujú pred CLUSTER_MAX_ZOOM
-const markerFadeIn = [
-  "interpolate",
-  ["linear"],
-  ["zoom"],
-  CLUSTER_MAX_ZOOM - CLUSTER_FADE_RANGE,  // 14.5 = opacity 0
-  0,
-  CLUSTER_MAX_ZOOM,                        // 15 = opacity 1
-  1,
-] as const;
-
-const clusterLayerBase = {
-  iconSize: 1,
-  iconAnchor: "bottom",
-  iconAllowOverlap: true,
-  iconIgnorePlacement: true,
-  iconOpacity: clusterFadeOut,
-  textField: ["to-string", ["get", "point_count"]],
-  textSize: 13,
-  textFont: ["DIN Offc Pro Medium", "Arial Unicode MS Bold"],
-  textColor: "#fff",
-  textAnchor: "center",
-  textOffset: [0, -3.2],
-  textOpacity: clusterFadeOut,
-  textAllowOverlap: true,
-  textIgnorePlacement: true,
-} as const;
-
-const pointLayerStyle = {
-  iconImage: ["get", "icon"],
-  iconSize: 1,
-  iconAnchor: "bottom",
-  iconAllowOverlap: true,
-  iconIgnorePlacement: true,
-  iconOpacity: markerFadeIn,
-} as const;
-
-const badgeLayerBase = {
-  iconImage: BADGE_IMAGE_NAME,
-  iconSize: 1,
-  iconAnchor: "bottom",
-  iconAllowOverlap: true,
-  iconIgnorePlacement: true,
-  iconOffset: [0, 0],
-  iconTranslateAnchor: "viewport",
-  iconOpacity: markerFadeIn,
-} as const;
-
-const badgeStarLayerBase = {
-  iconImage: STAR_IMAGE_NAME,
-  iconSize: 0.62,
-  iconAnchor: "bottom",
-  iconAllowOverlap: true,
-  iconIgnorePlacement: true,
-  iconOffset: [0, 0],
-  iconTranslateAnchor: "viewport",
-  iconOpacity: markerFadeIn,
-} as const;
-
-const badgeTextLayerBase = {
-  textField: ["get", "rating"],
-  textSize: 10,
-  textFont: ["DIN Offc Pro Medium", "Arial Unicode MS Bold"],
-  textColor: "#fff",
-  textAnchor: "left",
-  textOffset: [0, 0],
-  textTranslateAnchor: "viewport",
-  textOpacity: markerFadeIn,
-  textAllowOverlap: true,
-  textIgnorePlacement: true,
-} as const;
-
-const toFeatureCollection = <TProps,>(features: Feature<Point, TProps>[]) =>
-  ({
-    type: "FeatureCollection",
-    features,
-  }) as FeatureCollection<Point, TProps>;
-
-const buildCityClusterShape = (center: [number, number], count: number) => {
-  const cityFeature: Feature<Point, { point_count: number }> = {
-    type: "Feature",
-    id: "city-cluster",
-    properties: { point_count: count },
-    geometry: { type: "Point", coordinates: center },
-  };
-  return toFeatureCollection([cityFeature]);
-};
-
-/**
- * Rozdeľuje názov ikony z markera
- * Ak je to string a existuje v images, vráti ho
- * Inak vytvorí nový záznam v images a vráti vygenerovaný názov
- */
-const resolveMarkerIconName = (
-  markerIcon: DiscoverMapProps["filteredMarkers"][number]["icon"],
-  images: IconRegistry,
-  iconNameByKey: Map<string, string>
-) => {
-  if (typeof markerIcon === "string" && images[markerIcon]) {
-    return markerIcon;
-  }
-
-  const key = String(markerIcon);
-  let iconName = iconNameByKey.get(key);
-  if (!iconName) {
-    iconName = `marker-${key}`;
-    iconNameByKey.set(key, iconName);
-    images[iconName] = markerIcon;
-  }
-  return iconName;
-};
-
-/**
- * Vytvorí registráciu ikon pre markery
- * Ikony sa registrujú separátne od GeoJSON shape, pretože sa menia menej často
- */
-const buildImagesRegistry = (
-  markers: DiscoverMapProps["filteredMarkers"],
-  baseImages: IconRegistry
-): { images: IconRegistry; iconNameByKey: Map<string, string> } => {
-  const images: IconRegistry = { ...baseImages };
-  const iconNameByKey = new Map<string, string>();
-
-  markers.forEach((marker) => {
-    resolveMarkerIconName(marker.icon, images, iconNameByKey);
-  });
-
-  return { images, iconNameByKey };
-};
-
-/**
- * Vytvorí GeoJSON shape pre markery
- * Používa existujúcu mapu ikon a pred-formátovaný rating z markerov
- */
-const buildMarkersShape = (
-  markers: DiscoverMapProps["filteredMarkers"],
-  images: IconRegistry,
-  iconNameByKey: Map<string, string>
-): FeatureCollection<Point, MarkerFeatureProps> => {
-  const features: Feature<Point, MarkerFeatureProps>[] = [];
-
-  for (const marker of markers) {
-    const iconName = resolveMarkerIconName(marker.icon, images, iconNameByKey);
-    // Použijeme pred-formátovaný rating ak existuje, inak formátujeme tu
-    const rating = marker.ratingFormatted ?? marker.rating.toFixed(1);
-    const isMulti = marker.category === "Multi";
-
-    features.push({
-      type: "Feature",
-      id: marker.id,
-      properties: {
-        icon: iconName,
-        rating,
-        isMulti,
-      },
-      geometry: {
-        type: "Point",
-        coordinates: [marker.coord.lng, marker.coord.lat],
-      },
-    });
-  }
-
-  return toFeatureCollection(features);
-};
-
-/**
- * Vytvorí GeoJSON shape a registráciu ikon pre markery
- * Interně používa buildImagesRegistry a buildMarkersShape
- */
-const buildMarkersShapeAndImages = (
-  markers: DiscoverMapProps["filteredMarkers"],
-  baseImages: IconRegistry
-) => {
-  const { images, iconNameByKey } = buildImagesRegistry(markers, baseImages);
-  const shape = buildMarkersShape(markers, images, iconNameByKey);
-
-  return { images, shape };
-};
+// Static map zoom (LocationSheet + InfoSection)
+const STATIC_MAP_ZOOM = 14;
 
 export {
   DUMMY_BRANCH,
@@ -304,43 +58,14 @@ export {
   OFFER_KEYS,
   CITY_CLUSTER_ZOOM,
   CLUSTER_MAX_ZOOM,
-  CLUSTERING_MAX_ZOOM,
-  CLUSTER_FADE_RANGE,
+  FORCE_CLUSTER_ZOOM,
+  SINGLE_MODE_ZOOM,
   DEFAULT_CAMERA_ZOOM,
   DEFAULT_CITY_CENTER,
-
-  CLUSTER_DEFAULT_NAME,
-  CLUSTER_FILTER_NAME,
-  BADGE_IMAGE_NAME,
-  STAR_IMAGE_NAME,
-
-  BADGE_BASE_OFFSET_X,
-  BADGE_BASE_OFFSET_Y,
-  BADGE_BASE_CENTER_Y,
-  STAR_BASE_OFFSET_X,
-  STAR_BASE_OFFSET_Y,
-  TEXT_BASE_OFFSET_X,
-  TEXT_BASE_OFFSET_Y,
-  BADGE_BASE_WIDTH,
-
-  CLUSTER_FILTER,
-  MARKER_FILTER,
-  NOT_MULTI_FILTER,
-  USER_PUCK_SCALE,
-  USER_PUCK_PULSING,
-
-  BASE_IMAGES,
-  clusterFadeOut,
-  markerFadeIn,
-  clusterLayerBase,
-  pointLayerStyle,
-  badgeLayerBase,
-  badgeStarLayerBase,
-  badgeTextLayerBase,
-  NAVIGATION_IMAGE_URI,
-
-  buildCityClusterShape,
-  buildMarkersShapeAndImages,
-  buildImagesRegistry,
-  buildMarkersShape,
+  IOS_ZOOM_OFFSET,
+  IOS_FORCE_CLUSTER_ZOOM,
+  IOS_SINGLE_MODE_ZOOM,
+  ANDROID_CLUSTER_CELL_PX,
+  IOS_CLUSTER_CELL_PX,
+  STATIC_MAP_ZOOM,
 };

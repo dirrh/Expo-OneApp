@@ -6,9 +6,9 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Platform } from "react-native";
-import Mapbox from "@rnmapbox/maps";
-import type { Camera } from "@rnmapbox/maps";
+import * as Location from "expo-location";
+import type { MapViewRef } from "../interfaces";
+import { setMapCamera } from "../maps/camera";
 
 // === GLOBÁLNY STAV ===
 // Tieto premenné sú mimo komponentu, aby sa zachovali medzi rendermi
@@ -20,14 +20,14 @@ let preserveDiscoverCamera = false;
  * Typ pre návratovú hodnotu hooku
  */
 export interface UseDiscoverCameraReturn {
-  cameraRef: React.RefObject<Camera>;           // ref na Mapbox kameru
+  cameraRef: MapViewRef;                        // ref na map view
   userCoord: [number, number] | null;           // súradnice používateľa [lng, lat]
   mapCenter: [number, number];                  // stred mapy [lng, lat]
   mapZoom: number;                              // úroveň priblíženia
   didInitialCenter: boolean;                    // či už prebehlo úvodné centrovanie
+  isUserPanning: boolean;                       // ci user aktualne hybe mapou
 
   // === HANDLERY ===
-  handleUserLocationUpdate: (coord: [number, number]) => void;
   handleCameraChanged: (
     center: [number, number],
     zoom: number,
@@ -69,8 +69,8 @@ export const useDiscoverCamera = ({
   onOptionReset,
 }: UseDiscoverCameraOptions): UseDiscoverCameraReturn => {
   
-  // Ref na Mapbox kameru - používame na programatické ovládanie
-  const cameraRef = useRef<Camera>(null);
+  // Ref na map view - používame na programatické ovládanie
+  const cameraRef = useRef<any>(null) as MapViewRef;
 
   // Throttling konfigurácia pre aktualizácie kamery
   // Obmedzujeme frekvenciu aktualizácií stavu na max. každých 150ms
@@ -79,21 +79,81 @@ export const useDiscoverCamera = ({
   const lastUpdateTimeRef = useRef<number>(0);
   const pendingUpdateRef = useRef<{ center: [number, number]; zoom: number } | null>(null);
   const throttleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const restoreRetryRef = useRef(0);
+  const panTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isUserPanningRef = useRef(false);
 
   // === STAVOVÉ PREMENNÉ ===
+  const initialCameraState = lastDiscoverCameraState ?? { center: cityCenter, zoom: 14 };
   const [userCoord, setUserCoord] = useState<[number, number] | null>(null);  // poloha usera
-  const [mapCenter, setMapCenter] = useState<[number, number]>(cityCenter);   // stred mapy
-  const [mapZoom, setMapZoom] = useState(14);                                  // zoom level
-  const [didInitialCenter, setDidInitialCenter] = useState(false);            // či už sme centrovali
+  const [mapCenter, setMapCenter] = useState<[number, number]>(initialCameraState.center);   // stred mapy
+  const [mapZoom, setMapZoom] = useState(initialCameraState.zoom);                                  // zoom level
+  const [didInitialCenter, setDidInitialCenter] = useState(Boolean(lastDiscoverCameraState));            // či už sme centrovali
+  const [isUserPanning, setIsUserPanning] = useState(false);
+  const latestAppliedRef = useRef<{ center: [number, number]; zoom: number }>(initialCameraState);
+
+  const CENTER_EPSILON = 0.00005; // ~5m, znizuje sum pri pohybe
+  const ZOOM_EPSILON = 0.05;
+  const ZOOM_QUANTIZE_STEP = 0.25;
+
+  const applyCameraState = useCallback((center: [number, number], zoom: number) => {
+    const nextZoom = Math.round(zoom / ZOOM_QUANTIZE_STEP) * ZOOM_QUANTIZE_STEP;
+    const prev = latestAppliedRef.current;
+    const delta = Math.hypot(center[0] - prev.center[0], center[1] - prev.center[1]);
+    if (delta < CENTER_EPSILON && Math.abs(nextZoom - prev.zoom) < ZOOM_EPSILON) {
+      return;
+    }
+    latestAppliedRef.current = { center, zoom: nextZoom };
+    setMapZoom(nextZoom);
+    setMapCenter(center);
+  }, []);
+
+  const markUserPanning = useCallback((isUserGesture?: boolean) => {
+    if (!isUserGesture) return;
+    if (!isUserPanningRef.current) {
+      isUserPanningRef.current = true;
+      setIsUserPanning(true);
+    }
+    if (panTimeoutRef.current) {
+      clearTimeout(panTimeoutRef.current);
+    }
+    panTimeoutRef.current = setTimeout(() => {
+      isUserPanningRef.current = false;
+      setIsUserPanning(false);
+    }, 120);
+  }, []);
+
 
   /**
    * Pri spustení na Androide si vyžiadame povolenie pre lokáciu
    * Na iOS to nie je potrebné (riešime cez Info.plist)
    */
   useEffect(() => {
-    if (Platform.OS === "android") {
-      Mapbox.requestAndroidLocationPermissions();
-    }
+    let subscription: Location.LocationSubscription | null = null;
+    let isMounted = true;
+
+    const start = async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (!isMounted || status !== "granted") return;
+
+      subscription = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.Balanced,
+          distanceInterval: 10,
+        },
+        (location) => {
+          if (!isMounted) return;
+          setUserCoord([location.coords.longitude, location.coords.latitude]);
+        }
+      );
+    };
+
+    start();
+
+    return () => {
+      isMounted = false;
+      subscription?.remove();
+    };
   }, []);
 
   /**
@@ -110,22 +170,10 @@ export const useDiscoverCamera = ({
     }
     
     // Vycentrujeme kameru na používateľa s animáciou
-    cameraRef.current?.setCamera({
-      centerCoordinate: userCoord,
-      zoomLevel: 14,
-      animationDuration: 800,  // 800ms animácia
-    });
+    setMapCamera(cameraRef, { center: userCoord, zoom: 14, durationMs: 800 });
     
     setDidInitialCenter(true);
   }, [userCoord, didInitialCenter]);
-
-  /**
-   * Handler pre aktualizáciu polohy používateľa
-   * Volá sa z komponenty UserLocation na mape
-   */
-  const handleUserLocationUpdate = useCallback((coord: [number, number]) => {
-    setUserCoord(coord);
-  }, []);
 
   /**
    * Handler pre zmenu pozície kamery (keď user scrolluje/zoomuje mapu)
@@ -155,8 +203,7 @@ export const useDiscoverCamera = ({
         // Môžeme aktualizovať okamžite
         lastUpdateTimeRef.current = now;
         pendingUpdateRef.current = null;
-        setMapZoom(zoom);
-        setMapCenter(center);
+        applyCameraState(center, zoom);
       } else {
         // Naplánujeme odloženú aktualizáciu (ak ešte nie je naplánovaná)
         if (!throttleTimeoutRef.current) {
@@ -165,13 +212,17 @@ export const useDiscoverCamera = ({
             throttleTimeoutRef.current = null;
             if (pendingUpdateRef.current) {
               lastUpdateTimeRef.current = Date.now();
-              setMapZoom(pendingUpdateRef.current.zoom);
-              setMapCenter(pendingUpdateRef.current.center);
+              applyCameraState(
+                pendingUpdateRef.current.center,
+                pendingUpdateRef.current.zoom
+              );
               pendingUpdateRef.current = null;
             }
           }, remainingTime);
         }
       }
+
+      markUserPanning(isUserGesture);
 
       // 4. Ak user manuálne posunul mapu preč od vybranej lokácie, resetujeme výber
       if (!isUserGesture || !selectedOptionCoord) {
@@ -186,7 +237,7 @@ export const useDiscoverCamera = ({
         onOptionReset();
       }
     },
-    [selectedOptionCoord, onOptionReset]
+    [selectedOptionCoord, onOptionReset, applyCameraState, markUserPanning]
   );
 
   // Cleanup timeout pri unmounte
@@ -194,6 +245,9 @@ export const useDiscoverCamera = ({
     return () => {
       if (throttleTimeoutRef.current) {
         clearTimeout(throttleTimeoutRef.current);
+      }
+      if (panTimeoutRef.current) {
+        clearTimeout(panTimeoutRef.current);
       }
     };
   }, []);
@@ -204,11 +258,7 @@ export const useDiscoverCamera = ({
   const centerOnUser = useCallback(() => {
     if (!userCoord) return;  // ak nemáme polohu, nič nerobíme
     
-    cameraRef.current?.setCamera({
-      centerCoordinate: userCoord,
-      zoomLevel: 14,
-      animationDuration: 800,
-    });
+    setMapCamera(cameraRef, { center: userCoord, zoom: 14, durationMs: 800 });
   }, [userCoord]);
 
   /**
@@ -218,11 +268,7 @@ export const useDiscoverCamera = ({
    * @param zoom - zoom level (default: 14)
    */
   const centerOnCoord = useCallback((coord: [number, number], zoom: number = 14) => {
-    cameraRef.current?.setCamera({
-      centerCoordinate: coord,
-      zoomLevel: zoom,
-      animationDuration: 800,
-    });
+    setMapCamera(cameraRef, { center: coord, zoom, durationMs: 800 });
   }, []);
 
   // === POMOCNÉ FUNKCIE PRE NAVIGÁCIU MEDZI TABMI ===
@@ -245,15 +291,26 @@ export const useDiscoverCamera = ({
    * Obnoví pozíciu kamery ak je potrebné (po návrate z iného tabu)
    */
   const restoreCameraIfNeeded = useCallback(() => {
-    if (preserveDiscoverCamera && lastDiscoverCameraState) {
-      cameraRef.current?.setCamera({
-        centerCoordinate: lastDiscoverCameraState.center,
-        zoomLevel: lastDiscoverCameraState.zoom,
-        animationDuration: 0,  // bez animácie - okamžitá zmena
-      });
-      setDidInitialCenter(true);
-      preserveDiscoverCamera = false;
+    if (!preserveDiscoverCamera || !lastDiscoverCameraState) {
+      return;
     }
+
+    if (!cameraRef.current) {
+      if (restoreRetryRef.current < 5) {
+        restoreRetryRef.current += 1;
+        setTimeout(restoreCameraIfNeeded, 50);
+      }
+      return;
+    }
+
+    restoreRetryRef.current = 0;
+    setMapCamera(cameraRef, {
+      center: lastDiscoverCameraState.center,
+      zoom: lastDiscoverCameraState.zoom,
+      durationMs: 0,
+    });
+    setDidInitialCenter(true);
+    preserveDiscoverCamera = false;
   }, []);
 
   // Vrátime všetky hodnoty a funkcie
@@ -263,7 +320,7 @@ export const useDiscoverCamera = ({
     mapCenter,
     mapZoom,
     didInitialCenter,
-    handleUserLocationUpdate,
+    isUserPanning,
     handleCameraChanged,
     centerOnUser,
     centerOnCoord,

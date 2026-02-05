@@ -9,6 +9,10 @@ import BranchCard from "../components/BranchCard";
 import { Asset } from "expo-asset";
 import { useFocusEffect } from "@react-navigation/native";
 import Animated, { useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming } from "react-native-reanimated";
+import {
+    BRANCH_CARD_BASELINE_OFFSET,
+    BRANCH_CARD_OVERLAY_PADDING_Y,
+} from "../lib/constants/layout";
 
 type ReelType = "image" | "video";
 
@@ -123,8 +127,8 @@ const ReelItemComponent = memo(
         height,
         actionsBottom,
         insetsTop,
-        bottomOverlayOffset,
         branchCardWidth,
+        branchCardOffset,
         isScrolling,
         isVisible,
     }: {
@@ -132,8 +136,8 @@ const ReelItemComponent = memo(
         height: number;
         actionsBottom: number;
         insetsTop: number;
-        bottomOverlayOffset: number;
         branchCardWidth: number;
+        branchCardOffset: number;
         isScrolling: boolean;
         isVisible: boolean;
     }) => {
@@ -231,7 +235,6 @@ const ReelItemComponent = memo(
         }));
 
         const posterSource = item.poster ?? item.background ?? item.branch.image;
-
         // Overlay content (shared between image and video)
         const OverlayContent = (
             <>
@@ -293,7 +296,7 @@ const ReelItemComponent = memo(
                     <View
                         style={[
                             styles.branchCardWrap,
-                            { width: branchCardWidth, marginBottom: bottomOverlayOffset },
+                            { width: branchCardWidth, marginBottom: branchCardOffset },
                         ]}
                     >
                         <BranchCard
@@ -372,6 +375,11 @@ export default function FeedScreen() {
     );
     const bottomOverlayOffset = useMemo(
         () => Math.max(0, tabBarHeight - 16) -30,
+        [tabBarHeight]
+    );
+
+    const branchCardOffset = useMemo(
+        () => Math.max(0, tabBarHeight + BRANCH_CARD_BASELINE_OFFSET + BRANCH_CARD_OVERLAY_PADDING_Y+37),
         [tabBarHeight]
     );
     
@@ -458,8 +466,8 @@ export default function FeedScreen() {
                         height={screenHeight}
                         actionsBottom={actionsBottom}
                         insetsTop={insets.top}
-                        bottomOverlayOffset={bottomOverlayOffset}
                         branchCardWidth={branchCardWidth}
+                        branchCardOffset={branchCardOffset}
                         isScrolling={isScrolling}
                         isVisible={index === visibleIndex}
                     />

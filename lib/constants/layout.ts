@@ -1,0 +1,2 @@
+export const BRANCH_CARD_BASELINE_OFFSET = -35;
+export const BRANCH_CARD_OVERLAY_PADDING_Y = 7;

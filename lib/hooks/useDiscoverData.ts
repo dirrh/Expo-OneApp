@@ -195,6 +195,7 @@ export const useDiscoverData = ({
       return {
         id: group.id,
         coord: { lng: group.lng, lat: group.lat },
+        groupCount: group.items.length,
         icon: MULTI_MARKER_ICON,
         rating: maxRating,
         ratingFormatted: maxRating.toFixed(1),

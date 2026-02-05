@@ -2,8 +2,9 @@ import React, { memo, useCallback, useMemo, useState, useEffect } from "react";
 import { View, Text, StyleSheet, Linking, Platform, InteractionManager, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { TouchableOpacity } from "react-native-gesture-handler";
-import Mapbox, { Camera, MapView, PointAnnotation } from "@rnmapbox/maps";
+import { AppleMaps, GoogleMaps } from "expo-maps";
 import { useTranslation } from "react-i18next";
+import { STATIC_MAP_ZOOM } from "../../lib/constants/discover";
 
 type Props = {
     hours: {
@@ -142,36 +143,55 @@ export const InfoSection = memo(function InfoSection({
                     <View style={[styles.map, styles.mapLoading]}>
                         <ActivityIndicator size="small" color="#EB8100" />
                     </View>
-                ) : Platform.OS !== "web" ? (
-                    <MapView
-                        style={styles.map}
-                        styleURL={Mapbox.StyleURL.Street}
-                        scrollEnabled={false}
-                        zoomEnabled={false}
-                        pitchEnabled={false}
-                        rotateEnabled={false}
-                        scaleBarEnabled={false}
-                        attributionEnabled={false}
-                        logoEnabled={false}
-                    >
-                        <Camera
-                            centerCoordinate={mapCoords}
-                            zoomLevel={19}
-                            animationMode="none"
-                        />
-                        <PointAnnotation
-                            id="business-location"
-                            coordinate={mapCoords}
-                        >
-                            <View style={styles.markerContainer}>
-                                <Ionicons name="location" size={32} color="#E53935" />
-                            </View>
-                        </PointAnnotation>
-                    </MapView>
-                ) : (
+                ) : Platform.OS === "web" ? (
                     <View style={[styles.map, styles.mapPlaceholder]}>
                         <Text style={styles.mapPlaceholderText}>{t("mapNotAvailable")}</Text>
                     </View>
+                ) : Platform.OS === "ios" ? (
+                    <AppleMaps.View
+                        style={styles.map}
+                        isScrollEnabled={false}
+                        cameraPosition={{
+                            coordinates: { latitude: mapCoords[1], longitude: mapCoords[0] },
+                            zoom: STATIC_MAP_ZOOM,
+                        }}
+                        uiSettings={{
+                            compassEnabled: false,
+                            zoomGesturesEnabled: false,
+                            scrollGesturesEnabled: false,
+                            rotateGesturesEnabled: false,
+                            tiltGesturesEnabled: false,
+                        }}
+                        annotations={[
+                            {
+                                id: "business-location",
+                                coordinates: { latitude: mapCoords[1], longitude: mapCoords[0] },
+                            },
+                        ]}
+                    />
+                ) : (
+                    <GoogleMaps.View
+                        style={styles.map}
+                        cameraPosition={{
+                            coordinates: { latitude: mapCoords[1], longitude: mapCoords[0] },
+                            zoom: STATIC_MAP_ZOOM,
+                        }}
+                        uiSettings={{
+                            compassEnabled: false,
+                            zoomControlsEnabled: false,
+                            myLocationButtonEnabled: false,
+                            scrollGesturesEnabled: false,
+                            zoomGesturesEnabled: false,
+                            rotateGesturesEnabled: false,
+                            tiltGesturesEnabled: false,
+                        }}
+                        markers={[
+                            {
+                                id: "business-location",
+                                coordinates: { latitude: mapCoords[1], longitude: mapCoords[0] },
+                            },
+                        ]}
+                    />
                 )}
 
                 {/* Navigate button overlay */}
