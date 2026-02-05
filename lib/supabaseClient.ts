@@ -2,7 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "@env";
 
-// Kontrola, či sú nastavené potrebné premenné
+// Kontrola, či sú nastavené potrebné premennés
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   console.error(
     "Chýbajú Supabase konfiguračné premenné!\n" +

@@ -13,7 +13,7 @@ export const colors = {
     primary: "#EB8100",
     primaryLight: "#F97316",
     
-    // Texty
+    // Textys
     textPrimary: "#000000",
     textSecondary: "#71717A",
     textMuted: "rgba(0, 0, 0, 0.5)",
