@@ -78,6 +78,7 @@ export interface DiscoverMapProps {
   cameraRef: MapViewRef;
   filteredMarkers: DiscoverMapMarker[];
   userCoord?: [number, number] | null;
+  hasActiveFilter?: boolean;
   onCameraChanged: (
     center: [number, number],
     zoom: number,

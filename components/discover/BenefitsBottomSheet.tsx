@@ -5,7 +5,7 @@ import BottomSheet from "@gorhom/bottom-sheet";
 import { useTranslation } from "react-i18next";
 
 type Props = {
-  sheetRef: React.RefObject<BottomSheet>;
+  sheetRef: React.RefObject<BottomSheet | null>;
   snapPoints: string[];
   onLogin: () => void;
 };

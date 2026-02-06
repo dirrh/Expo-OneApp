@@ -205,7 +205,7 @@ export default function HomeScreen() {
   const contentStyle = useMemo(
     () => [
       styles.containerContent,
-      { paddingTop: insets.top + 8, paddingBottom: insets.bottom },
+      { paddingTop: insets.top + 16, paddingBottom: insets.bottom },
     ],
     [insets.bottom, insets.top]
   );
@@ -241,7 +241,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    marginTop: 12,
+    marginTop: 0,
   },
   locationChip: {
     flexDirection: "row",

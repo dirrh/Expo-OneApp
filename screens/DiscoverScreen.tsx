@@ -214,6 +214,12 @@ export default function DiscoverScreen() {
     () => filters.filterBranches(branches, text),
     [filters.filterBranches, branches, text]
   );
+  const overlayBranches = useMemo(() => {
+    if (!filters.hasActiveFilter) {
+      return filteredBranches;
+    }
+    return filteredBranches.length > 0 ? filteredBranches : branches;
+  }, [filters.hasActiveFilter, filteredBranches, branches]);
   const searchBranchCandidates = useMemo(
     () => markers.map((marker) => buildBranchFromMarker(marker)),
     [markers, buildBranchFromMarker]
@@ -286,7 +292,7 @@ export default function DiscoverScreen() {
     (center: [number, number], zoom: number, isUserGesture?: boolean) => {
       camera.handleCameraChanged(center, zoom, isUserGesture);
     },
-    [camera]
+    [camera.handleCameraChanged]
   );
 
   const navigateToBranchDetail = useCallback(
@@ -361,6 +367,7 @@ export default function DiscoverScreen() {
         cameraRef={camera.cameraRef}
         filteredMarkers={stableMapMarkers}
         userCoord={camera.userCoord}
+        hasActiveFilter={filters.hasActiveFilter}
         onMarkerPress={handleMarkerPress}
         onCameraChanged={handleCameraChanged}
         mapCenter={camera.mapCenter}
@@ -448,7 +455,7 @@ export default function DiscoverScreen() {
           appliedFilters={filters.appliedFilters}
           setAppliedFilters={filters.setAppliedFilters}
           setFilter={filters.setFilter}
-          branches={filteredBranches}
+          branches={overlayBranches}
           branchCardWidth={branchCardWidth}
           t={t}
         />

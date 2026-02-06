@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef } from "react";
+import React, { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import {
   Animated,
   StyleSheet,
@@ -8,12 +8,11 @@ import {
   TouchableOpacity,
   ScrollView,
   useWindowDimensions,
-  Image,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import {
   PanGestureHandler,
   State,
-  type PanGestureHandlerGestureEvent,
   type PanGestureHandlerStateChangeEvent,
 } from "react-native-gesture-handler";
 import { useTranslation } from "react-i18next";
@@ -78,7 +77,7 @@ const CATEGORY_SUBCATEGORIES: Record<string, string[]> = {
 // Discover options (zatiaľ nič nerobia)
 const DISCOVER_OPTIONS = ["topRated", "trending", "top10", "openNearYou"];
 
-export default function DiscoverSideFilterPanel({
+function DiscoverSideFilterPanel({
   visible,
   onOpen,
   onClose,
@@ -200,10 +199,12 @@ export default function DiscoverSideFilterPanel({
     [translateX, dragX, PANEL_WIDTH]
   );
 
-  const handleGestureEvent = useCallback(
-    (event: PanGestureHandlerGestureEvent) => {
-      dragX.setValue(event.nativeEvent.translationX);
-    },
+  const handleGestureEvent = useMemo(
+    () =>
+      Animated.event(
+        [{ nativeEvent: { translationX: dragX } }],
+        { useNativeDriver: true }
+      ),
     [dragX]
   );
 
@@ -224,11 +225,32 @@ export default function DiscoverSideFilterPanel({
 
     const projected = current + velocityX * 120;
     if (projected > PANEL_WIDTH / 2) {
-      closePanel();
+      if (visible) {
+        closePanel();
+      }
     } else {
-      openPanel();
-      onOpen();
+      if (visible) {
+        openPanel();
+      } else {
+        onOpen();
+      }
     }
+  };
+
+  const handlePullHandleStateChange = (event: PanGestureHandlerStateChangeEvent) => {
+    const { state, translationX, velocityX } = event.nativeEvent;
+
+    if (
+      !visible &&
+      state === State.END &&
+      Math.abs(translationX) <= 6 &&
+      Math.abs(velocityX) <= 250
+    ) {
+      onOpen();
+      return;
+    }
+
+    handleGestureStateChange(event);
   };
 
   return (
@@ -238,7 +260,7 @@ export default function DiscoverSideFilterPanel({
         <>
           <PanGestureHandler
             onGestureEvent={handleGestureEvent}
-            onHandlerStateChange={handleGestureStateChange}
+            onHandlerStateChange={handlePullHandleStateChange}
             activeOffsetX={[-10, 999]}
             failOffsetY={[-10, 10]}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
@@ -252,13 +274,11 @@ export default function DiscoverSideFilterPanel({
                 },
               ]}
             >
-              <TouchableOpacity
+              <View
                 style={[
                   styles.pullHandle,
                   isFilterActive ? styles.pullHandleActive : styles.pullHandleInactive,
                 ]}
-                onPress={onOpen}
-                activeOpacity={0.7}
               >
                 <View
                   style={[
@@ -266,7 +286,7 @@ export default function DiscoverSideFilterPanel({
                     isFilterActive ? styles.pullHandleLineActive : styles.pullHandleLineInactive,
                   ]}
                 />
-              </TouchableOpacity>
+              </View>
             </Animated.View>
           </PanGestureHandler>
 
@@ -340,11 +360,12 @@ export default function DiscoverSideFilterPanel({
           {/* Header */}
           <View style={styles.header}>
             <Text style={styles.headerTitle}>{t("filter")}</Text>
-            <TouchableOpacity style={styles.closeButton} onPress={closePanel}>
-              <Image
-                source={require("../../images/plus.png")}
-                style={styles.closeButtonIcon}
-              />
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={closePanel}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="close" size={20} color="#111111" />
             </TouchableOpacity>
           </View>
 
@@ -443,24 +464,12 @@ export default function DiscoverSideFilterPanel({
                         isActive && styles.chipActive,
                       ]}
                       onPress={() => {
-                        setRating((prev) => {
-                          const next = new Set(prev);
-                          if (next.has(r)) {
-                            next.delete(r);
-                          } else {
-                            next.add(r);
-                          }
-                          return next;
-                        });
-                        setAppliedRatings((prev) => {
-                          const next = new Set(prev);
-                          if (next.has(r)) {
-                            next.delete(r);
-                          } else {
-                            next.add(r);
-                          }
-                          return next;
-                        });
+                        setRating((prev) =>
+                          prev.has(r) && prev.size === 1 ? new Set() : new Set([r])
+                        );
+                        setAppliedRatings((prev) =>
+                          prev.has(r) && prev.size === 1 ? new Set() : new Set([r])
+                        );
                       }}
                     >
                       <Text style={[styles.chipText, isActive && styles.chipTextActive]}>
@@ -502,6 +511,8 @@ export default function DiscoverSideFilterPanel({
     </>
   );
 }
+
+export default memo(DiscoverSideFilterPanel);
 
 const styles = StyleSheet.create({
   overlay: {
@@ -578,13 +589,14 @@ const styles = StyleSheet.create({
     color: "#000000",
   },
   closeButton: {
-    padding: 0,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: "#F4F4F5",
+    borderWidth: 1,
+    borderColor: "#E4E4E7",
     alignItems: "center",
     justifyContent: "center",
-  },
-  closeButtonIcon: {
-    width: 25.58,
-    height: 25.58,
   },
   scrollView: {
     flex: 1,

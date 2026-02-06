@@ -73,9 +73,9 @@ const styles = StyleSheet.create({
     fontSize: 25,
     lineHeight: 30,
     fontFamily: "Inter_700Bold",
-    textShadowColor: "rgba(0,0,0,0.5)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+    textShadowColor: "rgba(0,0,0,0.78)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 6,
   },
   badge: {
     backgroundColor: "#EB8100",
@@ -117,8 +117,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 14,
     fontFamily: "Inter_600SemiBold",
-    textShadowColor: "rgba(0,0,0,0.5)",
+    textShadowColor: "rgba(0,0,0,0.72)",
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+    textShadowRadius: 4,
   },
 });

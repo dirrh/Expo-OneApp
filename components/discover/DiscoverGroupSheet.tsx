@@ -6,7 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 import type { DiscoverMapMarker } from "../../lib/interfaces";
 
 type Props = {
-  sheetRef: React.RefObject<BottomSheet>;
+  sheetRef: React.RefObject<BottomSheet | null>;
   snapPoints: string[];
   selectedGroup: { items: DiscoverMapMarker[] } | null;
   categoryIcons: Record<string, any>;

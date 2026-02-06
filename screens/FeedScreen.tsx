@@ -255,7 +255,7 @@ const ReelItemComponent = memo(
         const OverlayContent = (
             <>
                     {/* Top bar - posunuta pod notch */}
-                    <View style={[styles.topBar, { marginTop: insetsTop }]}>
+                    <View style={[styles.topBar, { marginTop: insetsTop + 16 }]}>
                         <View style={styles.card}>
                             <TouchableOpacity style={styles.row} activeOpacity={0.85}>
                                 <Ionicons name="location-outline" size={18} color="#000" />
@@ -579,30 +579,37 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
     },
     card: {
-        flex: 1,
-        maxWidth: 200,
-        marginRight: 24,
+        width: 184,
+        height: 44,
         backgroundColor: "white",
-        borderRadius: 18,
-        overflow: "hidden",
+        borderRadius: 24,
         ...(Platform.OS === "web"
             ? { boxShadow: "0 6px 12px rgba(0, 0, 0, 0.14)" }
             : {
                 shadowColor: "#000",
-                shadowOpacity: 0.14,
-                shadowRadius: 12,
-                shadowOffset: { width: 0, height: 6 },
-                elevation: 10,
+                shadowOffset: { width: 0, height: 3 },
+                shadowOpacity: 0.1,
+                shadowRadius: 10,
+                elevation: 3,
             }),
     },
     row: {
-        height: 44,
-        paddingHorizontal: 12,
+        height: "100%",
+        paddingHorizontal: 16,
         flexDirection: "row",
         alignItems: "center",
-        gap: 10,
+        justifyContent: "space-between",
+        gap: 4,
     },
-    rowTextBold: { flex: 1, fontWeight: "700" },
+    rowTextBold: {
+        flex: 1,
+        minWidth: 0,
+        marginHorizontal: 4,
+        textAlign: "center",
+        fontSize: 14,
+        fontWeight: "600",
+        color: "#111",
+    },
     caret: { opacity: 0.7 },
     actionsColumn: {
         position: "absolute",

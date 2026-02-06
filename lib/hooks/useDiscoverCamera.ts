@@ -15,6 +15,11 @@ import { regionToZoom, setMapCamera } from "../maps/camera";
 // Tieto premenné sú mimo komponentu, aby sa zachovali medzi rendermi
 // Používame ich na uchovanie pozície kamery pri prepínaní medzi tabmi
 let lastDiscoverCameraState: { center: [number, number]; zoom: number } | null = null;
+let lastDiscoverRegionState: {
+  center: [number, number];
+  latitudeDelta: number;
+  longitudeDelta: number;
+} | null = null;
 let preserveDiscoverCamera = false;
 let suppressProgrammaticEventsUntil = 0;
 
@@ -95,19 +100,17 @@ export const useDiscoverCamera = ({
   const [isUserPanning, setIsUserPanning] = useState(false);
   const latestAppliedRef = useRef<{ center: [number, number]; zoom: number }>(initialCameraState);
 
-  const CENTER_EPSILON = 0.00005; // ~5m, znizuje sum pri pohybe
-  const ZOOM_EPSILON = 0.05;
-  const ZOOM_QUANTIZE_STEP = 0.25;
+  const CENTER_EPSILON = 0.000001; // ~0.1m; keeps precision while avoiding micro-jitter loops
+  const ZOOM_EPSILON = 0.0001;
 
   const applyCameraState = useCallback((center: [number, number], zoom: number) => {
-    const nextZoom = Math.round(zoom / ZOOM_QUANTIZE_STEP) * ZOOM_QUANTIZE_STEP;
     const prev = latestAppliedRef.current;
     const delta = Math.hypot(center[0] - prev.center[0], center[1] - prev.center[1]);
-    if (delta < CENTER_EPSILON && Math.abs(nextZoom - prev.zoom) < ZOOM_EPSILON) {
+    if (delta < CENTER_EPSILON && Math.abs(zoom - prev.zoom) < ZOOM_EPSILON) {
       return;
     }
-    latestAppliedRef.current = { center, zoom: nextZoom };
-    setMapZoom(nextZoom);
+    latestAppliedRef.current = { center, zoom };
+    setMapZoom(zoom);
     setMapCenter(center);
   }, []);
 
@@ -310,36 +313,84 @@ export const useDiscoverCamera = ({
 
     try {
       const nativeCamera = await mapView.getCamera();
-      const lat = nativeCamera?.center?.latitude;
-      const lng = nativeCamera?.center?.longitude;
+      const latFromCamera = nativeCamera?.center?.latitude;
+      const lngFromCamera = nativeCamera?.center?.longitude;
+
+      let regionFromBounds:
+        | {
+            center: [number, number];
+            latitudeDelta: number;
+            longitudeDelta: number;
+            zoom: number;
+          }
+        | null = null;
+
+      try {
+        const bounds = await mapView.getMapBoundaries();
+        const northEast = bounds?.northEast;
+        const southWest = bounds?.southWest;
+        const neLat = northEast?.latitude;
+        const neLng = northEast?.longitude;
+        const swLat = southWest?.latitude;
+        const swLng = southWest?.longitude;
+
+        if (
+          Number.isFinite(neLat) &&
+          Number.isFinite(neLng) &&
+          Number.isFinite(swLat) &&
+          Number.isFinite(swLng)
+        ) {
+          const rawLngDelta = neLng - swLng;
+          let longitudeDelta = Math.abs(neLng - swLng);
+          if (longitudeDelta > 180) {
+            longitudeDelta = 360 - longitudeDelta;
+          }
+          const latitudeDelta = Math.abs(neLat - swLat);
+
+          // Keep center stable even for wrapped longitudes.
+          let centerLng = (neLng + swLng) / 2;
+          if (Math.abs(rawLngDelta) > 180) {
+            const wrappedNeLng = neLng < 0 ? neLng + 360 : neLng;
+            const wrappedSwLng = swLng < 0 ? swLng + 360 : swLng;
+            const wrappedCenter = (wrappedNeLng + wrappedSwLng) / 2;
+            centerLng = wrappedCenter > 180 ? wrappedCenter - 360 : wrappedCenter;
+          }
+          const centerLat = (neLat + swLat) / 2;
+          const zoom = regionToZoom({ longitudeDelta });
+
+          regionFromBounds = {
+            center: [centerLng, centerLat],
+            latitudeDelta,
+            longitudeDelta,
+            zoom,
+          };
+        }
+      } catch {
+        // Ignore boundary read failures; fallback to camera zoom/center.
+      }
+
+      const lat = regionFromBounds
+        ? regionFromBounds.center[1]
+        : Number.isFinite(latFromCamera)
+          ? latFromCamera
+          : null;
+      const lng = regionFromBounds
+        ? regionFromBounds.center[0]
+        : Number.isFinite(lngFromCamera)
+          ? lngFromCamera
+          : null;
 
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
         return lastDiscoverCameraState;
       }
 
-      let zoom =
+      const zoomFromCamera =
         typeof nativeCamera.zoom === "number" && Number.isFinite(nativeCamera.zoom)
           ? nativeCamera.zoom
           : NaN;
-
+      let zoom: number = regionFromBounds ? regionFromBounds.zoom : NaN;
       if (!Number.isFinite(zoom)) {
-        try {
-          const bounds = await mapView.getMapBoundaries();
-          const northEast = bounds?.northEast;
-          const southWest = bounds?.southWest;
-          const neLng = northEast?.longitude;
-          const swLng = southWest?.longitude;
-
-          if (Number.isFinite(neLng) && Number.isFinite(swLng)) {
-            let longitudeDelta = Math.abs(neLng - swLng);
-            if (longitudeDelta > 180) {
-              longitudeDelta = 360 - longitudeDelta;
-            }
-            zoom = regionToZoom({ longitudeDelta });
-          }
-        } catch {
-          // Fallback to last known zoom when map boundaries are not available.
-        }
+        zoom = zoomFromCamera;
       }
 
       if (!Number.isFinite(zoom)) {
@@ -348,6 +399,13 @@ export const useDiscoverCamera = ({
 
       const nextState = { center: [lng, lat] as [number, number], zoom };
       lastDiscoverCameraState = nextState;
+      lastDiscoverRegionState = regionFromBounds
+        ? {
+            center: regionFromBounds.center,
+            latitudeDelta: regionFromBounds.latitudeDelta,
+            longitudeDelta: regionFromBounds.longitudeDelta,
+          }
+        : null;
       latestAppliedRef.current = nextState;
       applyCameraState(nextState.center, nextState.zoom);
 
@@ -384,11 +442,23 @@ export const useDiscoverCamera = ({
     restoreRetryRef.current = 0;
     applyCameraState(lastDiscoverCameraState.center, lastDiscoverCameraState.zoom);
     suppressProgrammaticEventsUntil = Date.now() + 400;
-    setMapCamera(cameraRef, {
-      center: lastDiscoverCameraState.center,
-      zoom: lastDiscoverCameraState.zoom,
-      durationMs: 0,
-    });
+    if (lastDiscoverRegionState) {
+      cameraRef.current?.animateToRegion(
+        {
+          latitude: lastDiscoverRegionState.center[1],
+          longitude: lastDiscoverRegionState.center[0],
+          latitudeDelta: Math.max(0.00001, lastDiscoverRegionState.latitudeDelta),
+          longitudeDelta: Math.max(0.00001, lastDiscoverRegionState.longitudeDelta),
+        },
+        0
+      );
+    } else {
+      setMapCamera(cameraRef, {
+        center: lastDiscoverCameraState.center,
+        zoom: lastDiscoverCameraState.zoom,
+        durationMs: 0,
+      });
+    }
     setDidInitialCenter(true);
     preserveDiscoverCamera = false;
   }, []);

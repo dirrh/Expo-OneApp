@@ -8,6 +8,39 @@
 import { useState, useMemo, useCallback } from "react";
 import type { BranchData, DiscoverMapMarker } from "../interfaces";
 
+const parseNumericRating = (value: unknown): number | null => {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalized = value.replace(",", ".").trim();
+  if (!normalized) {
+    return null;
+  }
+
+  const parsed = Number.parseFloat(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const resolveRating = (
+  ratingValue: unknown,
+  formattedValue?: string
+): number | null => {
+  const parsedRating = parseNumericRating(ratingValue);
+  if (parsedRating !== null) {
+    return parsedRating;
+  }
+
+  if (typeof formattedValue === "string") {
+    return parseNumericRating(formattedValue);
+  }
+
+  return null;
+};
+
 
 /**
  * Typ pre návratovú hodnotu hooku - definuje čo všetko hook vracia
@@ -105,8 +138,8 @@ export const useDiscoverFilters = (
   const ratingThreshold = useMemo(() => {
     // Prevedieme Set na pole čísel
     const values = Array.from(appliedRatings)
-      .map((value) => Number(value))
-      .filter((value) => !Number.isNaN(value));
+      .map((value) => parseNumericRating(value))
+      .filter((value): value is number => value !== null);
     
     // Ak nie je vybraté žiadne hodnotenie, vrátime null
     if (values.length === 0) {
@@ -133,11 +166,17 @@ export const useDiscoverFilters = (
       let filtered =
         ratingThreshold === null
           ? branches
-          : branches.filter((branch) => branch.rating >= ratingThreshold);
+          : branches.filter((branch) => {
+              const numericRating = resolveRating(branch.rating);
+              return numericRating !== null && numericRating >= ratingThreshold;
+            });
 
       // Krok 2: Aplikujeme filter kategórie
       if (appliedFilters.size > 0) {
-        filtered = filtered.filter((branch) => appliedFilters.has(branch.category));
+        filtered = filtered.filter((branch) => {
+          const category = branch.category;
+          return typeof category === "string" && appliedFilters.has(category);
+        });
       }
 
       // Krok 3: Aplikujeme vyhľadávanie v názve
@@ -162,7 +201,10 @@ export const useDiscoverFilters = (
       let filtered =
         ratingThreshold === null
           ? markers
-          : markers.filter((item) => item.rating >= ratingThreshold);
+          : markers.filter((item) => {
+              const numericRating = resolveRating(item.rating, item.ratingFormatted);
+              return numericRating !== null && numericRating >= ratingThreshold;
+            });
 
       // Krok 2: Filter podľa kategórie
       if (appliedFilters.size > 0) {

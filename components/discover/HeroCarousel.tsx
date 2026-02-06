@@ -76,7 +76,7 @@ const carouselStyles = StyleSheet.create({
   },
   dotsWrapper: {
     position: "absolute",
-    bottom: 14,
+    bottom: 4,
     left: 0,
     right: 0,
     alignItems: "center",

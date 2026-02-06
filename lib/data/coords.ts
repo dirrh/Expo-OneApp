@@ -48,7 +48,57 @@ export const coords : Coords[] = [
     {id: "artin_restaurant", lng: 18.097004, lat: 48.331480, category: "Gastro"},
     {id: "kadernictvo_katarina", lng: 18.1110583, lat: 48.3297934, category: "Beauty"},
 
+    // Additional real static locations in/around Nitra (OSM coordinates)
+    {id: "fit_bar_nitra", lng: 18.087020, lat: 48.306144, category: "Fitness"},
+    {id: "sport_caffe_nitra", lng: 18.067455, lat: 48.297355, category: "Fitness"},
+    {id: "sportisimo_galeria_nitra", lng: 18.063925, lat: 48.301715, category: "Fitness"},
+    {id: "sportisimo_centro_nitra", lng: 18.098602, lat: 48.308597, category: "Fitness"},
+    {id: "intersport_mlyny_nitra", lng: 18.086352, lat: 48.307769, category: "Fitness"},
+    {id: "intersport_promenada_nitra", lng: 18.092267, lat: 48.320692, category: "Fitness"},
+    {id: "city_sports_nitra", lng: 18.087879, lat: 48.309732, category: "Fitness"},
+    {id: "exisport_centro_nitra", lng: 18.098893, lat: 48.308499, category: "Fitness"},
+    {id: "for_sport_nitra", lng: 18.086391, lat: 48.320421, category: "Fitness"},
+
+    {id: "mcdonalds_chrenova", lng: 18.073888, lat: 48.310874, category: "Gastro"},
+    {id: "media_cafe_restaurant", lng: 18.088646, lat: 48.310730, category: "Gastro"},
+    {id: "la_marina_nitra", lng: 18.087437, lat: 48.313403, category: "Gastro"},
+    {id: "pizza_diamo_nitra", lng: 18.100660, lat: 48.312456, category: "Gastro"},
+    {id: "riverside_nitra", lng: 18.091165, lat: 48.305338, category: "Gastro"},
+    {id: "u_zlatej_svini", lng: 18.095811, lat: 48.323299, category: "Gastro"},
+    {id: "ceska_hospudka_u_slovaka", lng: 18.098676, lat: 48.323282, category: "Gastro"},
+    {id: "karla_restaurant_nitra", lng: 18.088340, lat: 48.308313, category: "Gastro"},
+    {id: "sakura_nitra_central", lng: 18.085630, lat: 48.305989, category: "Gastro"},
+
+    {id: "cajovna_dobrych_ludi", lng: 18.086321, lat: 48.311383, category: "Relax"},
+    {id: "cajovna_epicure", lng: 18.086485, lat: 48.308521, category: "Relax"},
+    {id: "cajovna_uno_nitra", lng: 18.089201, lat: 48.318361, category: "Relax"},
+    {id: "chill_cafe_nitra", lng: 18.081474, lat: 48.303363, category: "Relax"},
+    {id: "piano_cafe_nitra", lng: 18.085762, lat: 48.310678, category: "Relax"},
+    {id: "caffe_comfort_nitra", lng: 18.085530, lat: 48.310837, category: "Relax"},
+    {id: "castellum_cafe_nitra", lng: 18.088320, lat: 48.318037, category: "Relax"},
+    {id: "coffee_tree_friends", lng: 18.087548, lat: 48.310080, category: "Relax"},
+    {id: "park_espresso_nitra", lng: 18.098662, lat: 48.314503, category: "Relax"},
+
+    {id: "salon_maria_nitra", lng: 18.089783, lat: 48.312430, category: "Beauty"},
+    {id: "fashion_k_z_nitra", lng: 18.108754, lat: 48.310369, category: "Beauty"},
+    {id: "kadernictvo_klier_centro", lng: 18.098754, lat: 48.309481, category: "Beauty"},
+    {id: "kadernictvo_klier_promenada", lng: 18.103714, lat: 48.316931, category: "Beauty"},
+    {id: "salon_krasy_xoxo", lng: 18.082046, lat: 48.313809, category: "Beauty"},
+    {id: "viet_nails_nitra", lng: 18.086586, lat: 48.308155, category: "Beauty"},
+    {id: "natali_hair_nitra", lng: 18.108171, lat: 48.310072, category: "Beauty"},
+    {id: "kadernictvo_naty_nitra", lng: 18.082026, lat: 48.313016, category: "Beauty"},
+    {id: "balance_beauty_nitra", lng: 18.064474, lat: 48.296375, category: "Beauty"},
+
     {id: "Diamond gym", lng: 18.0668, lat: 48.2923, category: "Fitness", groupId: "diamond_center"},
     {id: "Diamond barber", lng: 18.0668, lat: 48.2923, category: "Beauty", groupId: "diamond_center"},
+
+    // Test stacked pin in Discover default city center.
+    {id: "center_stack_bistro", lng: 18.091, lat: 48.3069, category: "Gastro", groupId: "center_stack_test"},
+    {id: "center_stack_beauty", lng: 18.091, lat: 48.3069, category: "Beauty", groupId: "center_stack_test"},
+    {id: "center_stack_relax", lng: 18.091, lat: 48.3069, category: "Relax", groupId: "center_stack_test"},
+
+    // Test stacked pin on Marianska.
+    {id: "marianska_stack_gastro", lng: 18.08692, lat: 48.30857, category: "Gastro", groupId: "marianska_stack_test"},
+    {id: "marianska_stack_gastro_2", lng: 18.08692, lat: 48.30857, category: "Gastro", groupId: "marianska_stack_test"},
 
 ]

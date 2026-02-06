@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  Pressable,
   ScrollView,
   SafeAreaView,
   Alert,
@@ -74,79 +75,82 @@ export default function ProfileScreen() {
     <SafeAreaView style={styles.container}>
       {/* DROPDOWN MENU */}
       {menuOpen && (
-        <View
-          style={[
-            styles.dropdown,
-            {
-              top: topPadding + 56,
-              right: contentPadding,
-              width: Math.min(240, screenWidth - contentPadding * 2),
-            },
-          ]}
-        >
-          <DropdownItem
-            icon="person-outline"
-            label={t("userAccount")}
-            onPress={() => {
-              setMenuOpen(false);
-              navigation.navigate("UserAccount");
-            }}
-          />
+        <>
+          <Pressable style={styles.menuBackdrop} onPress={() => setMenuOpen(false)} />
+          <View
+            style={[
+              styles.dropdown,
+              {
+                top: topPadding + 56,
+                right: contentPadding,
+                width: Math.min(240, screenWidth - contentPadding * 2),
+              },
+            ]}
+          >
+            <DropdownItem
+              icon="person-outline"
+              label={t("userAccount")}
+              onPress={() => {
+                setMenuOpen(false);
+                navigation.navigate("UserAccount");
+              }}
+            />
 
-          <DropdownItem
-            icon="card-outline"
-            label={t("subscription")}
-            onPress={() => {
-              setMenuOpen(false);
-              navigation.navigate("SubscriptionActivation");
-            }}
-          />
+            <DropdownItem
+              icon="card-outline"
+              label={t("subscription")}
+              onPress={() => {
+                setMenuOpen(false);
+                navigation.navigate("SubscriptionActivation");
+              }}
+            />
 
-          <DropdownItem
-            icon="gift-outline"
-            label={t("Benefits")}
-            onPress={() => {
-              setMenuOpen(false);
-              navigation.navigate("Benefits");
-            }}
-          />
+            <DropdownItem
+              icon="gift-outline"
+              label={t("Benefits")}
+              onPress={() => {
+                setMenuOpen(false);
+                navigation.navigate("Benefits");
+              }}
+            />
 
-          <DropdownItem
-            icon="bookmark-outline"
-            label={t("savedLocations")}
-            onPress={() => {
-              setMenuOpen(false);
-              navigation.navigate("SavedLocations");
-            }}
-          />
+            <DropdownItem
+              icon="bookmark-outline"
+              label={t("savedLocations")}
+              onPress={() => {
+                setMenuOpen(false);
+                navigation.navigate("SavedLocations");
+              }}
+            />
 
-          <DropdownItem
-            icon="language-outline"
-            label={t("language")}
-            onPress={() => {
-              setMenuOpen(false);
-              navigation.navigate("Language");
-            }}
-          />
+            <DropdownItem
+              icon="language-outline"
+              label={t("language")}
+              onPress={() => {
+                setMenuOpen(false);
+                navigation.navigate("Language");
+              }}
+            />
 
-          <DropdownItem
-            icon="settings-outline"
-            label={t("settings")}
-            onPress={() => {
-              setMenuOpen(false);
-              navigation.navigate("Settings");
-            }}
-          />
+            <DropdownItem
+              icon="settings-outline"
+              label={t("settings")}
+              onPress={() => {
+                setMenuOpen(false);
+                navigation.navigate("Settings");
+              }}
+            />
 
-          <View style={styles.divider} />
+            <View style={styles.divider} />
 
-          <DropdownItem
-            icon="log-out-outline"
-            label={t("logOut")}
-            danger
-            onPress={handleLogout}
-          />
-        </View>
+            <DropdownItem
+              icon="log-out-outline"
+              label={t("logOut")}
+              danger
+              onPress={handleLogout}
+            />
+          </View>
+        </>
       )}
 
       <ScrollView
@@ -354,7 +358,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E4E4E7",
     zIndex: 100,
+    elevation: 8,
     paddingVertical: 6,
+  },
+  menuBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 90,
   },
 
   dropdownItem: {

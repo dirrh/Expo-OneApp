@@ -1,5 +1,14 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Platform, StyleSheet, Text, View } from "react-native";
+import {
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  type LayoutChangeEvent,
+  View,
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import MapView, { Marker, type Region } from "react-native-maps";
 import Supercluster from "supercluster";
 import type { ImageSourcePropType, ImageURISource } from "react-native";
@@ -14,6 +23,8 @@ import {
   CLUSTER_ICON_SOURCES,
   ClusterCountKey,
 } from "../../lib/maps/clusterIcons";
+import { FILTER_CLUSTER_ICON_SOURCES } from "../../lib/maps/clusterFilterIcons";
+import { STACKED_ICON_SOURCES } from "../../lib/maps/stackedIcons";
 
 import {
   DEFAULT_CAMERA_ZOOM,
@@ -37,6 +48,10 @@ const USER_MARKER_ID = "user-location";
 const USER_MARKER_COLOR = "#2563EB";
 const CLUSTER_ZOOM_BUCKET_SIZE = 2;
 const VIEWPORT_PADDING_RATIO = 0.35;
+const TOOLTIP_WIDTH = 183;
+const TOOLTIP_ROW_HEIGHT = 33;
+const STACKED_CENTER_DURATION_MS = 280;
+const STACKED_OPEN_FALLBACK_MS = 360;
 
 const PIN_CANVAS_WIDTH = 165;
 const PIN_CANVAS_HEIGHT = 186;
@@ -78,6 +93,8 @@ type RenderMarker = {
   anchor?: { x: number; y: number };
   zIndex: number;
   isCluster: boolean;
+  isStacked?: boolean;
+  stackedItems?: DiscoverMapMarker[];
   focusCoordinate: { latitude: number; longitude: number };
 };
 
@@ -129,6 +146,26 @@ const getPixelDistanceSq = (
   return dx * dx + dy * dy;
 };
 
+const clampNumber = (value: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, value));
+
+const getTooltipCategoryIcon = (
+  category?: DiscoverMapMarker["category"]
+): keyof typeof Ionicons.glyphMap => {
+  switch (category) {
+    case "Gastro":
+      return "restaurant-outline";
+    case "Beauty":
+      return "sparkles-outline";
+    case "Relax":
+      return "leaf-outline";
+    case "Fitness":
+      return "barbell-outline";
+    default:
+      return "apps-outline";
+  }
+};
+
 const buildClusterId = (memberIds: string[]) => {
   const sorted = [...memberIds].sort();
   let hash = 2166136261;
@@ -146,6 +183,7 @@ function DiscoverMap({
   cameraRef,
   filteredMarkers,
   userCoord,
+  hasActiveFilter,
   onCameraChanged,
   mapCenter,
   mapZoom,
@@ -153,12 +191,12 @@ function DiscoverMap({
   onMarkerPress,
   initialCamera,
 }: DiscoverMapProps) {
-  const cameraCenter = mapCenter ?? cityCenter ?? DEFAULT_CITY_CENTER;
-  const zoom = mapZoom ?? DEFAULT_CAMERA_ZOOM;
+  const fallbackCenter = mapCenter ?? cityCenter ?? DEFAULT_CITY_CENTER;
+  const fallbackZoom = mapZoom ?? DEFAULT_CAMERA_ZOOM;
 
   const initialRegionRef = useRef<Region | null>(null);
   if (!initialRegionRef.current) {
-    initialRegionRef.current = zoomToRegion(cameraCenter, zoom);
+    initialRegionRef.current = zoomToRegion(fallbackCenter, fallbackZoom);
   }
 
   const initialRegion = useMemo(() => {
@@ -168,21 +206,67 @@ function DiscoverMap({
     return initialRegionRef.current!;
   }, [initialCamera]);
 
-  const rawFeatures = useMemo<RenderFeature[]>(
-    () =>
-      filteredMarkers.map((marker) => ({
-        id: marker.id,
-        isCluster: false,
-        count: 0,
-        coordinates: { latitude: marker.coord.lat, longitude: marker.coord.lng },
-        focusCoordinates: {
-          latitude: marker.coord.lat,
-          longitude: marker.coord.lng,
-        },
-        marker,
-      })),
-    [filteredMarkers]
-  );
+  const [renderCamera, setRenderCamera] = useState<{
+    center: [number, number];
+    zoom: number;
+  }>(() => ({
+    center: [initialRegion.longitude, initialRegion.latitude],
+    zoom: regionToZoom(initialRegion),
+  }));
+
+  const applyRenderCamera = useCallback((center: [number, number], zoom: number) => {
+    setRenderCamera((prev) => {
+      const delta = Math.hypot(center[0] - prev.center[0], center[1] - prev.center[1]);
+      if (delta < 0.000001 && Math.abs(zoom - prev.zoom) < 0.0001) {
+        return prev;
+      }
+      return { center, zoom };
+    });
+  }, []);
+
+  const cameraCenter = renderCamera.center;
+  const zoom = renderCamera.zoom;
+
+  const singleLayerMarkers = useMemo<
+    Array<{
+      id: string;
+      coordinate: { latitude: number; longitude: number };
+      items: DiscoverMapMarker[];
+    }>
+  >(() => {
+    const grouped = new Map<
+      string,
+      {
+        id: string;
+        coordinate: { latitude: number; longitude: number };
+        items: DiscoverMapMarker[];
+      }
+    >();
+
+    filteredMarkers.forEach((marker) => {
+      const lat = marker.coord?.lat;
+      const lng = marker.coord?.lng;
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        return;
+      }
+
+      const fallbackKey = `${lat.toFixed(6)}:${lng.toFixed(6)}`;
+      const key = marker.groupId ?? fallbackKey;
+      const existing = grouped.get(key);
+      if (!existing) {
+        grouped.set(key, {
+          id: key,
+          coordinate: { latitude: lat, longitude: lng },
+          items: [marker],
+        });
+        return;
+      }
+
+      existing.items.push(marker);
+    });
+
+    return Array.from(grouped.values());
+  }, [filteredMarkers]);
 
   const getRatingIcon = useCallback((marker?: DiscoverMapMarker) => {
     if (!marker) return undefined;
@@ -219,24 +303,8 @@ function DiscoverMap({
     )
   );
 
-  const [committedMode, setCommittedMode] = useState<"cluster" | "single">(
-    effectiveZoom >= singleModeZoom ? "single" : "cluster"
-  );
-
-  useEffect(() => {
-    setCommittedMode((prevMode) => {
-      if (effectiveZoom >= singleModeZoom) {
-        return "single";
-      }
-      if (effectiveZoom <= forceClusterZoom) {
-        return "cluster";
-      }
-      return prevMode;
-    });
-  }, [effectiveZoom, forceClusterZoom, singleModeZoom]);
-
-  const showSingleLayer = committedMode === "single";
-  const showClusterLayer = committedMode === "cluster";
+  const showSingleLayer = effectiveZoom >= singleModeZoom;
+  const showClusterLayer = !showSingleLayer;
 
   const clusteredFeatures = useMemo<RenderFeature[]>(() => {
     if (!showClusterLayer || filteredMarkers.length === 0) {
@@ -588,9 +656,11 @@ function DiscoverMap({
           99,
           Math.max(0, Math.floor(Number(feature.count ?? 0)))
         );
+        const clusterIconSet = hasActiveFilter
+          ? FILTER_CLUSTER_ICON_SOURCES
+          : CLUSTER_ICON_SOURCES;
         const clusterIcon =
-          CLUSTER_ICON_SOURCES[String(clusterCount) as ClusterCountKey] ??
-          MULTI_ICON;
+          clusterIconSet[String(clusterCount) as ClusterCountKey] ?? MULTI_ICON;
 
         markers.push({
           key: `cluster-layer:${feature.id}`,
@@ -609,8 +679,36 @@ function DiscoverMap({
     }
 
     if (showSingleLayer) {
-      rawFeatures.forEach((feature) => {
-        const marker = feature.marker;
+      singleLayerMarkers.forEach((group) => {
+        if (group.items.length > 1) {
+          const stackedItems = [...group.items].sort((a, b) =>
+            (a.title ?? a.id).localeCompare(b.title ?? b.id)
+          );
+          const stackedCount = Math.min(6, Math.max(2, stackedItems.length));
+          const stackedIcon =
+            STACKED_ICON_SOURCES[String(stackedCount) as ClusterCountKey] ??
+            STACKED_ICON_SOURCES["6"] ??
+            STACKED_ICON_SOURCES["2"];
+
+          markers.push({
+            key: `stacked-layer:${group.id}`,
+            id: `stacked:${group.id}`,
+            coordinate: group.coordinate,
+            image: stackedIcon,
+            anchor: {
+              x: BASE_ANCHOR_X,
+              y: BASE_ANCHOR_Y,
+            },
+            zIndex: 3,
+            isCluster: false,
+            isStacked: true,
+            stackedItems,
+            focusCoordinate: group.coordinate,
+          });
+          return;
+        }
+
+        const marker = group.items[0];
         const ratingIcon = getRatingIcon(marker);
         const fallbackIcon =
           toIconSource(marker?.icon) ??
@@ -626,9 +724,9 @@ function DiscoverMap({
         const image = ratingIcon ?? fallbackIcon;
 
         markers.push({
-          key: `single-layer:${feature.id}`,
-          id: feature.id,
-          coordinate: feature.coordinates,
+          key: `single-layer:${marker.id}`,
+          id: marker.id,
+          coordinate: group.coordinate,
           image,
           anchor: image
             ? {
@@ -638,7 +736,8 @@ function DiscoverMap({
             : undefined,
           zIndex: 1,
           isCluster: false,
-          focusCoordinate: feature.focusCoordinates ?? feature.coordinates,
+          isStacked: false,
+          focusCoordinate: group.coordinate,
         });
       });
     }
@@ -647,15 +746,213 @@ function DiscoverMap({
   }, [
     showClusterLayer,
     clusteredFeatures,
+    hasActiveFilter,
     showSingleLayer,
-    rawFeatures,
+    singleLayerMarkers,
     getRatingIcon,
   ]);
 
+  const [selectedStackedMarkerId, setSelectedStackedMarkerId] = useState<string | null>(
+    null
+  );
+  const [stackedTooltipPoint, setStackedTooltipPoint] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+  const [mapLayoutSize, setMapLayoutSize] = useState({ width: 0, height: 0 });
+  const suppressNextMapPressRef = useRef(false);
+  const pendingStackedOpenRef = useRef<{
+    id: string;
+    timeout: ReturnType<typeof setTimeout> | null;
+  } | null>(null);
+
+  const clearPendingStackedOpen = useCallback(() => {
+    const pending = pendingStackedOpenRef.current;
+    if (pending?.timeout) {
+      clearTimeout(pending.timeout);
+    }
+    pendingStackedOpenRef.current = null;
+  }, []);
+
+  const selectedStackedMarker = useMemo(() => {
+    if (!selectedStackedMarkerId) {
+      return null;
+    }
+    return (
+      renderMarkers.find(
+        (marker) => marker.isStacked && marker.id === selectedStackedMarkerId
+      ) ?? null
+    );
+  }, [renderMarkers, selectedStackedMarkerId]);
+
+  const closeStackedTooltip = useCallback(() => {
+    clearPendingStackedOpen();
+    setSelectedStackedMarkerId(null);
+    setStackedTooltipPoint(null);
+  }, [clearPendingStackedOpen]);
+
+  const updateStackedTooltipPosition = useCallback(
+    async (marker: RenderMarker | null) => {
+      if (!marker?.isStacked) {
+        setStackedTooltipPoint(null);
+        return;
+      }
+      const mapView = cameraRef.current;
+      if (!mapView) {
+        return;
+      }
+      try {
+        const point = await mapView.pointForCoordinate(marker.coordinate);
+        if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) {
+          return;
+        }
+        setStackedTooltipPoint({ x: point.x, y: point.y });
+      } catch {
+        // Ignore map projection errors and keep tooltip hidden.
+      }
+    },
+    [cameraRef]
+  );
+
+  useEffect(() => {
+    if (!selectedStackedMarker) {
+      setStackedTooltipPoint(null);
+      return;
+    }
+    void updateStackedTooltipPosition(selectedStackedMarker);
+  }, [selectedStackedMarker, updateStackedTooltipPosition]);
+
+  useEffect(() => {
+    if (!selectedStackedMarkerId) {
+      return;
+    }
+    const stillVisible = renderMarkers.some(
+      (marker) => marker.isStacked && marker.id === selectedStackedMarkerId
+    );
+    if (!stillVisible) {
+      closeStackedTooltip();
+    }
+  }, [selectedStackedMarkerId, renderMarkers, closeStackedTooltip]);
+
+  const tooltipItems = selectedStackedMarker?.stackedItems ?? [];
+  const stackedTooltipLayout = useMemo(() => {
+    if (!stackedTooltipPoint) {
+      return null;
+    }
+    const tooltipWidth = Math.min(
+      TOOLTIP_WIDTH,
+      Math.max(156, mapLayoutSize.width - 16)
+    );
+    const estimatedHeight = Math.max(
+      TOOLTIP_ROW_HEIGHT,
+      tooltipItems.length * TOOLTIP_ROW_HEIGHT
+    );
+    const left = clampNumber(
+      stackedTooltipPoint.x - tooltipWidth / 2,
+      8,
+      Math.max(8, mapLayoutSize.width - tooltipWidth - 8)
+    );
+    const top = clampNumber(
+      stackedTooltipPoint.y + 10,
+      8,
+      Math.max(8, mapLayoutSize.height - estimatedHeight - 8)
+    );
+
+    return { left, top, width: tooltipWidth, height: estimatedHeight };
+  }, [mapLayoutSize.height, mapLayoutSize.width, stackedTooltipPoint, tooltipItems.length]);
+
+  useEffect(() => {
+    applyRenderCamera(
+      [initialRegion.longitude, initialRegion.latitude],
+      regionToZoom(initialRegion)
+    );
+  }, [initialRegion, applyRenderCamera]);
+
+  const syncRenderCameraFromNative = useCallback(async () => {
+    const mapView = cameraRef.current;
+    if (!mapView) {
+      return;
+    }
+
+    try {
+      const nativeCamera = await mapView.getCamera();
+      const latFromCamera = nativeCamera?.center?.latitude;
+      const lngFromCamera = nativeCamera?.center?.longitude;
+      const zoomFromCamera =
+        typeof nativeCamera?.zoom === "number" && Number.isFinite(nativeCamera.zoom)
+          ? nativeCamera.zoom
+          : NaN;
+
+      let nextCenter: [number, number] | null =
+        Number.isFinite(latFromCamera) && Number.isFinite(lngFromCamera)
+          ? [lngFromCamera, latFromCamera]
+          : null;
+      let nextZoom = zoomFromCamera;
+
+      if (!nextCenter || !Number.isFinite(nextZoom)) {
+        try {
+          const bounds = await mapView.getMapBoundaries();
+          const northEast = bounds?.northEast;
+          const southWest = bounds?.southWest;
+          const neLat = northEast?.latitude;
+          const neLng = northEast?.longitude;
+          const swLat = southWest?.latitude;
+          const swLng = southWest?.longitude;
+
+          if (
+            Number.isFinite(neLat) &&
+            Number.isFinite(neLng) &&
+            Number.isFinite(swLat) &&
+            Number.isFinite(swLng)
+          ) {
+            const rawLngDelta = neLng - swLng;
+            let longitudeDelta = Math.abs(rawLngDelta);
+            if (longitudeDelta > 180) {
+              longitudeDelta = 360 - longitudeDelta;
+            }
+
+            let centerLng = (neLng + swLng) / 2;
+            if (Math.abs(rawLngDelta) > 180) {
+              const wrappedNeLng = neLng < 0 ? neLng + 360 : neLng;
+              const wrappedSwLng = swLng < 0 ? swLng + 360 : swLng;
+              const wrappedCenter = (wrappedNeLng + wrappedSwLng) / 2;
+              centerLng = wrappedCenter > 180 ? wrappedCenter - 360 : wrappedCenter;
+            }
+
+            const centerLat = (neLat + swLat) / 2;
+            nextCenter = [centerLng, centerLat];
+            nextZoom = regionToZoom({ longitudeDelta });
+          }
+        } catch {
+          // Ignore boundary read failures.
+        }
+      }
+
+      if (!nextCenter) {
+        return;
+      }
+      if (!Number.isFinite(nextZoom)) {
+        nextZoom = fallbackZoom;
+      }
+
+      applyRenderCamera(nextCenter, nextZoom);
+      onCameraChanged(nextCenter, nextZoom, false);
+    } catch {
+      // Ignore native camera read failures.
+    }
+  }, [applyRenderCamera, cameraRef, fallbackZoom, onCameraChanged]);
+
   const gestureRef = useRef(false);
+  const didSyncInitialRegionRef = useRef(false);
   const gestureReleaseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null
   );
+
+  useEffect(() => {
+    return () => {
+      clearPendingStackedOpen();
+    };
+  }, [clearPendingStackedOpen]);
 
   useEffect(() => {
     return () => {
@@ -685,7 +982,10 @@ function DiscoverMap({
 
   const handlePanDrag = useCallback(() => {
     markGestureActive();
-  }, [markGestureActive]);
+    if (selectedStackedMarkerId || pendingStackedOpenRef.current) {
+      closeStackedTooltip();
+    }
+  }, [markGestureActive, selectedStackedMarkerId, closeStackedTooltip]);
 
   const handleTouchStart = useCallback(() => {
     markGestureActive();
@@ -697,26 +997,61 @@ function DiscoverMap({
 
   const handleRegionChange = useCallback(
     (region: Region) => {
+      const nextCenter: [number, number] = [region.longitude, region.latitude];
+      const nextZoom = regionToZoom(region);
+
+      if (!didSyncInitialRegionRef.current) {
+        didSyncInitialRegionRef.current = true;
+        applyRenderCamera(nextCenter, nextZoom);
+        onCameraChanged(nextCenter, nextZoom, false);
+      }
+
       if (!gestureRef.current) {
         return;
       }
 
-      onCameraChanged([region.longitude, region.latitude], regionToZoom(region), true);
+      onCameraChanged(nextCenter, nextZoom, true);
     },
-    [onCameraChanged]
+    [applyRenderCamera, onCameraChanged]
   );
 
   const handleRegionChangeComplete = useCallback(
     (region: Region, details?: { isGesture?: boolean }) => {
       const isUserGesture = Boolean(details?.isGesture ?? gestureRef.current);
+      const nextCenter: [number, number] = [region.longitude, region.latitude];
+      const nextZoom = regionToZoom(region);
+      applyRenderCamera(nextCenter, nextZoom);
       scheduleGestureRelease();
       onCameraChanged(
-        [region.longitude, region.latitude],
-        regionToZoom(region),
+        nextCenter,
+        nextZoom,
         isUserGesture
       );
+
+      const pendingStackedId = pendingStackedOpenRef.current?.id;
+      if (pendingStackedId) {
+        const pendingVisible = renderMarkers.some(
+          (marker) => marker.isStacked && marker.id === pendingStackedId
+        );
+        clearPendingStackedOpen();
+        if (pendingVisible) {
+          setSelectedStackedMarkerId(pendingStackedId);
+        }
+      }
+
+      if (selectedStackedMarker) {
+        void updateStackedTooltipPosition(selectedStackedMarker);
+      }
     },
-    [onCameraChanged, scheduleGestureRelease]
+    [
+      applyRenderCamera,
+      clearPendingStackedOpen,
+      onCameraChanged,
+      renderMarkers,
+      scheduleGestureRelease,
+      selectedStackedMarker,
+      updateStackedTooltipPosition,
+    ]
   );
 
   const handleMarkerPress = useCallback(
@@ -724,6 +1059,73 @@ function DiscoverMap({
       if (marker.id === USER_MARKER_ID) {
         return;
       }
+
+      if (marker.isStacked) {
+        suppressNextMapPressRef.current = true;
+        const isSameOpen =
+          selectedStackedMarkerId === marker.id &&
+          pendingStackedOpenRef.current === null;
+        if (isSameOpen) {
+          closeStackedTooltip();
+          return;
+        }
+
+        closeStackedTooltip();
+
+        const pendingId = marker.id;
+        const openFallbackTimeout = setTimeout(() => {
+          if (pendingStackedOpenRef.current?.id !== pendingId) {
+            return;
+          }
+          clearPendingStackedOpen();
+          setSelectedStackedMarkerId(pendingId);
+        }, STACKED_OPEN_FALLBACK_MS);
+
+        pendingStackedOpenRef.current = {
+          id: pendingId,
+          timeout: openFallbackTimeout,
+        };
+
+        const mapView = cameraRef.current;
+        if (mapView) {
+          void mapView
+            .getCamera()
+            .then((currentCamera) => {
+              mapView.animateCamera(
+                {
+                  ...currentCamera,
+                  center: {
+                    latitude: marker.focusCoordinate.latitude,
+                    longitude: marker.focusCoordinate.longitude,
+                  },
+                },
+                { duration: STACKED_CENTER_DURATION_MS }
+              );
+            })
+            .catch(() => {
+              setMapCamera(cameraRef, {
+                center: [
+                  marker.focusCoordinate.longitude,
+                  marker.focusCoordinate.latitude,
+                ],
+                zoom,
+                durationMs: STACKED_CENTER_DURATION_MS,
+              });
+            });
+        } else {
+          setMapCamera(cameraRef, {
+            center: [
+              marker.focusCoordinate.longitude,
+              marker.focusCoordinate.latitude,
+            ],
+            zoom,
+            durationMs: STACKED_CENTER_DURATION_MS,
+          });
+        }
+        return;
+      }
+
+      closeStackedTooltip();
 
       if (marker.isCluster) {
         const targetZoom = Math.min(zoom + 2, 20);
@@ -741,7 +1143,44 @@ function DiscoverMap({
 
       onMarkerPress?.(marker.id);
     },
-    [cameraRef, onMarkerPress, zoom]
+    [
+      cameraRef,
+      clearPendingStackedOpen,
+      onMarkerPress,
+      zoom,
+      selectedStackedMarkerId,
+      closeStackedTooltip,
+    ]
+  );
+
+  const handleMapPress = useCallback(() => {
+    if (suppressNextMapPressRef.current) {
+      suppressNextMapPressRef.current = false;
+      return;
+    }
+    if (selectedStackedMarkerId || pendingStackedOpenRef.current) {
+      closeStackedTooltip();
+    }
+  }, [selectedStackedMarkerId, closeStackedTooltip]);
+
+  const handleMapLayout = useCallback(
+    (event: LayoutChangeEvent) => {
+      const width = Math.round(event.nativeEvent.layout.width);
+      const height = Math.round(event.nativeEvent.layout.height);
+      if (!Number.isFinite(width) || !Number.isFinite(height)) {
+        return;
+      }
+      setMapLayoutSize((prev) => {
+        if (prev.width === width && prev.height === height) {
+          return prev;
+        }
+        return { width, height };
+      });
+      if (selectedStackedMarker) {
+        void updateStackedTooltipPosition(selectedStackedMarker);
+      }
+    },
+    [selectedStackedMarker, updateStackedTooltipPosition]
   );
 
   if (Platform.OS === "web") {
@@ -755,15 +1194,19 @@ function DiscoverMap({
   }
 
   return (
-    <View style={styles.map}>
+    <View style={styles.map} onLayout={handleMapLayout}>
       <MapView
         ref={cameraRef}
         style={StyleSheet.absoluteFill}
         initialRegion={initialRegion}
+        onMapReady={() => {
+          void syncRenderCameraFromNative();
+        }}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
         onTouchCancel={handleTouchEnd}
         onPanDrag={handlePanDrag}
+        onPress={handleMapPress}
         onRegionChange={handleRegionChange}
         onRegionChangeComplete={handleRegionChangeComplete}
         showsCompass={false}
@@ -794,8 +1237,132 @@ function DiscoverMap({
           />
         )}
       </MapView>
+
+      {selectedStackedMarker && stackedTooltipLayout && (
+        <TouchableWithoutFeedback onPress={closeStackedTooltip}>
+          <View style={localStyles.tooltipBackdrop}>
+            <TouchableWithoutFeedback onPress={() => undefined}>
+              <View
+                style={[
+                  localStyles.tooltipCard,
+                  {
+                    left: stackedTooltipLayout.left,
+                    top: stackedTooltipLayout.top,
+                    width: stackedTooltipLayout.width,
+                    height: stackedTooltipLayout.height,
+                  },
+                ]}
+              >
+                {tooltipItems.map((item, index) => {
+                  const title = item.title ?? item.id;
+                  const ratingText = Number.isFinite(item.rating)
+                    ? item.rating.toFixed(1)
+                    : item.ratingFormatted ?? "-";
+                  return (
+                    <TouchableOpacity
+                      key={`${selectedStackedMarker.id}:${item.id}`}
+                      activeOpacity={0.8}
+                      style={[
+                        localStyles.tooltipRow,
+                        index < tooltipItems.length - 1 && localStyles.tooltipRowDivider,
+                      ]}
+                      onPress={() => {
+                        closeStackedTooltip();
+                        onMarkerPress?.(item.id);
+                      }}
+                    >
+                      <View style={localStyles.tooltipTitleWrap}>
+                        <View style={localStyles.tooltipCategoryIconWrap}>
+                          <Ionicons
+                            name={getTooltipCategoryIcon(item.category)}
+                            size={12}
+                            color="#000000"
+                          />
+                        </View>
+                        <Text style={localStyles.tooltipTitle} numberOfLines={1}>
+                          {title}
+                        </Text>
+                      </View>
+                      <View style={localStyles.tooltipRatingWrap}>
+                        <Ionicons
+                          name="star-outline"
+                          size={12}
+                          color="rgba(0, 0, 0, 0.5)"
+                        />
+                        <Text style={localStyles.tooltipRating}>{ratingText}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      )}
     </View>
   );
 }
 
+const localStyles = StyleSheet.create({
+  tooltipBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 20,
+  },
+  tooltipCard: {
+    position: "absolute",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 10,
+    overflow: "hidden",
+    shadowColor: "#000000",
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
+  },
+  tooltipRow: {
+    height: TOOLTIP_ROW_HEIGHT,
+    paddingHorizontal: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#FFFFFF",
+  },
+  tooltipRowDivider: {
+    borderBottomWidth: 0.8,
+    borderBottomColor: "#E4E4E7",
+  },
+  tooltipTitleWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexShrink: 1,
+    marginRight: 10,
+    gap: 8,
+  },
+  tooltipCategoryIconWrap: {
+    width: 16,
+    height: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tooltipTitle: {
+    fontSize: 13,
+    fontWeight: "600",
+    lineHeight: 18,
+    color: "#000000",
+    flexShrink: 1,
+  },
+  tooltipRatingWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+  },
+  tooltipRating: {
+    fontSize: 10,
+    fontWeight: "600",
+    lineHeight: 14,
+    color: "rgba(0, 0, 0, 0.5)",
+  },
+});
+
 export default memo(DiscoverMap);
+
