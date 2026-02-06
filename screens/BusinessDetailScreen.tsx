@@ -107,15 +107,51 @@ export default function BusinessDetailScreen() {
         hours: "",
         category: "",
         image: require("../assets/365.jpg"),
+        images: undefined as undefined | any[],
         address: "",
         phone: "",
         email: "",
         website: "",
     };
 
-    const images = [
-        { id: "1", image: safeBranch.image },
-    ];
+    const CATEGORY_GALLERY: Record<string, any[]> = {
+        fitness: [
+            require("../assets/gallery/fitness/fitness_1.jpg"),
+            require("../assets/gallery/fitness/fitness_2.jpg"),
+            require("../assets/gallery/fitness/fitness_3.jpg"),
+            require("../assets/gallery/fitness/fitness_4.jpg"),
+        ],
+        gastro: [
+            require("../assets/gallery/gastro/gastro_1.jpg"),
+            require("../assets/gallery/gastro/gastro_2.jpg"),
+            require("../assets/gallery/gastro/gastro_3.jpg"),
+            require("../assets/gallery/gastro/gastro_4.jpg"),
+        ],
+        relax: [
+            require("../assets/gallery/relax/relax_1.jpg"),
+            require("../assets/gallery/relax/relax_2.jpg"),
+            require("../assets/gallery/relax/relax_3.jpg"),
+            require("../assets/gallery/relax/relax_4.jpg"),
+        ],
+        beauty: [
+            require("../assets/gallery/beauty/beauty_1.jpg"),
+            require("../assets/gallery/beauty/beauty_2.jpg"),
+            require("../assets/gallery/beauty/beauty_3.jpg"),
+            require("../assets/gallery/beauty/beauty_4.jpg"),
+        ],
+    };
+
+    const images = useMemo(() => {
+        const categoryKey = String(safeBranch.category ?? "").trim().toLowerCase();
+        const categoryImages = CATEGORY_GALLERY[categoryKey];
+        const sourceImages =
+            categoryImages && categoryImages.length > 0
+                ? categoryImages
+                : safeBranch.images && safeBranch.images.length > 0
+                    ? safeBranch.images
+                    : [safeBranch.image];
+        return sourceImages.map((img, i) => ({ id: String(i + 1), image: img }));
+    }, [safeBranch.category, safeBranch.images, safeBranch.image]);
 
     const [userReviews, setUserReviews] = useState<Array<{
         id: string;

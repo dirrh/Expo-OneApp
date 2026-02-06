@@ -8,13 +8,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as Location from "expo-location";
 import type { MapViewRef } from "../interfaces";
-import { setMapCamera } from "../maps/camera";
+import type MapView from "react-native-maps";
+import { regionToZoom, setMapCamera } from "../maps/camera";
 
 // === GLOBÁLNY STAV ===
 // Tieto premenné sú mimo komponentu, aby sa zachovali medzi rendermi
 // Používame ich na uchovanie pozície kamery pri prepínaní medzi tabmi
 let lastDiscoverCameraState: { center: [number, number]; zoom: number } | null = null;
 let preserveDiscoverCamera = false;
+let suppressProgrammaticEventsUntil = 0;
 
 /**
  * Typ pre návratovú hodnotu hooku
@@ -41,6 +43,7 @@ export interface UseDiscoverCameraReturn {
   // === POMOCNÉ FUNKCIE PRE NAVIGÁCIU ===
   setPreserveCamera: (value: boolean) => void;
   getLastCameraState: () => { center: [number, number]; zoom: number } | null;
+  syncCameraFromNative: () => Promise<{ center: [number, number]; zoom: number } | null>;
   restoreCameraIfNeeded: () => void;
 }
 
@@ -70,7 +73,7 @@ export const useDiscoverCamera = ({
 }: UseDiscoverCameraOptions): UseDiscoverCameraReturn => {
   
   // Ref na map view - používame na programatické ovládanie
-  const cameraRef = useRef<any>(null) as MapViewRef;
+  const cameraRef = useRef<MapView | null>(null) as MapViewRef;
 
   // Throttling konfigurácia pre aktualizácie kamery
   // Obmedzujeme frekvenciu aktualizácií stavu na max. každých 150ms
@@ -189,6 +192,11 @@ export const useDiscoverCamera = ({
    */
   const handleCameraChanged = useCallback(
     (center: [number, number], zoom: number, isUserGesture?: boolean) => {
+      // Ignore short-lived programmatic map events (restore/jump), but keep gestures.
+      if (!isUserGesture && Date.now() < suppressProgrammaticEventsUntil) {
+        return;
+      }
+
       // 1. Vždy uložíme pozíciu pre prípad prepnutia tabu (bez throttlingu)
       lastDiscoverCameraState = { center, zoom };
 
@@ -278,6 +286,9 @@ export const useDiscoverCamera = ({
    */
   const setPreserveCamera = useCallback((value: boolean) => {
     preserveDiscoverCamera = value;
+    if (!value) {
+      suppressProgrammaticEventsUntil = 0;
+    }
   }, []);
 
   /**
@@ -288,22 +299,91 @@ export const useDiscoverCamera = ({
   }, []);
 
   /**
+   * Synchronizes camera state from native map immediately.
+   * This prevents stale zoom restore when navigating away right after gestures.
+   */
+  const syncCameraFromNative = useCallback(async () => {
+    const mapView = cameraRef.current;
+    if (!mapView) {
+      return lastDiscoverCameraState;
+    }
+
+    try {
+      const nativeCamera = await mapView.getCamera();
+      const lat = nativeCamera?.center?.latitude;
+      const lng = nativeCamera?.center?.longitude;
+
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        return lastDiscoverCameraState;
+      }
+
+      let zoom =
+        typeof nativeCamera.zoom === "number" && Number.isFinite(nativeCamera.zoom)
+          ? nativeCamera.zoom
+          : NaN;
+
+      if (!Number.isFinite(zoom)) {
+        try {
+          const bounds = await mapView.getMapBoundaries();
+          const northEast = bounds?.northEast;
+          const southWest = bounds?.southWest;
+          const neLng = northEast?.longitude;
+          const swLng = southWest?.longitude;
+
+          if (Number.isFinite(neLng) && Number.isFinite(swLng)) {
+            let longitudeDelta = Math.abs(neLng - swLng);
+            if (longitudeDelta > 180) {
+              longitudeDelta = 360 - longitudeDelta;
+            }
+            zoom = regionToZoom({ longitudeDelta });
+          }
+        } catch {
+          // Fallback to last known zoom when map boundaries are not available.
+        }
+      }
+
+      if (!Number.isFinite(zoom)) {
+        zoom = lastDiscoverCameraState?.zoom ?? latestAppliedRef.current.zoom;
+      }
+
+      const nextState = { center: [lng, lat] as [number, number], zoom };
+      lastDiscoverCameraState = nextState;
+      latestAppliedRef.current = nextState;
+      applyCameraState(nextState.center, nextState.zoom);
+
+      return nextState;
+    } catch {
+      return lastDiscoverCameraState;
+    }
+  }, [applyCameraState]);
+
+  /**
    * Obnoví pozíciu kamery ak je potrebné (po návrate z iného tabu)
    */
   const restoreCameraIfNeeded = useCallback(() => {
-    if (!preserveDiscoverCamera || !lastDiscoverCameraState) {
+    if (!preserveDiscoverCamera) {
+      return;
+    }
+
+    if (!lastDiscoverCameraState) {
+      preserveDiscoverCamera = false;
       return;
     }
 
     if (!cameraRef.current) {
-      if (restoreRetryRef.current < 5) {
+      if (restoreRetryRef.current < 20) {
         restoreRetryRef.current += 1;
         setTimeout(restoreCameraIfNeeded, 50);
+      } else {
+        restoreRetryRef.current = 0;
+        preserveDiscoverCamera = false;
       }
       return;
     }
 
     restoreRetryRef.current = 0;
+    applyCameraState(lastDiscoverCameraState.center, lastDiscoverCameraState.zoom);
+    suppressProgrammaticEventsUntil = Date.now() + 400;
     setMapCamera(cameraRef, {
       center: lastDiscoverCameraState.center,
       zoom: lastDiscoverCameraState.zoom,
@@ -326,6 +406,7 @@ export const useDiscoverCamera = ({
     centerOnCoord,
     setPreserveCamera,
     getLastCameraState,
+    syncCameraFromNative,
     restoreCameraIfNeeded,
   };
 };

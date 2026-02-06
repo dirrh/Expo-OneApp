@@ -22,6 +22,7 @@ import { useNavigation } from "@react-navigation/native";
 import {
   BRANCH_CARD_BASELINE_OFFSET,
   BRANCH_CARD_OVERLAY_PADDING_Y,
+  BRANCH_CARD_EXTRA_OFFSET,
 } from "../../lib/constants/layout";
 
 function DiscoverBranchOverlay({
@@ -43,15 +44,19 @@ function DiscoverBranchOverlay({
   const sideInset = Math.max(0, Math.floor((screenWidth - branchCardWidth) / 2));
   const navigation = useNavigation<any>();
   const discoverCardBottomPadding = 14;
-  const overlayBottomOffset = BRANCH_CARD_BASELINE_OFFSET;
+  // In Discover the screen ends at the tab bar top (no overhang),
+  // so we position the overlay directly relative to that edge.
+  // +10 gives the same ~10 px gap above the tab bar as in Feed.
+  const overlayBottomOffset =
+    BRANCH_CARD_BASELINE_OFFSET + BRANCH_CARD_EXTRA_OFFSET + 10;
 
   // === MEMOIZOVANÉ ŠTÝLY ===
   // Tieto štýly závisia od props, takže ich memoizujeme
 
   // Kontajner s dynamickým bottom (pre safe area)
   const containerStyle = useMemo(
-    () => [styles.branchOverlay, { bottom: insetsBottom + overlayBottomOffset }],
-    [insetsBottom, overlayBottomOffset]
+    () => [styles.branchOverlay, { bottom: overlayBottomOffset }],
+    [overlayBottomOffset]
   );
 
   // Kontajner pre kartu s dynamickou šírkou

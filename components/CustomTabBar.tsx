@@ -1,6 +1,7 @@
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { TAB_BAR_BASE_HEIGHT, TAB_BAR_MIN_INSET } from "../lib/constants/layout";
 
 type TabIconName = "cards" | "feed" | "home" | "discover" | "profile";
 
@@ -20,10 +21,15 @@ export default function CustomTabBar({ state, descriptors, navigation }: any) {
     return null;
   }
 
-  const bottomInset = Math.max(insets.bottom, 6);
+  const bottomInset = Math.max(insets.bottom, TAB_BAR_MIN_INSET);
 
   return (
-    <View style={[styles.container, { height: 64 + bottomInset, paddingBottom: bottomInset }]}>
+    <View
+      style={[
+        styles.container,
+        { height: TAB_BAR_BASE_HEIGHT + bottomInset, paddingBottom: bottomInset },
+      ]}
+    >
       {state.routes.map((route: any, index: number) => {
         const { options } = descriptors[route.key];
         const label =

@@ -1,9 +1,9 @@
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import type BottomSheet from "@gorhom/bottom-sheet";
 import { ImageSourcePropType } from "react-native";
-import type { AppleMaps, GoogleMaps } from "expo-maps";
+import type MapView from "react-native-maps";
 
-export type MapViewRef = RefObject<AppleMaps.View | GoogleMaps.View>;
+export type MapViewRef = RefObject<MapView | null>;
 
 export type DiscoverCategory = "Fitness" | "Gastro" | "Relax" | "Beauty";
 
@@ -39,6 +39,7 @@ export type BranchData = {
   id?: string;
   title: string;
   image: ImageSourcePropType;
+  images?: ImageSourcePropType[];
   rating: number;
   distance: string;
   hours: string;
@@ -101,7 +102,7 @@ export interface DiscoverTopControlsProps {
   option: string;
   setOption: Dispatch<SetStateAction<string>>;
   o: boolean;
-  filterRef: RefObject<BottomSheet>;
+  filterRef: RefObject<BottomSheet | null>;
   onOpenSearch: () => void;
   userCoord: [number, number] | null;
   mainMapCenter?: [number, number] | null;
@@ -117,7 +118,7 @@ export interface DiscoverLocationSearchResult {
 }
 
 export interface DiscoverLocationSheetProps {
-  locationRef: RefObject<BottomSheet>;
+  locationRef: RefObject<BottomSheet | null>;
   setLocation: Dispatch<SetStateAction<Location[]>>;
   userCoord: [number, number] | null;
   mainMapCenter?: [number, number] | null;
@@ -182,7 +183,7 @@ export interface DiscoverSearchSheetProps {
 }
 
 export interface DiscoverFilterSheetProps {
-  filterRef: RefObject<BottomSheet>;
+  filterRef: RefObject<BottomSheet | null>;
   snapPoints: string[];
   onSheetChange: (index: number) => void;
   insetsBottom: number;

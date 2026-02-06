@@ -30,6 +30,7 @@ function BranchCard(props: BranchCardProps) {
   const {
     title,
     image,
+    images,
     rating,
     distance,
     hours,
@@ -131,6 +132,7 @@ function BranchCard(props: BranchCardProps) {
     const branch: BranchData = {
       title,
       image,
+      images,
       rating,
       distance,
       hours,
@@ -199,14 +201,14 @@ function BranchCard(props: BranchCardProps) {
             ]}
           >
             {resolvedOffers[0] ? (
-              <View style={[styles.badge, { paddingHorizontal: badgePaddingH, paddingVertical: badgePaddingV }]}>
+              <View style={[styles.badge, styles.badgeShrink, { paddingHorizontal: badgePaddingH, paddingVertical: badgePaddingV }]}>
                 <Text style={[styles.badgeText, { fontSize: badgeFontSize }]} numberOfLines={1}>
                   {t(resolvedOffers[0])}
                 </Text>
               </View>
             ) : null}
             {resolvedMoreCount > 0 ? (
-              <Text style={[styles.moreText, { fontSize: metaSize }]}>+ {resolvedMoreCount} {t("more")}</Text>
+              <Text style={[styles.moreText, styles.moreTextFixed, { fontSize: metaSize }]} numberOfLines={1}>+ {resolvedMoreCount} {t("more")}</Text>
             ) : null}
           </View>
         )}
@@ -301,6 +303,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingRight: 4,
+    overflow: "hidden",
   },
   badgeRowInline: {
     marginTop: 2,
@@ -320,6 +323,13 @@ const styles = StyleSheet.create({
   moreText: {
     color: "#000000",
     fontWeight: "500",
+  },
+  badgeShrink: {
+    flexShrink: 1,
+    minWidth: 0,
+  },
+  moreTextFixed: {
+    flexShrink: 0,
   },
 
   // Text "+X more"

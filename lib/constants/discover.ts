@@ -10,6 +10,13 @@ const OFFER_KEYS = {
 const DUMMY_BRANCH: BranchData = {
   title: "365 GYM Nitra",
   image: require("../../assets/365.jpg"),
+  images: [
+    require("../../assets/365.jpg"),
+    require("../../assets/gallery/fitness/fitness_1.jpg"),
+    require("../../assets/gallery/fitness/fitness_2.jpg"),
+    require("../../assets/gallery/fitness/fitness_3.jpg"),
+    require("../../assets/gallery/fitness/fitness_4.jpg"),
+  ],
   rating: 4.6,
   category: "Fitness",
   distance: "1.7 km",
@@ -37,8 +44,8 @@ const translateBranchOffers = (branch: BranchData, t: (key: string) => string): 
 // 2. zoom >= SINGLE_MODE_ZOOM    → len single piny
 const CITY_CLUSTER_ZOOM = 11;           // pod týmto = city cluster
 const CLUSTER_MAX_ZOOM = 16;            // nad týmto = jednotlivé markery
-const FORCE_CLUSTER_ZOOM = 15;          // do tychto zoomov zobrazujeme iba clustre
-const SINGLE_MODE_ZOOM = 16;          // od tohto zoomu len single piny
+const FORCE_CLUSTER_ZOOM = 14;          // do tychto zoomov zobrazujeme iba clustre
+const SINGLE_MODE_ZOOM = 15;          // od tohto zoomu len single piny
 const DEFAULT_CAMERA_ZOOM = 14;
 const DEFAULT_CITY_CENTER: [number, number] = [18.091, 48.3069];
 

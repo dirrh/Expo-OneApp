@@ -1,5 +1,5 @@
-import React, { useCallback } from "react";
-import { FlatList, Image, Platform, View } from "react-native";
+import React, { useCallback, useMemo } from "react";
+import { FlatList, Image, Platform, StyleSheet, View } from "react-native";
 
 type Props = {
   data: any[];
@@ -13,7 +13,7 @@ export function HeroCarousel({ data, height, width, index, onIndexChange }: Prop
   const renderItem = useCallback(
     ({ item }: { item: any }) => (
       <View style={{ width, height }}>
-        <Image source={item.image} style={{ width: "100%", height: "100%" }} />
+        <Image source={item.image} style={carouselStyles.image} resizeMode="cover" />
       </View>
     ),
     [height, width]
@@ -27,6 +27,8 @@ export function HeroCarousel({ data, height, width, index, onIndexChange }: Prop
     }),
     [width]
   );
+
+  const showDots = data.length > 1;
 
   return (
     <>
@@ -48,20 +50,56 @@ export function HeroCarousel({ data, height, width, index, onIndexChange }: Prop
         removeClippedSubviews={Platform.OS !== "web"}
       />
 
-      <View style={{ position: "absolute", bottom: 10, flexDirection: "row", alignSelf: "center" }}>
-        {data.map((_, i) => (
-          <View
-            key={i}
-            style={{
-              width: 6,
-              height: 6,
-              borderRadius: 3,
-              marginHorizontal: 3,
-              backgroundColor: i === index ? "#fff" : "rgba(255,255,255,0.4)",
-            }}
-          />
-        ))}
-      </View>
+      {showDots && (
+        <View style={carouselStyles.dotsWrapper}>
+          <View style={carouselStyles.dotsContainer}>
+            {data.map((_, i) => (
+              <View
+                key={i}
+                style={[
+                  carouselStyles.dot,
+                  i === index ? carouselStyles.dotActive : carouselStyles.dotInactive,
+                ]}
+              />
+            ))}
+          </View>
+        </View>
+      )}
     </>
   );
 }
+
+const carouselStyles = StyleSheet.create({
+  image: {
+    width: "100%",
+    height: "100%",
+  },
+  dotsWrapper: {
+    position: "absolute",
+    bottom: 14,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+  },
+  dotsContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.3)",
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+  },
+  dot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    marginHorizontal: 3,
+  },
+  dotActive: {
+    backgroundColor: "#fff",
+    transform: [{ scale: 1.15 }],
+  },
+  dotInactive: {
+    backgroundColor: "rgba(255, 255, 255, 0.45)",
+  },
+});

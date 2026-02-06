@@ -205,7 +205,7 @@ export default function HomeScreen() {
   const contentStyle = useMemo(
     () => [
       styles.containerContent,
-      { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 24 },
+      { paddingTop: insets.top + 8, paddingBottom: insets.bottom },
     ],
     [insets.bottom, insets.top]
   );
@@ -220,6 +220,9 @@ export default function HomeScreen() {
       style={styles.container}
       contentContainerStyle={contentStyle}
       showsVerticalScrollIndicator={false}
+      bounces={false}
+      alwaysBounceVertical={false}
+      overScrollMode="never"
       removeClippedSubviews={Platform.OS !== "web"}
     />
   );

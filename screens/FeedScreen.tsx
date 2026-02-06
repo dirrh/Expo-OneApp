@@ -1,6 +1,5 @@
 import React, { memo, useMemo, useRef, useCallback, useEffect } from "react";
 import { View, StyleSheet, ImageBackground, Text, TouchableOpacity, Platform, useWindowDimensions, FlatList, Pressable, StatusBar, Vibration, Share, Alert } from "react-native";
-import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
@@ -12,6 +11,9 @@ import Animated, { useAnimatedStyle, useSharedValue, withSequence, withSpring, w
 import {
     BRANCH_CARD_BASELINE_OFFSET,
     BRANCH_CARD_OVERLAY_PADDING_Y,
+    BRANCH_CARD_EXTRA_OFFSET,
+    TAB_BAR_BASE_HEIGHT,
+    TAB_BAR_MIN_INSET,
 } from "../lib/constants/layout";
 
 type ReelType = "image" | "video";
@@ -25,6 +27,7 @@ interface ReelItem {
     branch: {
         title: string;
         image: any;
+        images?: any[];
         rating: number;
         distance: string;
         hours: string;
@@ -46,6 +49,14 @@ const OFFER_KEYS = {
     freeTowel: "offer_freeTowel",
 };
 
+// Gallery images pre Fitness kategóriu
+const FITNESS_GALLERY = [
+    require("../assets/gallery/fitness/fitness_1.jpg"),
+    require("../assets/gallery/fitness/fitness_2.jpg"),
+    require("../assets/gallery/fitness/fitness_3.jpg"),
+    require("../assets/gallery/fitness/fitness_4.jpg"),
+];
+
 const REELS_DATA = [
     {
         id: "reel-1",
@@ -54,6 +65,7 @@ const REELS_DATA = [
         branch: {
             title: "RED ROYAL GYM",
             image: require("../assets/365.jpg"),
+            images: [require("../assets/365.jpg"), ...FITNESS_GALLERY],
             rating: 4.6,
             distance: "1.7 km",
             hours: "9:00 - 21:00",
@@ -69,6 +81,7 @@ const REELS_DATA = [
         branch: {
             title: "GYM KLUB",
             image: require("../assets/klub.jpg"),
+            images: [require("../assets/klub.jpg"), ...FITNESS_GALLERY],
             rating: 4.7,
             distance: "2.1 km",
             hours: "8:00 - 22:00",
@@ -83,6 +96,7 @@ const REELS_DATA = [
         branch: {
             title: "DIAMOND GYM",
             image: require("../assets/royal.jpg"),
+            images: [require("../assets/royal.jpg"), ...FITNESS_GALLERY],
             rating: 4.4,
             distance: "1.3 km",
             hours: "7:00 - 20:00",
@@ -98,6 +112,7 @@ const REELS_DATA = [
         branch: {
             title: "FLEX FITNESS",
             image: require("../assets/klub.jpg"),
+            images: [require("../assets/klub.jpg"), ...FITNESS_GALLERY],
             rating: 4.8,
             distance: "0.9 km",
             hours: "6:00 - 23:00",
@@ -112,6 +127,7 @@ const REELS_DATA = [
         branch: {
             title: "POWER ZONE",
             image: require("../assets/royal.jpg"),
+            images: [require("../assets/royal.jpg"), ...FITNESS_GALLERY],
             rating: 4.5,
             distance: "3.2 km",
             hours: "7:00 - 22:00",
@@ -292,25 +308,40 @@ const ReelItemComponent = memo(
                         </Animated.View>
                     </View>
 
-                    {/* Branch card */}
+                    {/* Branch card (overlay) */}
                     <View
                         style={[
-                            styles.branchCardWrap,
-                            { width: branchCardWidth, marginBottom: branchCardOffset },
+                            styles.branchCardOverlay,
+                            {
+                                bottom: Math.max(
+                                    0,
+                                    branchCardOffset - BRANCH_CARD_OVERLAY_PADDING_Y
+                                ),
+                            },
                         ]}
                     >
-                        <BranchCard
-                            title={item.branch.title}
-                            image={item.branch.image}
-                            rating={item.branch.rating}
-                            distance={item.branch.distance}
-                            hours={item.branch.hours}
-                            category={item.branch.category}
-                            offers={translatedOffers}
-                            badgeVariant="more"
-                            cardPaddingBottom={14}
-                        />
-                </View>
+                        <View
+                            style={[
+                                styles.branchCardOverlayContent,
+                                { paddingVertical: BRANCH_CARD_OVERLAY_PADDING_Y },
+                            ]}
+                        >
+                            <View style={{ width: branchCardWidth }}>
+                                <BranchCard
+                                    title={item.branch.title}
+                                    image={item.branch.image}
+                                    images={item.branch.images}
+                                    rating={item.branch.rating}
+                                    distance={item.branch.distance}
+                                    hours={item.branch.hours}
+                                    category={item.branch.category}
+                                    offers={translatedOffers}
+                                    badgeVariant="more"
+                                    cardPaddingBottom={14}
+                                />
+                            </View>
+                        </View>
+                    </View>
             </>
         );
 
@@ -362,7 +393,6 @@ const ReelItemComponent = memo(
 
 export default function FeedScreen() {
     const insets = useSafeAreaInsets();
-    const tabBarHeight = useBottomTabBarHeight();
     const { height: screenHeight, width: screenWidth } = useWindowDimensions();
     const [visibleIndex, setVisibleIndex] = React.useState(0);
     const [isScrolling, setIsScrolling] = React.useState(false);
@@ -373,14 +403,27 @@ export default function FeedScreen() {
         () => Math.max(280, Math.min(340, screenWidth - 48)),
         [screenWidth]
     );
+    const baseBottom = useMemo(() => {
+        const tabBarInset = Math.max(insets.bottom, TAB_BAR_MIN_INSET);
+        return TAB_BAR_BASE_HEIGHT + tabBarInset;
+    }, [insets.bottom]);
     const bottomOverlayOffset = useMemo(
-        () => Math.max(0, tabBarHeight - 16) -30,
-        [tabBarHeight]
+        () => Math.max(0, baseBottom - 16) - 30,
+        [baseBottom]
     );
 
+    // Position card just above the tab bar
     const branchCardOffset = useMemo(
-        () => Math.max(0, tabBarHeight + BRANCH_CARD_BASELINE_OFFSET + BRANCH_CARD_OVERLAY_PADDING_Y+37),
-        [tabBarHeight]
+        () =>
+            Math.max(
+                0,
+                baseBottom +
+                    BRANCH_CARD_BASELINE_OFFSET +
+                    BRANCH_CARD_OVERLAY_PADDING_Y +
+                    BRANCH_CARD_EXTRA_OFFSET +
+                    10
+            ),
+        [baseBottom]
     );
     
     const actionsBottom = useMemo(
@@ -597,8 +640,16 @@ const styles = StyleSheet.create({
         textShadowOffset: { width: 0, height: 1 },
         textShadowRadius: 4,
     },
-    branchCardWrap: {
-        alignSelf: "center",
+    branchCardOverlay: {
+        position: "absolute",
+        left: 0,
+        right: 0,
+        alignItems: "center",
+        zIndex: 3,
+    },
+    branchCardOverlayContent: {
+        width: "100%",
+        alignItems: "center",
     },
     heartBurst: {
         position: "absolute",

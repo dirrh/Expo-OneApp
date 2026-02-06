@@ -23,6 +23,34 @@ const CATEGORY_PLACEHOLDER_IMAGES: Record<DiscoverCategory, ImageSourcePropType>
   Beauty: require("../../assets/royal.jpg"),
 };
 
+// Galéria obrázkov pre detail – 4 kvalitné obrázky pre každú kategóriu
+const CATEGORY_GALLERY_IMAGES: Record<DiscoverCategory, ImageSourcePropType[]> = {
+  Fitness: [
+    require("../../assets/gallery/fitness/fitness_1.jpg"),
+    require("../../assets/gallery/fitness/fitness_2.jpg"),
+    require("../../assets/gallery/fitness/fitness_3.jpg"),
+    require("../../assets/gallery/fitness/fitness_4.jpg"),
+  ],
+  Gastro: [
+    require("../../assets/gallery/gastro/gastro_1.jpg"),
+    require("../../assets/gallery/gastro/gastro_2.jpg"),
+    require("../../assets/gallery/gastro/gastro_3.jpg"),
+    require("../../assets/gallery/gastro/gastro_4.jpg"),
+  ],
+  Relax: [
+    require("../../assets/gallery/relax/relax_1.jpg"),
+    require("../../assets/gallery/relax/relax_2.jpg"),
+    require("../../assets/gallery/relax/relax_3.jpg"),
+    require("../../assets/gallery/relax/relax_4.jpg"),
+  ],
+  Beauty: [
+    require("../../assets/gallery/beauty/beauty_1.jpg"),
+    require("../../assets/gallery/beauty/beauty_2.jpg"),
+    require("../../assets/gallery/beauty/beauty_3.jpg"),
+    require("../../assets/gallery/beauty/beauty_4.jpg"),
+  ],
+};
+
 /**
  * Typ pre návratovú hodnotu hooku
  */
@@ -230,6 +258,11 @@ export const useDiscoverData = ({
       // Preložíme DUMMY_BRANCH offers
       const translatedDummy = translateBranchOffers(DUMMY_BRANCH, t);
 
+      // Galéria obrázkov pre detail – hlavný obrázok + kategória gallery
+      const galleryImages = resolvedCategory
+        ? [image, ...CATEGORY_GALLERY_IMAGES[resolvedCategory]]
+        : [image];
+
       // Vrátime kompletný objekt pobočky
       return {
         id: marker.id,
@@ -241,6 +274,7 @@ export const useDiscoverData = ({
         distance: `${(Math.random() * 2 + 0.5).toFixed(1)} km`,  // náhodná vzdialenosť (TODO: vypočítať reálnu)
         hours: override?.hours ?? DUMMY_BRANCH.hours,
         image,
+        images: galleryImages,
       };
     },
     [markerBranchOverrides, t]

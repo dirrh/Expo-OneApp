@@ -57,8 +57,8 @@ const styles = StyleSheet.create({
   },
   text: {
     fontFamily: "Inter_500Medium",
-    fontSize: 10,
-    lineHeight: 14,
+    fontSize: 12,
+    lineHeight: 16,
     color: "rgba(0, 0, 0, 0.5)",
     marginBottom: 16,
   },

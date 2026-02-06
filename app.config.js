@@ -9,13 +9,7 @@ export default ({ config }) => ({
     ...(config.plugins ?? []),
     './plugins/withAndroidXFix',
     './plugins/withGradleProperties',
-    [
-      "expo-maps",
-      {
-        requestLocationPermission: true,
-        locationPermission: "Allow $(PRODUCT_NAME) to access your location.",
-      },
-    ],
+    './plugins/withReanimatedWorkletsPrefabFix',
     [
       "expo-build-properties",
       {

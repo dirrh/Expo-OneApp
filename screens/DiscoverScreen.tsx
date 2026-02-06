@@ -20,7 +20,7 @@ import {
 import DiscoverSideFilterPanel from "../components/discover/DiscoverSideFilterPanel";
 import DiscoverGroupSheet from "../components/discover/DiscoverGroupSheet";
 import { setMapCamera } from "../lib/maps/camera";
-import { FORCE_CLUSTER_ZOOM, SINGLE_MODE_ZOOM } from "../lib/constants/discover";
+import { SINGLE_MODE_ZOOM } from "../lib/constants/discover";
 
 
 // Constants
@@ -90,7 +90,6 @@ export default function DiscoverScreen() {
   // Refs
   const filterRef = useRef<BottomSheet>(null);
   const groupSheetRef = useRef<BottomSheet>(null);
-  const cameraRef = useRef<any>(null);
   const snapPoints = useMemo(() => ["25%", "85%"], []);
   const groupSnapPoints = useMemo(() => ["45%"], []);
 
@@ -111,7 +110,6 @@ export default function DiscoverScreen() {
     branches,
     markers,
     groupedMarkers,
-    markerItems,
     loading,
     error,
     refetch,
@@ -184,22 +182,24 @@ export default function DiscoverScreen() {
         const lastState = camera.getLastCameraState();
         const target = lastState?.center ?? camera.userCoord ?? NITRA_CENTER;
         const zoomLevel = lastState?.zoom ?? 14;
-        setMapCamera(cameraRef, { center: target, zoom: zoomLevel, durationMs: 0 });
+        setMapCamera(camera.cameraRef, { center: target, zoom: zoomLevel, durationMs: 0 });
       } else {
         camera.restoreCameraIfNeeded();
       }
 
       return () => {
-        const latest = camera.getLastCameraState();
-        if (latest) {
-          setCameraSnapshot(latest);
-        }
         camera.setPreserveCamera(true);
+        void camera.syncCameraFromNative().then((latest) => {
+          if (latest) {
+            setCameraSnapshot(latest);
+          }
+        });
       };
     }, [
       route.name,
       camera.userCoord,
       camera.getLastCameraState,
+      camera.syncCameraFromNative,
       camera.restoreCameraIfNeeded,
       camera.setPreserveCamera,
     ])
@@ -227,14 +227,9 @@ export default function DiscoverScreen() {
       branch.title.toLowerCase().includes(query)
     );
   }, [searchBranchCandidates, text]);
-  const isSingleMode = Math.round(camera.mapZoom) >= SINGLE_MODE_ZOOM;
-  const baseMapMarkerSource = useMemo(
-    () => (isSingleMode ? markers : markerItems),
-    [isSingleMode, markers, markerItems]
-  );
   const filteredMarkers = useMemo(
-    () => filters.filterMarkers(baseMapMarkerSource),
-    [filters.filterMarkers, baseMapMarkerSource]
+    () => filters.filterMarkers(markers),
+    [filters.filterMarkers, markers]
   );
 
   // Saved location markers
@@ -247,7 +242,8 @@ export default function DiscoverScreen() {
   );
 
   // Filtrujeme markery podľa viditeľnej oblasti mapy, aby sme znížili počet markerov počas pohybu.
-  const shouldFilterByViewport = allMapMarkers.length > 150 || camera.isUserPanning;
+  const shouldFilterByViewport =
+    allMapMarkers.length > 250 && camera.mapZoom >= SINGLE_MODE_ZOOM;
   const mapMarkers = useMemo(() => {
     if (shouldFilterByViewport) {
       return filterMarkersByViewport(allMapMarkers, camera.mapCenter, camera.mapZoom);
@@ -255,14 +251,7 @@ export default function DiscoverScreen() {
     return allMapMarkers;
   }, [allMapMarkers, camera.mapCenter, camera.mapZoom, shouldFilterByViewport]);
 
-  const [stableMapMarkers, setStableMapMarkers] = useState(mapMarkers);
-
-  useEffect(() => {
-    if (camera.isUserPanning && mapMarkers.length > 150) {
-      return;
-    }
-    setStableMapMarkers(mapMarkers);
-  }, [camera.isUserPanning, mapMarkers]);
+  const stableMapMarkers = mapMarkers;
 
   // Sheet change handlers
   const handleSearchSheetChange = useCallback(
@@ -300,6 +289,18 @@ export default function DiscoverScreen() {
     [camera]
   );
 
+  const navigateToBranchDetail = useCallback(
+    async (branch: BranchData) => {
+      camera.setPreserveCamera(true);
+      const latest = await camera.syncCameraFromNative();
+      if (latest) {
+        setCameraSnapshot(latest);
+      }
+      navigation.navigate("BusinessDetailScreen", { branch });
+    },
+    [camera.syncCameraFromNative, camera.setPreserveCamera, navigation]
+  );
+
   // Marker press handler
   const handleMarkerPress = useCallback(
     (id: string) => {
@@ -314,9 +315,9 @@ export default function DiscoverScreen() {
         const marker = markers.find((item) => item.id === id);
         if (!marker) return;
         setSelectedGroup(null);
-        fetchBranchForMarker(marker).then((branch) => {
-          navigation.navigate("BusinessDetailScreen", { branch });
-        });
+        void fetchBranchForMarker(marker)
+          .then((branch) => navigateToBranchDetail(branch))
+          .catch(() => undefined);
         return;
       }
 
@@ -332,11 +333,11 @@ export default function DiscoverScreen() {
       // Single pin - navigate to detail
       setSelectedGroup(null);
       const marker = group.items[0];
-      fetchBranchForMarker(marker).then((branch) => {
-        navigation.navigate("BusinessDetailScreen", { branch });
-      });
+      void fetchBranchForMarker(marker)
+        .then((branch) => navigateToBranchDetail(branch))
+        .catch(() => undefined);
     },
-    [loading, error, groupedMarkers, markers, fetchBranchForMarker, navigation]
+    [loading, error, groupedMarkers, markers, fetchBranchForMarker, navigateToBranchDetail]
   );
 
   // Error state UI
@@ -357,7 +358,7 @@ export default function DiscoverScreen() {
   return (
     <SafeAreaView style={styles.container} edges={["left", "right"]}>
       <DiscoverMap
-        cameraRef={cameraRef}
+        cameraRef={camera.cameraRef}
         filteredMarkers={stableMapMarkers}
         userCoord={camera.userCoord}
         onMarkerPress={handleMarkerPress}
@@ -383,7 +384,7 @@ export default function DiscoverScreen() {
         onOpenSearch={handleOpenSearch}
         userCoord={camera.userCoord}
         mainMapCenter={camera.mapCenter}
-        cameraRef={cameraRef}
+        cameraRef={camera.cameraRef}
         t={t}
         onLocationSheetChange={handleLocationSheetChange}
         hasActiveFilter={filters.hasActiveFilter}
