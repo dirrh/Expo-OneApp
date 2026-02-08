@@ -11,8 +11,7 @@
  */
 
 import React, { memo, useCallback } from "react";
-import { FlatList, View, StyleSheet, Text } from "react-native";
-import { TextInput, TouchableOpacity } from "react-native-gesture-handler";
+import { FlatList, View, StyleSheet, TextInput, TouchableOpacity } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import BranchCard from "../BranchCard";
@@ -53,38 +52,36 @@ function DiscoverSearchSheet({
 
   return (
     <View style={[styles.searchScreen, { paddingTop: insets.top + 8 }]}>
-
-      {/* Header */}
-      <View style={styles.searchSheetHeader}>
-        <TouchableOpacity style={styles.searchLocationChip} activeOpacity={0.9}>
-          <Ionicons name="location-outline" size={18} color="#000" />
-          <Text style={styles.searchLocationText}>{t("yourLocation")}</Text>
-          <Ionicons name="chevron-down-outline" size={16} color="#000" style={{ opacity: 0.7 }} />
+      <View style={styles.searchTopRow}>
+        <TouchableOpacity
+          style={styles.searchBackButton}
+          onPress={() => onSheetChange(-1)}
+          activeOpacity={0.8}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons name="chevron-back" size={18} color="#000000" />
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => onSheetChange(-1)} activeOpacity={0.8}>
-          <Text style={styles.searchCancelText}>{t("cancel")}</Text>
-        </TouchableOpacity>
-      </View>
 
-      {/* Vyhľadávacie pole */}
-      <View style={styles.searchInputWrapper}>
-        <Ionicons name="search-outline" size={18} color="#9CA3AF" style={styles.searchIcon} />
-        <TextInput
-          value={text}
-          onChangeText={setText}
-          placeholder={t("searchbranches")}
-          style={styles.searchInput}
-          placeholderTextColor="#9CA3AF"
-        />
-        {text.length > 0 && (
-          <TouchableOpacity
-            onPress={() => setText("")}
-            style={styles.searchClearButton}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="close-circle" size={18} color="#9CA3AF" />
-          </TouchableOpacity>
-        )}
+        {/* Vyhľadávacie pole */}
+        <View style={styles.searchInputWrapper}>
+          <Ionicons name="search-outline" size={16} color="#000000" style={styles.searchIcon} />
+          <TextInput
+            value={text}
+            onChangeText={setText}
+            placeholder={t("searchbranches")}
+            style={styles.searchInput}
+            placeholderTextColor="#71717A"
+          />
+          {text.length > 0 && (
+            <TouchableOpacity
+              onPress={() => setText("")}
+              style={styles.searchClearButton}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="close" size={16} color="#FFFFFF" />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       {/* Virtualizovaný zoznam pobočiek */}

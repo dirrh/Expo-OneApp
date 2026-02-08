@@ -2,7 +2,9 @@ import React, { memo, useCallback, useMemo } from "react";
 import {
   FlatList,
   Image,
+  ImageSourcePropType,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -14,7 +16,72 @@ import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { useDiscoverData } from "../lib/hooks";
+import { TAB_BAR_BASE_HEIGHT } from "../lib/constants/layout";
 import type { BranchData, DiscoverCategory } from "../lib/interfaces";
+
+type HomeCategoryFilter = "All" | DiscoverCategory;
+
+const HOME_CATEGORY_CHIPS: Array<{
+  key: HomeCategoryFilter;
+  iconName?: keyof typeof Ionicons.glyphMap;
+  labelKey: string;
+}> = [
+  { key: "All", labelKey: "showAll" },
+  { key: "Fitness", iconName: "barbell-outline", labelKey: "Fitness" },
+  { key: "Gastro", iconName: "restaurant-outline", labelKey: "Gastro" },
+  { key: "Beauty", iconName: "sparkles-outline", labelKey: "Beauty" },
+  { key: "Relax", iconName: "leaf-outline", labelKey: "Relax" },
+];
+
+const CATEGORY_PREVIEW_IMAGES: Record<DiscoverCategory, ImageSourcePropType[]> = {
+  Fitness: [
+    require("../assets/gallery/fitness/fitness_1.jpg"),
+    require("../assets/gallery/fitness/fitness_2.jpg"),
+    require("../assets/gallery/fitness/fitness_3.jpg"),
+    require("../assets/gallery/fitness/fitness_4.jpg"),
+  ],
+  Gastro: [
+    require("../assets/gallery/gastro/gastro_1.jpg"),
+    require("../assets/gallery/gastro/gastro_2.jpg"),
+    require("../assets/gallery/gastro/gastro_3.jpg"),
+    require("../assets/gallery/gastro/gastro_4.jpg"),
+  ],
+  Relax: [
+    require("../assets/gallery/relax/relax_1.jpg"),
+    require("../assets/gallery/relax/relax_2.jpg"),
+    require("../assets/gallery/relax/relax_3.jpg"),
+    require("../assets/gallery/relax/relax_4.jpg"),
+  ],
+  Beauty: [
+    require("../assets/gallery/beauty/beauty_1.jpg"),
+    require("../assets/gallery/beauty/beauty_2.jpg"),
+    require("../assets/gallery/beauty/beauty_3.jpg"),
+    require("../assets/gallery/beauty/beauty_4.jpg"),
+  ],
+};
+
+const normalizeCategory = (value?: string): HomeCategoryFilter | null => {
+  if (!value) return null;
+
+  const key = value.trim().toLowerCase();
+  if (key === "fitness" || key === "fitnes") return "Fitness";
+  if (key === "gastro" || key === "food" || key === "jedlo") return "Gastro";
+  if (key === "beauty" || key === "krasa" || key === "kozmetika") return "Beauty";
+  if (key === "relax" || key === "wellness") return "Relax";
+  if (key === "all") return "All";
+  return null;
+};
+
+const getBranchKey = (branch: BranchData): string =>
+  String(branch.id ?? branch.title).trim().toLowerCase();
+
+const getStableHash = (value: string): number => {
+  let hash = 0;
+  for (let i = 0; i < value.length; i += 1) {
+    hash = (hash * 31 + value.charCodeAt(i)) >>> 0;
+  }
+  return hash;
+};
 
 const ServiceCard = memo(
   ({
@@ -72,6 +139,43 @@ export default function HomeScreen() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
+  const layoutScale = useMemo(
+    () => Math.min(1.08, Math.max(0.86, screenWidth / 393)),
+    [screenWidth]
+  );
+  const horizontalPadding = useMemo(
+    () => Math.max(12, Math.round(16 * layoutScale)),
+    [layoutScale]
+  );
+  const headerControlsGap = useMemo(
+    () => Math.max(10, Math.round(13 * layoutScale)),
+    [layoutScale]
+  );
+  const headerTopOffset = useMemo(
+    () => 16,
+    []
+  );
+  const categoriesTopSpacing = useMemo(
+    () => Math.max(24, Math.round(42 * layoutScale)),
+    [layoutScale]
+  );
+  const categoriesBottomSpacing = useMemo(
+    () => Math.max(14, Math.round(22 * layoutScale)),
+    [layoutScale]
+  );
+  const categoriesChipGap = useMemo(
+    () => Math.max(8, Math.round(10 * layoutScale)),
+    [layoutScale]
+  );
+  const locationChipWidth = useMemo(
+    () =>
+      Math.min(
+        184,
+        Math.max(160, screenWidth - horizontalPadding * 2 - 42 - headerControlsGap)
+      ),
+    [headerControlsGap, horizontalPadding, screenWidth]
+  );
+  const [selectedCategory, setSelectedCategory] = React.useState<HomeCategoryFilter>("All");
   const markerBranchOverrides = useMemo(
     () => ({
       gym_365: { title: t("365 GYM Nitra"), image: require("../assets/365.jpg"), category: "Fitness" },
@@ -81,24 +185,81 @@ export default function HomeScreen() {
     }),
     [t]
   );
-  const { branches } = useDiscoverData({ t, markerBranchOverrides });
+  const { branches, markers, buildBranchFromMarker } = useDiscoverData({ t, markerBranchOverrides });
 
-  const openNearYou = useMemo(() => branches.slice(0, 6), [branches]);
-  const trending = useMemo(() => branches.slice(0, 6), [branches]);
-  const topRated = useMemo(
-    () => [...branches].sort((a, b) => b.rating - a.rating).slice(0, 6),
-    [branches]
+  const supplementalBranches = useMemo(() => {
+    const existingKeys = new Set(branches.map(getBranchKey));
+    const extras: BranchData[] = [];
+
+    markers.forEach((marker) => {
+      if (marker.category === "Multi") return;
+
+      if (existingKeys.has(marker.id.toLowerCase())) return;
+
+      const branch = buildBranchFromMarker(marker);
+      const key = getBranchKey(branch);
+      if (existingKeys.has(key)) return;
+
+      existingKeys.add(key);
+      extras.push(branch);
+    });
+
+    return extras;
+  }, [branches, markers, buildBranchFromMarker]);
+
+  const homeBranches = useMemo(
+    () =>
+      [...branches, ...supplementalBranches].map((branch) => {
+        const normalizedCategory = normalizeCategory(branch.category);
+        if (!normalizedCategory || normalizedCategory === "All") {
+          return branch;
+        }
+
+        const categoryImages = CATEGORY_PREVIEW_IMAGES[normalizedCategory];
+        if (!categoryImages || categoryImages.length === 0) {
+          return branch;
+        }
+
+        const hashKey = getBranchKey(branch);
+        const previewImage = categoryImages[getStableHash(hashKey) % categoryImages.length];
+
+        return {
+          ...branch,
+          image: previewImage,
+          images:
+            branch.images && branch.images.length > 0
+              ? branch.images
+              : [...categoryImages],
+        };
+      }),
+    [branches, supplementalBranches]
   );
 
-  const sidePadding = 16;
-  const availableWidth = useMemo(() => screenWidth - sidePadding * 2, [screenWidth]);
+  const filteredBranches = useMemo(() => {
+    if (selectedCategory === "All") {
+      return homeBranches;
+    }
+
+    return homeBranches.filter(
+      (branch) => normalizeCategory(branch.category) === selectedCategory
+    );
+  }, [homeBranches, selectedCategory]);
+
+  const openNearYou = useMemo(() => filteredBranches.slice(0, 6), [filteredBranches]);
+  const trending = useMemo(() => filteredBranches.slice(0, 6), [filteredBranches]);
+  const topRated = useMemo(
+    () => [...filteredBranches].sort((a, b) => b.rating - a.rating).slice(0, 6),
+    [filteredBranches]
+  );
+
+  const sidePadding = horizontalPadding;
   const cardGap = useMemo(
-    () => Math.min(27, Math.max(18, Math.floor(availableWidth * 0.07))),
-    [availableWidth]
+    () => Math.min(27, Math.max(16, Math.round(27 * layoutScale))),
+    [layoutScale]
   );
   const cardWidth = useMemo(
-    () => Math.min(230, Math.max(200, Math.floor(availableWidth * 0.58))),
-    [availableWidth]
+    () => Math.min(220, Math.max(186, Math.round(207 * layoutScale))),
+    [layoutScale]
   );
 
   const renderService = useCallback(
@@ -124,21 +285,89 @@ export default function HomeScreen() {
 
   const sectionKeyExtractor = useCallback((item: { key: string }) => item.key, []);
   const sectionSeparator = useCallback(() => <View style={{ height: 0 }} />, []);
+  const topRowStyle = useMemo(
+    () => [styles.topRow, { paddingHorizontal: horizontalPadding, gap: headerControlsGap }],
+    [headerControlsGap, horizontalPadding]
+  );
+  const categoriesScrollStyle = useMemo(
+    () => [styles.categoriesScroll, { paddingHorizontal: horizontalPadding, gap: categoriesChipGap }],
+    [categoriesChipGap, horizontalPadding]
+  );
+  const sectionContainerStyle = useMemo(
+    () => [styles.section, { paddingHorizontal: sidePadding }],
+    [sidePadding]
+  );
 
   const listHeader = useMemo(
     () => (
-      <View style={styles.topRow}>
-        <TouchableOpacity style={styles.locationChip} activeOpacity={0.9}>
-          <Ionicons name="location-outline" size={18} color="#000" />
-          <Text style={styles.locationText}>{t("yourLocation")}</Text>
-          <Ionicons name="chevron-down-outline" size={16} color="#000" style={{ opacity: 0.7 }} />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.searchButton} activeOpacity={0.9}>
-          <Ionicons name="search-outline" size={20} color="#000" />
-        </TouchableOpacity>
-      </View>
+      <>
+        <View style={topRowStyle}>
+          <TouchableOpacity
+            style={[
+              styles.locationChip,
+              {
+                width: locationChipWidth,
+              },
+            ]}
+            activeOpacity={0.9}
+          >
+            <Ionicons name="location-outline" size={18} color="#000" />
+            <Text style={styles.locationText}>{t("yourLocation")}</Text>
+            <Ionicons name="chevron-down-outline" size={16} color="#000" style={{ opacity: 0.7 }} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.searchButton} activeOpacity={0.9}>
+            <Ionicons name="search-outline" size={20} color="#000" />
+          </TouchableOpacity>
+        </View>
+        <View
+          style={[
+            styles.categoriesWrap,
+            {
+              marginTop: categoriesTopSpacing,
+              marginBottom: categoriesBottomSpacing,
+            },
+          ]}
+        >
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={categoriesScrollStyle}
+          >
+            {HOME_CATEGORY_CHIPS.map((chip) => {
+              const isActive = selectedCategory === chip.key;
+              return (
+                <TouchableOpacity
+                  key={chip.key}
+                  activeOpacity={0.85}
+                  style={[styles.categoryChip, isActive && styles.categoryChipActive]}
+                  onPress={() => setSelectedCategory(chip.key)}
+                >
+                  {chip.iconName ? (
+                    <Ionicons
+                      name={chip.iconName}
+                      size={14}
+                      color={isActive ? "#FFFFFF" : "#18181B"}
+                    />
+                  ) : null}
+                  <Text style={[styles.categoryChipLabel, isActive && styles.categoryChipLabelActive]}>
+                    {t(chip.labelKey)}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+      </>
     ),
-    [t]
+    [
+      categoriesBottomSpacing,
+      categoriesTopSpacing,
+      categoriesScrollStyle,
+      locationChipWidth,
+      selectedCategory,
+      topRowStyle,
+      t,
+    ]
   );
 
   const sectionItemSeparator = useCallback(
@@ -157,7 +386,7 @@ export default function HomeScreen() {
 
   const renderSection = useCallback(
     ({ item }: { item: { key: string; title: string; data: BranchData[] } }) => (
-      <View style={styles.section}>
+      <View style={sectionContainerStyle}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>{item.title}</Text>
           <TouchableOpacity 
@@ -173,7 +402,10 @@ export default function HomeScreen() {
           keyExtractor={keyExtractor}
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.servicesRow}
+          contentContainerStyle={[
+            styles.servicesRow,
+            { paddingRight: sidePadding },
+          ]}
           ItemSeparatorComponent={sectionItemSeparator}
           snapToInterval={cardWidth + cardGap}
           snapToAlignment="start"
@@ -196,8 +428,8 @@ export default function HomeScreen() {
       handleShowMore,
       keyExtractor,
       renderService,
+      sectionContainerStyle,
       sectionItemSeparator,
-      sidePadding,
       t,
     ]
   );
@@ -205,9 +437,12 @@ export default function HomeScreen() {
   const contentStyle = useMemo(
     () => [
       styles.containerContent,
-      { paddingTop: insets.top + 16, paddingBottom: insets.bottom },
+      {
+        paddingTop: insets.top + headerTopOffset,
+        paddingBottom: insets.bottom + TAB_BAR_BASE_HEIGHT + 24,
+      },
     ],
-    [insets.bottom, insets.top]
+    [headerTopOffset, insets.bottom, insets.top]
   );
 
   return (
@@ -231,7 +466,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#FAFAFA",
   },
   containerContent: {
     paddingBottom: 24,
@@ -242,13 +477,45 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 16,
     marginTop: 0,
+    gap: 13,
+  },
+  categoriesWrap: {
+    height: 42,
+  },
+  categoriesScroll: {
+    paddingHorizontal: 16,
+    gap: 10,
+  },
+  categoryChip: {
+    height: 42,
+    borderRadius: 20,
+    borderWidth: 0.5,
+    borderColor: "#E4E4E7",
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  categoryChipActive: {
+    backgroundColor: "#EB8100",
+    borderColor: "#EB8100",
+  },
+  categoryChipLabel: {
+    fontSize: 12,
+    lineHeight: 15,
+    fontWeight: "700",
+    color: "#18181B",
+  },
+  categoryChipLabelActive: {
+    color: "#FFFFFF",
   },
   locationChip: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 4,
-    width: 184,
     height: 44,
     paddingHorizontal: 16,
     paddingVertical: 8,
@@ -272,7 +539,7 @@ const styles = StyleSheet.create({
   searchButton: {
     width: 42,
     height: 42,
-    borderRadius: 10,
+    borderRadius: 999,
     backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
@@ -284,9 +551,9 @@ const styles = StyleSheet.create({
   },
   section: {
     paddingHorizontal: 16,
-    paddingTop: 12,
+    paddingTop: 0,
     paddingBottom: 16,
-    gap: 12,
+    gap: 16,
   },
   sectionHeader: {
     flexDirection: "row",
@@ -358,3 +625,4 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
   },
 });
+

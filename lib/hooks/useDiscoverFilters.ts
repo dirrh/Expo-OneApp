@@ -1,11 +1,4 @@
-/**
- * useDiscoverFilters.ts
- * 
- * Tento hook spravuje všetky filtre na Discover obrazovke.
- * Obsahuje logiku pre filtrovanie podľa kategórie, hodnotenia a vyhľadávania.
- */
-
-import { useState, useMemo, useCallback } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { BranchData, DiscoverMapMarker } from "../interfaces";
 
 const parseNumericRating = (value: unknown): number | null => {
@@ -25,10 +18,7 @@ const parseNumericRating = (value: unknown): number | null => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
-const resolveRating = (
-  ratingValue: unknown,
-  formattedValue?: string
-): number | null => {
+const resolveRating = (ratingValue: unknown, formattedValue?: string): number | null => {
   const parsedRating = parseNumericRating(ratingValue);
   if (parsedRating !== null) {
     return parsedRating;
@@ -41,128 +31,174 @@ const resolveRating = (
   return null;
 };
 
+type SharedDiscoverFilterState = {
+  initialized: boolean;
+  filter: string;
+  appliedFilters: Set<string>;
+  sub: Set<string>;
+  ratingFilter: Set<string>;
+  appliedRatings: Set<string>;
+};
 
-/**
- * Typ pre návratovú hodnotu hooku - definuje čo všetko hook vracia
- */
+const sharedState: SharedDiscoverFilterState = {
+  initialized: false,
+  filter: "Gastro",
+  appliedFilters: new Set<string>(),
+  sub: new Set<string>(),
+  ratingFilter: new Set<string>(),
+  appliedRatings: new Set<string>(),
+};
+
+const listeners = new Set<() => void>();
+
+const cloneSet = (value: Set<string>): Set<string> => new Set(value);
+
+const resolveStateAction = <T,>(current: T, next: React.SetStateAction<T>): T => {
+  if (typeof next === "function") {
+    return (next as (prev: T) => T)(current);
+  }
+  return next;
+};
+
+const emitChange = () => {
+  listeners.forEach((listener) => listener());
+};
+
+const subscribe = (listener: () => void) => {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+};
+
 export interface UseDiscoverFiltersReturn {
-  // === STAV FILTROV ===
-  filter: string;                                                    // aktuálne vybraná kategória (napr. "Gastro")
-  setFilter: React.Dispatch<React.SetStateAction<string>>;          // funkcia na zmenu kategórie
-  appliedFilters: Set<string>;                                      // aktívne kategórie (prázdne = žiadny)
+  filter: string;
+  setFilter: React.Dispatch<React.SetStateAction<string>>;
+  appliedFilters: Set<string>;
   setAppliedFilters: React.Dispatch<React.SetStateAction<Set<string>>>;
-
-  // === STAV PODKATEGÓRIÍ ===
-  sub: Set<string>;                                                  // vybrané podkategórie (napr. "Vegan", "Pizza")
+  sub: Set<string>;
   setSub: React.Dispatch<React.SetStateAction<Set<string>>>;
-  toggleSubcategory: (name: string) => void;                        // prepne podkategóriu (zapne/vypne)
-
-  // === STAV HODNOTENIA ===
-  ratingFilter: Set<string>;                                         // vybrané hodnotenia v sheete
+  toggleSubcategory: (name: string) => void;
+  ratingFilter: Set<string>;
   setRatingFilter: React.Dispatch<React.SetStateAction<Set<string>>>;
-  appliedRatings: Set<string>;                                       // skutočne aplikované hodnotenia
+  appliedRatings: Set<string>;
   setAppliedRatings: React.Dispatch<React.SetStateAction<Set<string>>>;
-
-  // === VYPOČÍTANÉ HODNOTY ===
-  hasActiveFilter: boolean;                                          // či je nejaký filter aktívny
-  filterCount: number;                                               // počet aktívnych filtrov (pre badge)
-  ratingThreshold: number | null;                                    // minimálne hodnotenie pre filter
-
-  // === FILTROVACIE FUNKCIE ===
+  hasActiveFilter: boolean;
+  filterCount: number;
+  ratingThreshold: number | null;
   filterBranches: (branches: BranchData[], query: string) => BranchData[];
   filterMarkers: (markers: DiscoverMapMarker[]) => DiscoverMapMarker[];
 }
 
-/**
- * Hook na správu všetkých filtrov na Discover obrazovke
- * 
- * @param defaultFilter - predvolená kategória (default: "Gastro")
- * @returns objekt so stavom filtrov a funkciami na ich ovládanie
- * 
- * Príklad použitia:
- * const filters = useDiscoverFilters("Fitness");
- * const filtered = filters.filterBranches(branches, searchText);
- */
 export const useDiscoverFilters = (
   defaultFilter: string = "Gastro"
 ): UseDiscoverFiltersReturn => {
-  
-  // Stav pre kategóriu (Fitness, Gastro, Relax, Beauty)
-  const [filter, setFilter] = useState(defaultFilter);
-  const [appliedFilters, setAppliedFilters] = useState<Set<string>>(() => new Set());
+  if (!sharedState.initialized) {
+    sharedState.initialized = true;
+    sharedState.filter = defaultFilter;
+  }
 
-  // Stav pre podkategórie (Vegan, Pizza, atď.) - používame Set pre rýchle vyhľadávanie
-  const [sub, setSub] = useState<Set<string>>(() => new Set());
+  const [filter, setFilterState] = useState<string>(sharedState.filter);
+  const [appliedFilters, setAppliedFiltersState] = useState<Set<string>>(
+    () => cloneSet(sharedState.appliedFilters)
+  );
+  const [sub, setSubState] = useState<Set<string>>(() => cloneSet(sharedState.sub));
+  const [ratingFilter, setRatingFilterState] = useState<Set<string>>(
+    () => cloneSet(sharedState.ratingFilter)
+  );
+  const [appliedRatings, setAppliedRatingsState] = useState<Set<string>>(
+    () => cloneSet(sharedState.appliedRatings)
+  );
 
-  // Stav pre filter podľa hodnotenia
-  const [ratingFilter, setRatingFilter] = useState<Set<string>>(() => new Set());
-  const [appliedRatings, setAppliedRatings] = useState<Set<string>>(() => new Set());
-
-  /**
-   * Prepne podkategóriu - ak je vybraná, odstráni ju, ak nie je, pridá ju
-   * useCallback zabezpečí, že sa funkcia nevytvára znova pri každom renderovaní
-   */
-  const toggleSubcategory = useCallback((name: string) => {
-    setSub((prev) => {
-      const next = new Set(prev);
-      if (next.has(name)) {
-        next.delete(name);  // ak už je vybraná, odstránime
-      } else {
-        next.add(name);     // ak nie je vybraná, pridáme
-      }
-      return next;
-    });
+  const syncFromShared = useCallback(() => {
+    setFilterState(sharedState.filter);
+    setAppliedFiltersState(cloneSet(sharedState.appliedFilters));
+    setSubState(cloneSet(sharedState.sub));
+    setRatingFilterState(cloneSet(sharedState.ratingFilter));
+    setAppliedRatingsState(cloneSet(sharedState.appliedRatings));
   }, []);
 
-  /**
-   * Či je nejaký filter aktívny - používame na zobrazenie/skrytie uložených lokácií
-   * useMemo zabezpečí, že sa hodnota prepočíta len keď sa zmení appliedFilters alebo appliedRatings
-   */
+  useEffect(() => {
+    const unsubscribe = subscribe(syncFromShared);
+    return () => {
+      unsubscribe();
+    };
+  }, [syncFromShared]);
+
+  const setFilter = useCallback<React.Dispatch<React.SetStateAction<string>>>((next) => {
+    sharedState.filter = resolveStateAction(sharedState.filter, next);
+    emitChange();
+  }, []);
+
+  const setAppliedFilters = useCallback<
+    React.Dispatch<React.SetStateAction<Set<string>>>
+  >((next) => {
+    const resolved = resolveStateAction(sharedState.appliedFilters, next);
+    sharedState.appliedFilters = cloneSet(resolved);
+    emitChange();
+  }, []);
+
+  const setSub = useCallback<React.Dispatch<React.SetStateAction<Set<string>>>>((next) => {
+    const resolved = resolveStateAction(sharedState.sub, next);
+    sharedState.sub = cloneSet(resolved);
+    emitChange();
+  }, []);
+
+  const setRatingFilter = useCallback<
+    React.Dispatch<React.SetStateAction<Set<string>>>
+  >((next) => {
+    const resolved = resolveStateAction(sharedState.ratingFilter, next);
+    sharedState.ratingFilter = cloneSet(resolved);
+    emitChange();
+  }, []);
+
+  const setAppliedRatings = useCallback<
+    React.Dispatch<React.SetStateAction<Set<string>>>
+  >((next) => {
+    const resolved = resolveStateAction(sharedState.appliedRatings, next);
+    sharedState.appliedRatings = cloneSet(resolved);
+    emitChange();
+  }, []);
+
+  const toggleSubcategory = useCallback(
+    (name: string) => {
+      setSub((prev) => {
+        const next = new Set(prev);
+        if (next.has(name)) {
+          next.delete(name);
+        } else {
+          next.add(name);
+        }
+        return next;
+      });
+    },
+    [setSub]
+  );
+
   const hasActiveFilter = useMemo(
     () => appliedFilters.size > 0 || appliedRatings.size > 0,
     [appliedFilters, appliedRatings]
   );
 
-  /**
-   * Celkový počet filtrov - zobrazujeme na badge tlačidla filtra
-   */
   const filterCount = useMemo(
     () => sub.size + ratingFilter.size,
     [sub.size, ratingFilter.size]
   );
 
-  /**
-   * Minimálne hodnotenie pre filter
-   * Napr. ak user vyberie 4.5 a 4.8, vezmeme maximum (4.8) - zobrazia sa len 4.8+
-   */
   const ratingThreshold = useMemo(() => {
-    // Prevedieme Set na pole čísel
     const values = Array.from(appliedRatings)
       .map((value) => parseNumericRating(value))
       .filter((value): value is number => value !== null);
-    
-    // Ak nie je vybraté žiadne hodnotenie, vrátime null
+
     if (values.length === 0) {
       return null;
     }
-    
-    // Vrátime najvyššiu hodnotu
+
     return Math.max(...values);
   }, [appliedRatings]);
 
-  /**
-   * Filtruje pobočky podľa kategórie, hodnotenia a vyhľadávacieho textu
-   * 
-   * @param branches - pole všetkých pobočiek
-   * @param query - vyhľadávací text
-   * @returns prefiltrované pole pobočiek
-   */
   const filterBranches = useCallback(
     (branches: BranchData[], query: string): BranchData[] => {
-      // Normalizujeme vyhľadávací text (malé písmená, bez medzier na krajoch)
       const normalizedQuery = query.trim().toLowerCase();
 
-      // Krok 1: Aplikujeme filter hodnotenia
       let filtered =
         ratingThreshold === null
           ? branches
@@ -171,7 +207,6 @@ export const useDiscoverFilters = (
               return numericRating !== null && numericRating >= ratingThreshold;
             });
 
-      // Krok 2: Aplikujeme filter kategórie
       if (appliedFilters.size > 0) {
         filtered = filtered.filter((branch) => {
           const category = branch.category;
@@ -179,7 +214,6 @@ export const useDiscoverFilters = (
         });
       }
 
-      // Krok 3: Aplikujeme vyhľadávanie v názve
       if (normalizedQuery) {
         filtered = filtered.filter((branch) =>
           branch.title.toLowerCase().includes(normalizedQuery)
@@ -191,13 +225,8 @@ export const useDiscoverFilters = (
     [appliedFilters, ratingThreshold]
   );
 
-  /**
-   * Filtruje markery na mape podľa kategórie a hodnotenia
-   * Podobné ako filterBranches, ale bez vyhľadávania (markery nemajú search)
-   */
   const filterMarkers = useCallback(
     (markers: DiscoverMapMarker[]): DiscoverMapMarker[] => {
-      // Krok 1: Filter podľa hodnotenia
       let filtered =
         ratingThreshold === null
           ? markers
@@ -206,7 +235,6 @@ export const useDiscoverFilters = (
               return numericRating !== null && numericRating >= ratingThreshold;
             });
 
-      // Krok 2: Filter podľa kategórie
       if (appliedFilters.size > 0) {
         filtered = filtered.filter((item) => appliedFilters.has(item.category));
       }
@@ -216,7 +244,6 @@ export const useDiscoverFilters = (
     [appliedFilters, ratingThreshold]
   );
 
-  // Vrátime všetky hodnoty a funkcie, ktoré komponenty potrebujú
   return {
     filter,
     setFilter,

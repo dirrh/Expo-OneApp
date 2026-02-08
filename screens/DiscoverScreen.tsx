@@ -157,10 +157,11 @@ export default function DiscoverScreen() {
   // Hide/show tab bar based on sheet state
   useFocusEffect(
     useCallback(() => {
+      const shouldHideTabBar = sideFilterOpen || (isSheetOpen && searchSheetIndex === -1);
       navigation.setOptions({
-        tabBarStyle: { display: isSheetOpen ? "none" : "flex" },
+        tabBarStyle: { display: shouldHideTabBar ? "none" : "flex" },
       });
-    }, [navigation, isSheetOpen])
+    }, [navigation, sideFilterOpen, isSheetOpen, searchSheetIndex])
   );
 
   // Open/close group sheet based on selected group

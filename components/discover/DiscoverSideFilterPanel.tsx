@@ -1,6 +1,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import {
   Animated,
+  Platform,
   StyleSheet,
   TouchableWithoutFeedback,
   View,
@@ -13,6 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import {
   PanGestureHandler,
   State,
+  type PanGestureHandlerGestureEvent,
   type PanGestureHandlerStateChangeEvent,
 } from "react-native-gesture-handler";
 import { useTranslation } from "react-i18next";
@@ -92,19 +94,38 @@ function DiscoverSideFilterPanel({
   toggleSubcategory,
 }: Props) {
   const { t } = useTranslation();
-  const { width, height } = useWindowDimensions();
+  const { height } = useWindowDimensions();
   const PANEL_WIDTH = 326;
+  const PULL_HANDLE_WIDTH = 28;
+  const PULL_HANDLE_HEIGHT = 72;
+  const PULL_HANDLE_TOP_MARGIN = 72;
+  const PULL_HANDLE_BOTTOM_MARGIN = 120;
+  const INITIAL_PULL_HANDLE_TOP = Math.max(
+    PULL_HANDLE_TOP_MARGIN,
+    height / 2 - PULL_HANDLE_HEIGHT / 2
+  );
 
   // Animácie
   const translateX = useRef(new Animated.Value(PANEL_WIDTH)).current;
   const dragX = useRef(new Animated.Value(0)).current;
   const translateXValue = useRef(PANEL_WIDTH);
   const dragStartX = useRef(PANEL_WIDTH);
+  const pullHandleStartTop = useRef(INITIAL_PULL_HANDLE_TOP);
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   const pullHandleOpacity = useRef(new Animated.Value(visible ? 0 : 1)).current;
+  const [pullHandleTop, setPullHandleTop] = React.useState(INITIAL_PULL_HANDLE_TOP);
 
   // Discover state (zatiaľ nič nerobí)
   const [discoverOptions, setDiscoverOptions] = React.useState<Set<string>>(new Set());
+
+  const clampPullHandleTop = useCallback(
+    (value: number) => {
+      const minTop = PULL_HANDLE_TOP_MARGIN;
+      const maxTop = Math.max(minTop, height - PULL_HANDLE_BOTTOM_MARGIN - PULL_HANDLE_HEIGHT);
+      return Math.max(minTop, Math.min(maxTop, value));
+    },
+    [height]
+  );
 
   const openPanel = () => {
     dragX.setValue(0);
@@ -178,6 +199,10 @@ function DiscoverSideFilterPanel({
     }
   }, [PANEL_WIDTH]);
 
+  useEffect(() => {
+    setPullHandleTop((prev) => clampPullHandleTop(prev));
+  }, [clampPullHandleTop]);
+
   const toggleDiscover = (option: string) => {
     // Zatiaľ nič nerobí
     setDiscoverOptions((prev) => {
@@ -199,13 +224,27 @@ function DiscoverSideFilterPanel({
     [translateX, dragX, PANEL_WIDTH]
   );
 
-  const handleGestureEvent = useMemo(
-    () =>
-      Animated.event(
-        [{ nativeEvent: { translationX: dragX } }],
-        { useNativeDriver: true }
-      ),
+  const handleGestureEvent = useCallback(
+    (event: PanGestureHandlerGestureEvent) => {
+      dragX.setValue(event.nativeEvent.translationX);
+    },
     [dragX]
+  );
+
+  const handlePullHandleGestureEvent = useCallback(
+    (event: PanGestureHandlerGestureEvent) => {
+      if (visible) return;
+
+      const { translationX, translationY } = event.nativeEvent;
+      if (Math.abs(translationY) > Math.abs(translationX)) {
+        dragX.setValue(0);
+        setPullHandleTop(clampPullHandleTop(pullHandleStartTop.current + translationY));
+        return;
+      }
+
+      dragX.setValue(translationX);
+    },
+    [visible, dragX, clampPullHandleTop]
   );
 
   const handleGestureStateChange = (event: PanGestureHandlerStateChangeEvent) => {
@@ -238,15 +277,34 @@ function DiscoverSideFilterPanel({
   };
 
   const handlePullHandleStateChange = (event: PanGestureHandlerStateChangeEvent) => {
-    const { state, translationX, velocityX } = event.nativeEvent;
+    const { state, translationX, translationY, velocityX, velocityY } = event.nativeEvent;
+
+    if (state === State.BEGAN) {
+      pullHandleStartTop.current = pullHandleTop;
+      dragStartX.current = translateXValue.current;
+      dragX.setValue(0);
+      return;
+    }
 
     if (
       !visible &&
-      state === State.END &&
+      (state === State.END || state === State.CANCELLED || state === State.FAILED) &&
       Math.abs(translationX) <= 6 &&
-      Math.abs(velocityX) <= 250
+      Math.abs(translationY) <= 6 &&
+      Math.abs(velocityX) <= 250 &&
+      Math.abs(velocityY) <= 250
     ) {
       onOpen();
+      return;
+    }
+
+    if (
+      !visible &&
+      (state === State.END || state === State.CANCELLED || state === State.FAILED) &&
+      Math.abs(translationY) > Math.abs(translationX)
+    ) {
+      setPullHandleTop(clampPullHandleTop(pullHandleStartTop.current + translationY));
+      dragX.setValue(0);
       return;
     }
 
@@ -259,18 +317,20 @@ function DiscoverSideFilterPanel({
       {!visible && (
         <>
           <PanGestureHandler
-            onGestureEvent={handleGestureEvent}
+            onGestureEvent={handlePullHandleGestureEvent}
             onHandlerStateChange={handlePullHandleStateChange}
-            activeOffsetX={[-10, 999]}
-            failOffsetY={[-10, 10]}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            activeOffsetX={[-8, 8]}
+            activeOffsetY={[-8, 8]}
+            hitSlop={{ top: 14, bottom: 14, left: 18, right: 18 }}
           >
             <Animated.View
               style={[
                 styles.pullHandleContainer,
                 {
                   opacity: pullHandleOpacity,
-                  top: height / 2 - 27,
+                  top: pullHandleTop,
+                  width: PULL_HANDLE_WIDTH,
+                  height: PULL_HANDLE_HEIGHT,
                 },
               ]}
             >
@@ -278,6 +338,7 @@ function DiscoverSideFilterPanel({
                 style={[
                   styles.pullHandle,
                   isFilterActive ? styles.pullHandleActive : styles.pullHandleInactive,
+                  { width: PULL_HANDLE_WIDTH, height: PULL_HANDLE_HEIGHT },
                 ]}
               >
                 <View
@@ -289,47 +350,33 @@ function DiscoverSideFilterPanel({
               </View>
             </Animated.View>
           </PanGestureHandler>
-
-          <PanGestureHandler
-            onGestureEvent={handleGestureEvent}
-            onHandlerStateChange={handleGestureStateChange}
-            activeOffsetX={[-10, 999]}
-            failOffsetY={[-10, 10]}
-          >
-            <View style={styles.edgeSwipeZone} pointerEvents="box-only" />
-          </PanGestureHandler>
         </>
       )}
 
-      <View
-        style={[
-          styles.overlay,
-          { pointerEvents: visible ? "auto" : "none" },
-        ]}
-      >
-        <Animated.View
-          style={[
-            styles.backdrop,
-            {
-              opacity: backdropOpacity,
-              pointerEvents: visible ? "auto" : "none",
-            },
-          ]}
-        >
-          <TouchableWithoutFeedback onPress={closePanel}>
-            <View style={StyleSheet.absoluteFill} />
-          </TouchableWithoutFeedback>
-        </Animated.View>
+      {visible ? (
+        <View style={styles.overlay}>
+          <Animated.View
+            style={[
+              styles.backdrop,
+              {
+                opacity: backdropOpacity,
+              },
+            ]}
+          >
+            <TouchableWithoutFeedback onPress={closePanel}>
+              <View style={StyleSheet.absoluteFill} />
+            </TouchableWithoutFeedback>
+          </Animated.View>
 
-        <Animated.View
-          style={[
-            styles.panel,
-            {
-              width: PANEL_WIDTH,
-              transform: [{ translateX: panelTranslateX }],
-            },
-          ]}
-        >
+          <Animated.View
+            style={[
+              styles.panel,
+              {
+                width: PANEL_WIDTH,
+                transform: [{ translateX: panelTranslateX }],
+              },
+            ]}
+          >
           {/* Orange Handle - pre swipe gesture na zatvorenie */}
           {visible && (
             <PanGestureHandler
@@ -339,11 +386,22 @@ function DiscoverSideFilterPanel({
               failOffsetY={[-10, 10]}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <View style={styles.handleWrapper}>
+              <View
+                style={[
+                  styles.handleWrapper,
+                  {
+                    top: pullHandleTop,
+                    width: PULL_HANDLE_WIDTH,
+                    height: PULL_HANDLE_HEIGHT,
+                    left: -PULL_HANDLE_WIDTH,
+                  },
+                ]}
+              >
                 <View
                   style={[
                     styles.orangeHandle,
                     isFilterActive ? styles.pullHandleActive : styles.pullHandleInactive,
+                    { width: PULL_HANDLE_WIDTH, height: PULL_HANDLE_HEIGHT },
                   ]}
                 >
                   <View
@@ -506,8 +564,9 @@ function DiscoverSideFilterPanel({
               </View>
             </View>
           </ScrollView>
-        </Animated.View>
-      </View>
+          </Animated.View>
+        </View>
+      ) : null}
     </>
   );
 }
@@ -518,21 +577,25 @@ const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 9999,
+    elevation: 9999,
     flexDirection: "row",
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0, 0, 0, 0.4)",
+    zIndex: 0,
+    elevation: 0,
   },
   panel: {
     position: "absolute",
     right: 0,
     top: 0,
     bottom: 0,
+    zIndex: 1,
     backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 30,
     borderBottomLeftRadius: 30,
-    elevation: 10,
+    elevation: 20,
     shadowColor: "#000",
     shadowOffset: { width: -2, height: 0 },
     shadowOpacity: 0.25,
@@ -540,22 +603,25 @@ const styles = StyleSheet.create({
   },
   handleWrapper: {
     position: "absolute",
-    left: -22,
-    top: "50%",
-    marginTop: -27,
-    width: 22,
-    height: 54,
     justifyContent: "center",
     alignItems: "center",
     zIndex: 10000,
+    elevation: 10000,
   },
   orangeHandle: {
-    width: 22,
-    height: 54,
-    borderTopLeftRadius: 20,
-    borderBottomLeftRadius: 20,
+    borderTopLeftRadius: 22,
+    borderBottomLeftRadius: 22,
     justifyContent: "center",
     alignItems: "center",
+    ...(Platform.OS === "web"
+      ? { boxShadow: "0px 2px 8px rgba(0, 0, 0, 0.18)" }
+      : {
+          shadowColor: "#000",
+          shadowOpacity: 0.14,
+          shadowRadius: 6,
+          shadowOffset: { width: 0, height: 2 },
+          elevation: 8,
+        }),
   },
   orangeHandleLine: {
     width: 3,
@@ -567,6 +633,8 @@ const styles = StyleSheet.create({
   },
   pullHandleInactive: {
     backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E4E4E7",
   },
   pullHandleLineActive: {
     backgroundColor: "#FFFFFF",
@@ -697,33 +765,30 @@ const styles = StyleSheet.create({
   pullHandleContainer: {
     position: "absolute",
     right: 0,
-    width: 22,
-    height: 54,
     justifyContent: "center",
     alignItems: "center",
     zIndex: 9998,
+    elevation: 9998,
     pointerEvents: "auto",
   },
   pullHandle: {
-    width: 22,
-    height: 54,
-    borderTopLeftRadius: 20,
-    borderBottomLeftRadius: 20,
+    borderTopLeftRadius: 22,
+    borderBottomLeftRadius: 22,
     justifyContent: "center",
     alignItems: "center",
+    ...(Platform.OS === "web"
+      ? { boxShadow: "0px 2px 8px rgba(0, 0, 0, 0.18)" }
+      : {
+          shadowColor: "#000",
+          shadowOpacity: 0.14,
+          shadowRadius: 6,
+          shadowOffset: { width: 0, height: 2 },
+          elevation: 8,
+        }),
   },
   pullHandleLine: {
-    width: 3,
-    height: 22,
+    width: 4,
+    height: 30,
     borderRadius: 2,
-  },
-  edgeSwipeZone: {
-    position: "absolute",
-    right: 0,
-    top: 0,
-    bottom: 0,
-    width: 24,
-    backgroundColor: "transparent",
-    zIndex: 9997,
   },
 });

@@ -20,7 +20,6 @@ import OnboardingScreen from "./screens/OnboardingScreen";
 import SavedLocationsScreen from "./screens/profile/SavedLocationsScreen";
 import EditLocationScreen from "./screens/profile/EditLocationScreen";
 import DiscoverScreen from "./screens/DiscoverScreen";
-import DiscoverListScreen from "./screens/DiscoverListScreen";
 import ShowMoreScreen from "./screens/ShowMoreScreen";
 import QRScreen from "./screens/QRScreen";
 import LoyaltyCardDetailScreen from "./screens/LoyaltyCardDetailScreen";
@@ -179,7 +178,6 @@ export default function App() {
                 component={SavedLocationsScreen}
               />
               <Stack.Screen name="Discover" component={DiscoverScreen} />
-              <Stack.Screen name="DiscoverList" component={DiscoverListScreen} />
               <Stack.Screen name="ShowMore" component={ShowMoreScreen} />
               <Stack.Screen name="EditLocation" component={EditLocationScreen}/>
               <Stack.Screen 

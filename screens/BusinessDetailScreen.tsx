@@ -1,5 +1,13 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
-import { View, ScrollView, StyleSheet, useWindowDimensions, TouchableOpacity, Image } from "react-native";
+import {
+    View,
+    ScrollView,
+    StyleSheet,
+    useWindowDimensions,
+    TouchableOpacity,
+    Image,
+    Share,
+} from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import BottomSheet from "@gorhom/bottom-sheet";
@@ -32,6 +40,8 @@ export default function BusinessDetailScreen() {
     const [carouselIndex, setCarouselIndex] = useState(0);
     const [activeTab, setActiveTab] =
         useState<TabKey>("benefits");
+    const [isFavorite, setIsFavorite] = useState(false);
+    const [notificationsEnabled, setNotificationsEnabled] = useState(false);
 
     const scrollViewRef = useRef<ScrollView>(null);
     const lastScrollY = useRef(0);
@@ -261,7 +271,36 @@ export default function BusinessDetailScreen() {
     }, [user]);
 
     // Memoizované handlery - nevytvárajú sa nanovo pri každom rendereri
-    const handleBack = useCallback(() => navigation.goBack(), [navigation]);
+    const handleBack = useCallback(() => {
+        if (typeof navigation.canGoBack === "function" && navigation.canGoBack()) {
+            navigation.goBack();
+            return;
+        }
+        navigation.navigate("Tabs", { screen: "Discover" });
+    }, [navigation]);
+
+    const handleFavoritePress = useCallback(() => {
+        setIsFavorite((prev) => !prev);
+    }, []);
+
+    const handleNotificationsPress = useCallback(() => {
+        setNotificationsEnabled((prev) => !prev);
+    }, []);
+
+    const handleSharePress = useCallback(async () => {
+        const title = safeBranch.title || "Branch";
+        const distance = safeBranch.distance || "";
+        const hours = safeBranch.hours || "";
+
+        try {
+            await Share.share({
+                message: `${title}${distance ? ` | ${distance}` : ""}${hours ? ` | ${hours}` : ""}`,
+                title,
+            });
+        } catch {
+            // ignore cancelled share
+        }
+    }, [safeBranch.distance, safeBranch.hours, safeBranch.title]);
     
     const handleTabChange = useCallback(
         (val: string) => setActiveTab(val as TabKey),
@@ -393,6 +432,11 @@ export default function BusinessDetailScreen() {
                     <HeroActions
                         topInset={insets.top}
                         onBack={handleBack}
+                        onFavoritePress={handleFavoritePress}
+                        onNotificationsPress={handleNotificationsPress}
+                        onSharePress={handleSharePress}
+                        isFavorite={isFavorite}
+                        notificationsEnabled={notificationsEnabled}
                     />
 
                     <HeroInfo

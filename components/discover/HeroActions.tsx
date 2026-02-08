@@ -1,38 +1,63 @@
 import React from "react";
-import { View, StyleSheet } from "react-native";
-import { TouchableOpacity } from "react-native-gesture-handler";
+import { View, StyleSheet, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Svg, { Path } from "react-native-svg";
 
 type Props = {
   topInset: number;
   onBack: () => void;
+  onFavoritePress?: () => void;
+  onNotificationsPress?: () => void;
+  onSharePress?: () => void;
+  isFavorite?: boolean;
+  notificationsEnabled?: boolean;
 };
 
-export function HeroActions({ topInset, onBack }: Props) {
+export function HeroActions({
+  topInset,
+  onBack,
+  onFavoritePress,
+  onNotificationsPress,
+  onSharePress,
+  isFavorite = false,
+  notificationsEnabled = false,
+}: Props) {
   const iconColor = "#111";
   const iconSize = 16;
 
   return (
     <>
-      {/* Šípka späť */}
-      <View style={[styles.topLeft, { top: topInset + 14 }]}>
-        <TouchableOpacity style={styles.backBtn} onPress={onBack}>
+      <View style={[styles.topLeft, { top: topInset + 14 }]} pointerEvents="box-none">
+        <TouchableOpacity style={styles.backBtn} onPress={onBack} activeOpacity={0.8} hitSlop={8}>
           <Ionicons name="chevron-back" size={24} color="#fff" style={styles.backIcon} />
         </TouchableOpacity>
       </View>
 
-      {/* Srdce, zvonček, zdieľať */}
-      <View style={[styles.topRight, { top: topInset + 14 }]}>
-        <TouchableOpacity style={styles.actionBtn}>
-          <HeartIcon size={iconSize} color={iconColor} />
+      <View style={[styles.topRight, { top: topInset + 14 }]} pointerEvents="box-none">
+        <TouchableOpacity
+          style={styles.actionBtn}
+          onPress={onFavoritePress}
+          activeOpacity={0.8}
+          hitSlop={8}
+        >
+          <HeartIcon size={iconSize} color={isFavorite ? "#EB8100" : iconColor} />
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionBtn}>
-          <BellIcon size={iconSize} color={iconColor} />
+        <TouchableOpacity
+          style={styles.actionBtn}
+          onPress={onNotificationsPress}
+          activeOpacity={0.8}
+          hitSlop={8}
+        >
+          <BellIcon size={iconSize} color={notificationsEnabled ? "#EB8100" : iconColor} />
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionBtn}>
+        <TouchableOpacity
+          style={styles.actionBtn}
+          onPress={onSharePress}
+          activeOpacity={0.8}
+          hitSlop={8}
+        >
           <ShareIcon size={iconSize} color={iconColor} />
         </TouchableOpacity>
       </View>
@@ -82,11 +107,15 @@ const styles = StyleSheet.create({
   topLeft: {
     position: "absolute",
     left: 16,
+    zIndex: 40,
+    elevation: 40,
   },
   topRight: {
     position: "absolute",
     right: 16,
     gap: 6,
+    zIndex: 40,
+    elevation: 40,
   },
   backBtn: {
     width: 30,
@@ -109,3 +138,4 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 });
+

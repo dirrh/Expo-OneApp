@@ -1,6 +1,5 @@
-import React, { useMemo, useRef } from "react";
-import { Pressable, Text, View, StyleSheet, Platform, useWindowDimensions } from "react-native";
-import { TouchableOpacity } from "react-native-gesture-handler";
+import React, { useCallback, useMemo, useRef } from "react";
+import { Pressable, Text, View, StyleSheet, Platform, TouchableOpacity, useWindowDimensions } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import type BottomSheet from "@gorhom/bottom-sheet";
@@ -53,23 +52,24 @@ export default function DiscoverTopControls({
     () => getLocationIcon(option, selectedOption?.isSaved),
     [option, selectedOption]
   );
+  const focusLocation = useCallback(
+    (label: string, coord?: [number, number]) => {
+      const target =
+        label === "yourLocation" ? userCoord ?? mainMapCenter ?? null : coord ?? null;
+
+      setOption(label);
+      setOpen(false);
+
+      if (target) {
+        setMapCamera(cameraRef, { center: target, zoom: 14, durationMs: 800 });
+      }
+    },
+    [cameraRef, mainMapCenter, setOpen, setOption, userCoord]
+  );
   const topBarWidth = useMemo(
-    () => Math.max(0, screenWidth - 32),
+    () => Math.max(0, screenWidth - 34),
     [screenWidth]
   );
-  const { leftGap, rightGap, searchBarWidth } = useMemo(() => {
-    const minSearch = 120;
-    const baseGap = screenWidth < 360 ? 10 : 14;
-    const maxSearch = topBarWidth - 84 - baseGap * 2;
-    const resolvedGap =
-      maxSearch < minSearch
-        ? Math.max(0, Math.floor((topBarWidth - 84 - minSearch) / 2))
-        : baseGap;
-    const left = resolvedGap;
-    const right = resolvedGap;
-    const width = Math.max(0, topBarWidth - 84 - left - right);
-    return { leftGap: left, rightGap: right, searchBarWidth: width };
-  }, [screenWidth, topBarWidth]);
   return (
     <>
       <View style={[styles.dropdown_main, { top: insetsTop + 16 }]} pointerEvents="box-none">
@@ -79,31 +79,26 @@ export default function DiscoverTopControls({
         {o && !open && (
           <View style={localStyles.topBarRowWrap}>
             <View style={[localStyles.topBarRow, { width: topBarWidth }]}>
-              {/* Location button */}
-              <TouchableOpacity
-                style={localStyles.roundBtn}
-                activeOpacity={0.85}
-                onPress={() => setOpen(true)}
-              >
-                <Ionicons name={selectedIcon} size={18} color="#000" />
-              </TouchableOpacity>
-
-              {/* Search bar */}
-              <TouchableOpacity
-                style={[
-                  localStyles.searchBar,
-                  { width: searchBarWidth, marginLeft: leftGap, marginRight: rightGap },
-                ]}
-                activeOpacity={0.9}
-                onPress={onOpenSearch}
-              >
-                <Ionicons name="search-outline" size={16} color="#71717A" />
-                <Text style={localStyles.searchPlaceholder}>{t("searchbranches")}</Text>
-              </TouchableOpacity>
+              <View style={localStyles.searchBar}>
+                <TouchableOpacity
+                  style={localStyles.searchLeadingIconButton}
+                  activeOpacity={0.85}
+                  onPress={() => setOpen(true)}
+                >
+                  <Ionicons name={selectedIcon} size={18} color="#000" />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={localStyles.searchInputButton}
+                  activeOpacity={0.9}
+                  onPress={onOpenSearch}
+                >
+                  <Text style={localStyles.searchPlaceholder}>{t("searchbranches")}</Text>
+                </TouchableOpacity>
+              </View>
 
               {/* List button */}
               <TouchableOpacity
-                style={localStyles.roundBtn}
+                style={localStyles.iconOnlyBtn}
                 activeOpacity={0.85}
                 onPress={() => navigation.navigate("DiscoverList", { userCoord })}
               >
@@ -119,7 +114,7 @@ export default function DiscoverTopControls({
             <View style={styles.card}>
               <TouchableOpacity
                 style={styles.row}
-                onPress={() => setOpen(false)}
+                onPress={() => focusLocation(option, selectedOption?.coord)}
                 activeOpacity={0.85}
               >
                 <Ionicons name={selectedIcon} size={20} color="#000" style={styles.rowIcon} />
@@ -147,11 +142,7 @@ export default function DiscoverTopControls({
                           navigation.navigate("SavedLocations");
                           return;
                         }
-                        setOption(opt.label);
-                        setOpen(false);
-                        if (opt.coord) {
-                          setMapCamera(cameraRef, { center: opt.coord, zoom: 14, durationMs: 800 });
-                        }
+                        focusLocation(opt.label, opt.coord);
                       }}
                       activeOpacity={0.85}
                     >
@@ -206,22 +197,6 @@ export default function DiscoverTopControls({
         )}
       </View>
 
-      {/* Centrovanie button - dole vpravo */}
-      {o && (
-        <View style={[styles.centerBtnContainer, { bottom: 140 }]} pointerEvents="box-none">
-          <TouchableOpacity
-            style={styles.roundBtn}
-            activeOpacity={0.85}
-            onPress={() => {
-              const target = userCoord ?? [18.091, 48.3069];
-              setMapCamera(cameraRef, { center: target, zoom: 14, durationMs: 800 });
-            }}
-          >
-            <Ionicons name="navigate-outline" size={22} color="#000" />
-          </TouchableOpacity>
-        </View>
-      )}
-
       <DiscoverLocationSheet
         locationRef={locationRef}
         setLocation={setLocation}
@@ -239,19 +214,37 @@ const localStyles = StyleSheet.create({
     alignItems: "center",
   },
   topBarRow: {
-    flexBasis: "100%",
+    width: "100%",
     alignSelf: "center",
-    justifyContent: "flex-start",
     flexDirection: "row",
     alignItems: "center",
     height: 42,
+    gap: 14,
   },
   roundBtn: {
     flexGrow: 0,
     flexShrink: 0,
     width: 42,
     height: 42,
-    borderRadius: 10,
+    borderRadius: 999,
+    padding: 12,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    ...(Platform.OS === "web"
+      ? { boxShadow: "0px 3px 10px rgba(0, 0, 0, 0.1)" }
+      : {
+          shadowColor: "#000",
+          shadowOpacity: 0.1,
+          shadowRadius: 10,
+          shadowOffset: { width: 0, height: 3 },
+          elevation: 4,
+        }),
+  },
+  iconOnlyBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 999,
     backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
@@ -266,7 +259,9 @@ const localStyles = StyleSheet.create({
         }),
   },
   searchBar: {
-    minWidth: 0,
+    flex: 1,
+    minWidth: 120,
+    maxWidth: 458,
     height: 42,
     flexDirection: "row",
     alignItems: "center",
@@ -275,27 +270,44 @@ const localStyles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderRadius: 20,
     ...(Platform.OS === "web"
-      ? { boxShadow: "0px 3px 10px rgba(0, 0, 0, 0.1)" }
+      ? { boxShadow: "0px 3px 10px rgba(0, 0, 0, 0.05)" }
       : {
           shadowColor: "#000",
-          shadowOpacity: 0.1,
+          shadowOpacity: 0.05,
           shadowRadius: 10,
           shadowOffset: { width: 0, height: 3 },
           elevation: 4,
         }),
   },
-  searchPlaceholder: {
+  searchLeadingIconButton: {
+    width: 18,
+    height: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  searchInputButton: {
     flex: 1,
+    height: "100%",
+    justifyContent: "center",
+    alignItems: "flex-start",
+  },
+  searchPlaceholder: {
     fontSize: 14,
     fontWeight: "500",
+    lineHeight: 20,
+    includeFontPadding: false,
+    textAlignVertical: "center",
     color: "#71717A",
   },
   openActions: {
     position: "absolute",
     right: 16,
+    width: 97,
+    height: 42,
     flexDirection: "row",
-    gap: 10,
+    gap: 13,
     alignItems: "center",
+    justifyContent: "space-between",
     zIndex: 3,
   },
 });

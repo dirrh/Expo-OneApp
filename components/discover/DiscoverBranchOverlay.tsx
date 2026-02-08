@@ -23,6 +23,8 @@ import {
   BRANCH_CARD_BASELINE_OFFSET,
   BRANCH_CARD_OVERLAY_PADDING_Y,
   BRANCH_CARD_EXTRA_OFFSET,
+  TAB_BAR_BASE_HEIGHT,
+  TAB_BAR_MIN_INSET,
 } from "../../lib/constants/layout";
 
 function DiscoverBranchOverlay({
@@ -44,11 +46,15 @@ function DiscoverBranchOverlay({
   const sideInset = Math.max(0, Math.floor((screenWidth - branchCardWidth) / 2));
   const navigation = useNavigation<any>();
   const discoverCardBottomPadding = 14;
-  // In Discover the screen ends at the tab bar top (no overhang),
-  // so we position the overlay directly relative to that edge.
-  // +10 gives the same ~10 px gap above the tab bar as in Feed.
+  const tabBarInset = Math.max(insetsBottom, TAB_BAR_MIN_INSET);
+  // Discover tab bar is floating above content, so lift the branch carousel
+  // by tab bar height + safe area inset and keep a small visual gap.
   const overlayBottomOffset =
-    BRANCH_CARD_BASELINE_OFFSET + BRANCH_CARD_EXTRA_OFFSET + 10;
+    tabBarInset +
+    TAB_BAR_BASE_HEIGHT +
+    BRANCH_CARD_BASELINE_OFFSET +
+    BRANCH_CARD_EXTRA_OFFSET +
+    10;
 
   // === MEMOIZOVANÉ ŠTÝLY ===
   // Tieto štýly závisia od props, takže ich memoizujeme

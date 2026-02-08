@@ -42,6 +42,7 @@ function BranchCard(props: BranchCardProps) {
     badgePosition,
     badgeInlineOffset,
     badgeRowOffset,
+    noElevation,
     address,
     phone,
     email,
@@ -111,6 +112,7 @@ function BranchCard(props: BranchCardProps) {
   const cardStyle = useMemo(
     () => [
       styles.branchCard,
+      noElevation && styles.branchCardNoElevation,
       {
         height: cardHeight,
         paddingHorizontal: cardPadding,
@@ -119,7 +121,7 @@ function BranchCard(props: BranchCardProps) {
         borderRadius: cardRadius,
       },
     ],
-    [cardHeight, cardPadding, cardPaddingBottomScaled, cardRadius]
+    [cardHeight, cardPadding, cardPaddingBottomScaled, cardRadius, noElevation]
   );
 
   /**
@@ -241,6 +243,12 @@ const styles = StyleSheet.create({
       },
     }),
     width: "100%",
+  },
+  branchCardNoElevation: {
+    elevation: 0,
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    shadowOffset: { width: 0, height: 0 },
   },
 
   // Obrázok pobočky

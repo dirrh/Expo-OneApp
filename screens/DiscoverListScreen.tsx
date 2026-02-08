@@ -3,19 +3,24 @@ import {
   View,
   StyleSheet,
   FlatList,
+  Modal,
+  Pressable,
   Text,
+  ImageSourcePropType,
   Platform,
+  TouchableOpacity,
   useWindowDimensions,
 } from "react-native";
-import { TouchableOpacity } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
 import BranchCard from "../components/BranchCard";
 import { Skeleton } from "../components/Skeleton";
 import { useDataSource } from "../lib/data/useDataSource";
+import { useDiscoverFilters } from "../lib/hooks";
 import DiscoverSideFilterPanel from "../components/discover/DiscoverSideFilterPanel";
+import { TAB_BAR_BASE_HEIGHT } from "../lib/constants/layout";
 import type { DiscoverMapMarker, DiscoverCategory } from "../lib/interfaces";
 
 // Skeleton pre BranchCard - zobrazuje sa počas načítavania
@@ -71,12 +76,50 @@ const skeletonStyles = StyleSheet.create({
   },
 });
 
-// Placeholder obrázky pre kategórie
-const CATEGORY_IMAGES: Record<DiscoverCategory, any> = {
-  Fitness: require("../assets/365.jpg"),
-  Gastro: require("../assets/royal.jpg"),
-  Relax: require("../assets/klub.jpg"),
-  Beauty: require("../assets/royal.jpg"),
+const CATEGORY_PREVIEW_IMAGES: Record<DiscoverCategory, ImageSourcePropType[]> = {
+  Fitness: [
+    require("../assets/gallery/fitness/fitness_1.jpg"),
+    require("../assets/gallery/fitness/fitness_2.jpg"),
+    require("../assets/gallery/fitness/fitness_3.jpg"),
+    require("../assets/gallery/fitness/fitness_4.jpg"),
+  ],
+  Gastro: [
+    require("../assets/gallery/gastro/gastro_1.jpg"),
+    require("../assets/gallery/gastro/gastro_2.jpg"),
+    require("../assets/gallery/gastro/gastro_3.jpg"),
+    require("../assets/gallery/gastro/gastro_4.jpg"),
+  ],
+  Relax: [
+    require("../assets/gallery/relax/relax_1.jpg"),
+    require("../assets/gallery/relax/relax_2.jpg"),
+    require("../assets/gallery/relax/relax_3.jpg"),
+    require("../assets/gallery/relax/relax_4.jpg"),
+  ],
+  Beauty: [
+    require("../assets/gallery/beauty/beauty_1.jpg"),
+    require("../assets/gallery/beauty/beauty_2.jpg"),
+    require("../assets/gallery/beauty/beauty_3.jpg"),
+    require("../assets/gallery/beauty/beauty_4.jpg"),
+  ],
+};
+
+const getStableHash = (value: string): number => {
+  let hash = 0;
+  for (let i = 0; i < value.length; i += 1) {
+    hash = (hash * 31 + value.charCodeAt(i)) >>> 0;
+  }
+  return hash;
+};
+
+const getCategoryPreviewImage = (
+  category: DiscoverCategory,
+  markerId: string
+): ImageSourcePropType => {
+  const images = CATEGORY_PREVIEW_IMAGES[category];
+  if (!images || images.length === 0) {
+    return CATEGORY_PREVIEW_IMAGES.Fitness[0];
+  }
+  return images[getStableHash(markerId) % images.length];
 };
 
 // Haversine formula - výpočet vzdialenosti medzi dvoma GPS bodmi v km
@@ -110,7 +153,7 @@ function formatTitle(id: string): string {
 interface NearbyBranch {
   id: string;
   title: string;
-  image: any;
+  image: ImageSourcePropType;
   rating: number;
   distance: string;
   distanceKm: number;
@@ -141,6 +184,7 @@ export default function DiscoverListScreen() {
   const { t } = useTranslation();
   const { height: screenHeight, width: screenWidth } = useWindowDimensions();
   const dataSource = useDataSource();
+  const filters = useDiscoverFilters("Gastro");
 
   // Stav pre sort dropdown
   const [sortOption, setSortOption] = useState<SortOption>("trending");
@@ -148,24 +192,34 @@ export default function DiscoverListScreen() {
 
   // Stav pre bočný filter
   const [sideFilterOpen, setSideFilterOpen] = useState(false);
-  const [appliedFilters, setAppliedFilters] = useState<Set<string>>(new Set());
-  const [rating, setRating] = useState<Set<string>>(new Set());
-  const [appliedRatings, setAppliedRatings] = useState<Set<string>>(new Set());
-  const [sub, setSub] = useState<Set<string>>(new Set());
 
-  const toggleSubcategory = useCallback((s: string) => {
-    setSub((prev) => {
-      const next = new Set(prev);
-      if (next.has(s)) {
-        next.delete(s);
-      } else {
-        next.add(s);
-      }
-      return next;
-    });
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      const shouldHideTabBar = sideFilterOpen || sortDropdownOpen;
+      navigation.setOptions({
+        tabBarStyle: { display: shouldHideTabBar ? "none" : "flex" },
+      });
+      return () => {
+        navigation.setOptions({
+          tabBarStyle: { display: "flex" },
+        });
+      };
+    }, [navigation, sideFilterOpen, sortDropdownOpen])
+  );
 
   const scale = useMemo(() => Math.min(1, Math.max(0.82, screenWidth / 393)), [screenWidth]);
+  const homeCategoriesTopSpacing = useMemo(
+    () => Math.max(24, Math.round(42 * scale)),
+    [scale]
+  );
+  const sortTopSpacing = useMemo(
+    () => Math.max(0, homeCategoriesTopSpacing - 16),
+    [homeCategoriesTopSpacing]
+  );
+  const sortMenuTop = useMemo(
+    () => insets.top + 16 + 44 + 16 + sortTopSpacing + 40,
+    [insets.top, sortTopSpacing]
+  );
   const cardHeight = Math.round(112 * scale);
   const cardPadding = Math.round(16 * scale);
   const cardHeightWithMargin = cardHeight + 16;
@@ -225,7 +279,7 @@ export default function DiscoverListScreen() {
       results.push({
         id: marker.id,
         title: marker.title || formatTitle(marker.id),
-        image: CATEGORY_IMAGES[marker.category as DiscoverCategory] || CATEGORY_IMAGES.Fitness,
+        image: getCategoryPreviewImage(marker.category as DiscoverCategory, marker.id),
         rating: marker.rating,
         distance: `${distanceKm.toFixed(1)} km`,
         distanceKm,
@@ -247,14 +301,14 @@ export default function DiscoverListScreen() {
     let filtered = allBranches;
 
     // Filter podľa kategórie
-    if (appliedFilters.size > 0) {
-      filtered = filtered.filter((item) => appliedFilters.has(item.category));
+    if (filters.appliedFilters.size > 0) {
+      filtered = filtered.filter((item) => filters.appliedFilters.has(item.category));
     }
 
     // Filter podľa ratingu
-    if (appliedRatings.size > 0) {
-      const minRating = Math.min(...Array.from(appliedRatings).map(Number));
-      filtered = filtered.filter((item) => item.rating >= minRating);
+    const ratingThreshold = filters.ratingThreshold;
+    if (ratingThreshold !== null) {
+      filtered = filtered.filter((item) => item.rating >= ratingThreshold);
     }
 
     // Potom triedime
@@ -271,7 +325,7 @@ export default function DiscoverListScreen() {
       default:
         return filtered;
     }
-  }, [allBranches, sortOption, appliedFilters, appliedRatings]);
+  }, [allBranches, sortOption, filters.appliedFilters, filters.ratingThreshold]);
 
   // Definujeme presnú výšku položiek pre FlatList
   // To umožňuje preskočiť výpočet rozloženia a zlepšuje plynulosť skrolovania
@@ -298,6 +352,7 @@ export default function DiscoverListScreen() {
         offers={item.offers}
         moreCount={item.moreCount}
         badgeRowOffset={-4}
+        noElevation
       />
     ),
     []
@@ -314,14 +369,14 @@ export default function DiscoverListScreen() {
         onOpen={() => setSideFilterOpen(true)}
         onClose={() => setSideFilterOpen(false)}
         filterOptions={FILTER_OPTIONS}
-        appliedFilters={appliedFilters}
-        setAppliedFilters={setAppliedFilters}
-        rating={rating}
-        setRating={setRating}
-        setAppliedRatings={setAppliedRatings}
+        appliedFilters={filters.appliedFilters}
+        setAppliedFilters={filters.setAppliedFilters}
+        rating={filters.ratingFilter}
+        setRating={filters.setRatingFilter}
+        setAppliedRatings={filters.setAppliedRatings}
         subcategories={SUBCATEGORIES}
-        sub={sub}
-        toggleSubcategory={toggleSubcategory}
+        sub={filters.sub}
+        toggleSubcategory={filters.toggleSubcategory}
       />
 
       {/* Header */}
@@ -349,7 +404,7 @@ export default function DiscoverListScreen() {
       </View>
 
       {/* Sort dropdown */}
-      <View style={styles.sortContainer}>
+      <View style={[styles.sortContainer, { paddingTop: sortTopSpacing }]}>
         <TouchableOpacity
           style={styles.sortDropdown}
           activeOpacity={0.85}
@@ -363,9 +418,25 @@ export default function DiscoverListScreen() {
             style={[styles.sortCaret, sortDropdownOpen && styles.sortCaretOpen]}
           />
         </TouchableOpacity>
-
-        {sortDropdownOpen && (
-          <View style={styles.sortMenu}>
+      </View>
+      <Modal
+        visible={sortDropdownOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSortDropdownOpen(false)}
+      >
+        <View style={styles.sortModalRoot}>
+          <Pressable
+            style={styles.sortModalBackdrop}
+            onPress={() => setSortDropdownOpen(false)}
+          />
+          <View
+            style={[
+              styles.sortMenu,
+              styles.sortMenuPortal,
+              { top: sortMenuTop, left: 16 },
+            ]}
+          >
             {SORT_OPTIONS.map((option) => (
               <TouchableOpacity
                 key={option}
@@ -390,8 +461,8 @@ export default function DiscoverListScreen() {
               </TouchableOpacity>
             ))}
           </View>
-        )}
-      </View>
+        </View>
+      </Modal>
 
       {/* List */}
       {loading ? (
@@ -418,7 +489,7 @@ export default function DiscoverListScreen() {
           style={styles.list}
           contentContainerStyle={[
             styles.listContent,
-            { paddingBottom: insets.bottom + 16 },
+            { paddingBottom: insets.bottom + TAB_BAR_BASE_HEIGHT + 16 },
           ]}
           showsVerticalScrollIndicator={false}
           // Nastavenia pre efektívne vykresľovanie zoznamu
@@ -426,7 +497,7 @@ export default function DiscoverListScreen() {
           maxToRenderPerBatch={10}
           updateCellsBatchingPeriod={50}
           windowSize={5}
-          removeClippedSubviews={Platform.OS !== "web"}
+          removeClippedSubviews={false}
         />
       )}
     </View>
@@ -439,6 +510,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   header: {
+    position: "relative",
+    zIndex: 30,
+    elevation: 0,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -472,27 +546,28 @@ const styles = StyleSheet.create({
   headerActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 13,
   },
   headerIconButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
+    width: 42,
+    height: 42,
+    borderRadius: 999,
     backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E4E4E7",
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 3,
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 4,
   },
   sortContainer: {
+    position: "relative",
+    overflow: "visible",
     paddingHorizontal: 16,
     paddingBottom: 16,
-    zIndex: 100,
+    zIndex: 200,
+    elevation: 0,
   },
   sortDropdown: {
     flexDirection: "row",
@@ -514,8 +589,7 @@ const styles = StyleSheet.create({
   },
   sortMenu: {
     position: "absolute",
-    top: 40,
-    left: 16,
+    zIndex: 300,
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
     borderWidth: 1,
@@ -529,8 +603,18 @@ const styles = StyleSheet.create({
           shadowOpacity: 0.15,
           shadowRadius: 24,
           shadowOffset: { width: 0, height: 8 },
-          elevation: 12,
+          elevation: 300,
         }),
+  },
+  sortMenuPortal: {
+    position: "absolute",
+  },
+  sortModalRoot: {
+    flex: 1,
+  },
+  sortModalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "transparent",
   },
   sortMenuItem: {
     paddingVertical: 12,
@@ -550,6 +634,8 @@ const styles = StyleSheet.create({
   },
   list: {
     flex: 1,
+    zIndex: 1,
+    elevation: 1,
   },
   listContent: {
     paddingHorizontal: 16,
