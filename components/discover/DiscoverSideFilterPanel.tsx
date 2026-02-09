@@ -1,7 +1,6 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import {
   Animated,
-  Platform,
   StyleSheet,
   TouchableWithoutFeedback,
   View,
@@ -613,15 +612,6 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 22,
     justifyContent: "center",
     alignItems: "center",
-    ...(Platform.OS === "web"
-      ? { boxShadow: "0px 2px 8px rgba(0, 0, 0, 0.18)" }
-      : {
-          shadowColor: "#000",
-          shadowOpacity: 0.14,
-          shadowRadius: 6,
-          shadowOffset: { width: 0, height: 2 },
-          elevation: 8,
-        }),
   },
   orangeHandleLine: {
     width: 3,
@@ -629,7 +619,9 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   pullHandleActive: {
-    backgroundColor: "#EB8100",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#EB8100",
   },
   pullHandleInactive: {
     backgroundColor: "#FFFFFF",
@@ -637,7 +629,7 @@ const styles = StyleSheet.create({
     borderColor: "#E4E4E7",
   },
   pullHandleLineActive: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#EB8100",
   },
   pullHandleLineInactive: {
     backgroundColor: "#AEAEAE",
@@ -776,15 +768,6 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 22,
     justifyContent: "center",
     alignItems: "center",
-    ...(Platform.OS === "web"
-      ? { boxShadow: "0px 2px 8px rgba(0, 0, 0, 0.18)" }
-      : {
-          shadowColor: "#000",
-          shadowOpacity: 0.14,
-          shadowRadius: 6,
-          shadowOffset: { width: 0, height: 2 },
-          elevation: 8,
-        }),
   },
   pullHandleLine: {
     width: 4,

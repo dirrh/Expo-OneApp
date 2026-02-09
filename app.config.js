@@ -25,6 +25,14 @@ export default ({ config }) => ({
           "Allow $(PRODUCT_NAME) to access your location.",
       },
     ],
+    [
+      "expo-camera",
+      {
+        cameraPermission: "Allow $(PRODUCT_NAME) to access your camera.",
+        recordAudioAndroid: false,
+      },
+    ],
+    "expo-video",
     "expo-localization",
     "expo-asset",
   ],

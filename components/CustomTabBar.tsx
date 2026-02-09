@@ -168,8 +168,8 @@ const styles = StyleSheet.create({
     height: 39,
   },
   label: {
-    fontSize: 15,
-    lineHeight: 15,
+    fontSize: 13,
+    lineHeight: 17,
     fontWeight: "600",
     textAlign: "center",
   },

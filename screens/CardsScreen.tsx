@@ -15,11 +15,11 @@ import { SvgUri } from "react-native-svg";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
-import { LinearGradient } from "expo-linear-gradient";
 import { useAuth } from "../lib/AuthContext";
 import { extractNameFromEmail } from "../lib/utils/userUtils";
 
-// Brandfetch Logo URLs (PNG format via domain API)
+const USER_AVATAR = require("../images/photo.png");
+
 const BRANDFETCH_CLIENT = "1id2wnRBnylM5mUQzYz";
 const LOGO_URLS = {
   tesco: `https://cdn.brandfetch.io/domain/tesco.com/w/800/h/200/logo?c=${BRANDFETCH_CLIENT}`,
@@ -30,23 +30,54 @@ const LOGO_URLS = {
   kaufland: `https://cdn.brandfetch.io/domain/kaufland.de/w/800/h/300/logo?c=${BRANDFETCH_CLIENT}`,
 };
 
-// Dummy loyalty card data with card numbers
-const LOYALTY_CARDS = [
+interface LoyaltyCardItem {
+  id: string;
+  name: string;
+  logoUrl: string;
+  cardNumber: string;
+  hasCard: boolean;
+  logoScale?: number;
+}
+
+interface NearbyStoreItem {
+  id: string;
+  name: string;
+  logoUrl: string;
+  cardNumber: string;
+  distance: string;
+}
+
+const LOYALTY_CARDS: LoyaltyCardItem[] = [
   { id: "1", name: "TESCO", logoUrl: LOGO_URLS.tesco, cardNumber: "123 456 7890", hasCard: true },
   { id: "2", name: "BILLA", logoUrl: LOGO_URLS.billa, cardNumber: "987 654 3210", hasCard: true },
   { id: "3", name: "dm", logoUrl: LOGO_URLS.dm, cardNumber: "456 789 0123", hasCard: true },
-  { id: "4", name: "101 DROGÉRIA", logoUrl: LOGO_URLS.drogeria, cardNumber: "111 222 3333", hasCard: true, logoScale: 1.15 },
-  { id: "5", name: "teta drogerie", logoUrl: LOGO_URLS.teta, cardNumber: "444 555 6666", hasCard: true, logoScale: 1.15 },
+  {
+    id: "4",
+    name: "101 DROGERIA",
+    logoUrl: LOGO_URLS.drogeria,
+    cardNumber: "111 222 3333",
+    hasCard: true,
+    logoScale: 1.15,
+  },
+  {
+    id: "5",
+    name: "teta drogerie",
+    logoUrl: LOGO_URLS.teta,
+    cardNumber: "444 555 6666",
+    hasCard: true,
+    logoScale: 1.15,
+  },
   { id: "6", name: "Kaufland", logoUrl: LOGO_URLS.kaufland, cardNumber: "777 888 9999", hasCard: true },
 ];
 
-const NEARBY_STORES = [
+const NEARBY_STORES: NearbyStoreItem[] = [
   { id: "n1", name: "TESCO", logoUrl: LOGO_URLS.tesco, cardNumber: "123 456 7890", distance: "0.3 km" },
   { id: "n2", name: "dm", logoUrl: LOGO_URLS.dm, cardNumber: "456 789 0123", distance: "0.5 km" },
+  { id: "n3", name: "BILLA", logoUrl: LOGO_URLS.billa, cardNumber: "987 654 3210", distance: "0.8 km" },
 ];
 
 interface LoyaltyCardProps {
-  item: typeof LOYALTY_CARDS[0];
+  item: LoyaltyCardItem;
   cardWidth: number;
   cardHeight: number;
   onPress?: () => void;
@@ -62,12 +93,12 @@ const LoyaltyCard = ({ item, cardWidth, cardHeight, onPress }: LoyaltyCardProps)
   }
 
   return (
-    <TouchableOpacity 
+    <TouchableOpacity
       style={[styles.loyaltyCard, { width: cardWidth, height: cardHeight }]}
       activeOpacity={0.8}
       onPress={onPress}
     >
-      {item.logoUrl && (item.logoUrl.includes(".svg") ? (
+      {item.logoUrl.includes(".svg") ? (
         <SvgUri
           uri={item.logoUrl}
           width={cardWidth * 0.75 * (item.logoScale || 1)}
@@ -76,49 +107,43 @@ const LoyaltyCard = ({ item, cardWidth, cardHeight, onPress }: LoyaltyCardProps)
       ) : (
         <Image
           source={{ uri: item.logoUrl }}
-          style={{ 
-            width: cardWidth * 0.75 * (item.logoScale || 1), 
+          style={{
+            width: cardWidth * 0.75 * (item.logoScale || 1),
             height: cardHeight * 0.5 * (item.logoScale || 1),
           }}
           resizeMode="contain"
         />
-      ))}
+      )}
     </TouchableOpacity>
   );
 };
 
 interface NearbyCardProps {
-  item: typeof NEARBY_STORES[0];
+  item: NearbyStoreItem;
   cardWidth: number;
   onPress?: () => void;
 }
 
-const NearbyCard = ({ item, cardWidth, onPress }: NearbyCardProps) => {
-  return (
-    <TouchableOpacity 
-      style={[styles.nearbyCard, { width: cardWidth }]}
-      activeOpacity={0.8}
-      onPress={onPress}
-    >
-      {item.logoUrl && (item.logoUrl.includes(".svg") ? (
-        <SvgUri
-          uri={item.logoUrl}
-          width={cardWidth * 0.6}
-          height={50}
-        />
-      ) : (
-        <Image
-          source={{ uri: item.logoUrl }}
-          style={{ 
-            width: cardWidth * 0.6, 
-            height: 50,
-          }}
-          resizeMode="contain"
-        />
-      ))}
-    </TouchableOpacity>
-  );
-};
+const NearbyCard = ({ item, cardWidth, onPress }: NearbyCardProps) => (
+  <TouchableOpacity
+    style={[styles.nearbyCard, { width: cardWidth }]}
+    activeOpacity={0.8}
+    onPress={onPress}
+  >
+    {item.logoUrl.includes(".svg") ? (
+      <SvgUri uri={item.logoUrl} width={cardWidth * 0.6} height={50} />
+    ) : (
+      <Image
+        source={{ uri: item.logoUrl }}
+        style={{
+          width: cardWidth * 0.6,
+          height: 50,
+        }}
+        resizeMode="contain"
+      />
+    )}
+  </TouchableOpacity>
+);
 
 export default function CardsScreen() {
   const { t } = useTranslation();
@@ -130,39 +155,48 @@ export default function CardsScreen() {
 
   const userName = extractNameFromEmail(user?.email);
   const firstName = userName?.firstName || "Martin";
-  const lastName = userName?.lastName || "Novák";
+  const lastName = userName?.lastName || "Novak";
   const fullName = lastName ? `${firstName} ${lastName}` : firstName;
   const userId = user?.id?.substring(0, 6) || "254923";
 
-  // Calculate card dimensions
   const sidePadding = 16;
-  const cardGap = 10;
+  const gridGap = 10;
+  const nearbyGap = 14;
   const availableWidth = screenWidth - sidePadding * 2;
+
   const loyaltyCardWidth = useMemo(
-    () => Math.floor((availableWidth - cardGap * 2) / 3),
-    [availableWidth, cardGap]
+    () => Math.floor((availableWidth - gridGap * 2) / 3),
+    [availableWidth, gridGap]
   );
-  const loyaltyCardHeight = useMemo(() => Math.floor(loyaltyCardWidth * 0.632), [loyaltyCardWidth]);
-  
+  const loyaltyCardHeight = useMemo(
+    () => Math.floor(loyaltyCardWidth * 0.632),
+    [loyaltyCardWidth]
+  );
   const nearbyCardWidth = useMemo(
-    () => Math.floor((availableWidth - 14) / 2),
-    [availableWidth]
+    () => Math.floor((availableWidth - nearbyGap) / 2),
+    [availableWidth, nearbyGap]
   );
 
   const filteredLoyaltyCards = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
-    if (!normalizedQuery) return LOYALTY_CARDS;
+    if (!normalizedQuery) {
+      return LOYALTY_CARDS;
+    }
 
     const normalizedDigits = normalizedQuery.replace(/\s/g, "");
     return LOYALTY_CARDS.filter((card) => {
-      if (card.name.toLowerCase().includes(normalizedQuery)) return true;
+      if (card.name.toLowerCase().includes(normalizedQuery)) {
+        return true;
+      }
       return card.cardNumber.replace(/\s/g, "").includes(normalizedDigits);
     });
   }, [searchQuery]);
 
   const filteredNearbyStores = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
-    if (!normalizedQuery) return NEARBY_STORES;
+    if (!normalizedQuery) {
+      return NEARBY_STORES;
+    }
 
     return NEARBY_STORES.filter((store) =>
       store.name.toLowerCase().includes(normalizedQuery)
@@ -170,28 +204,37 @@ export default function CardsScreen() {
   }, [searchQuery]);
 
   const handleUserCardPress = useCallback(() => {
-    navigation.navigate("QRModal");
+    navigation.navigate("CardsUserQR");
   }, [navigation]);
 
-  const handleShowAll = useCallback(() => {
-    // Navigate to show all cards/stores
+  const handleShowAllNearby = useCallback(() => {
+    // TODO: Navigate to dedicated "show all" screens
   }, []);
+
+  const handleShowAllYourCards = useCallback(() => {
+    navigation.navigate("CardsAdd");
+  }, [navigation]);
 
   const handleAddCard = useCallback(() => {
     navigation.navigate("CardsAdd");
   }, [navigation]);
 
-  const handleCardPress = useCallback((cardName: string, cardNumber: string) => {
-    navigation.navigate("LoyaltyCardDetail", { cardName, cardNumber });
-  }, [navigation]);
+  const handleCardPress = useCallback(
+    (cardName: string, cardNumber: string) => {
+      navigation.navigate("CardsSelectedCard", { cardName, cardNumber });
+    },
+    [navigation]
+  );
 
   return (
-    <ScrollView 
-      style={styles.container} 
-      contentContainerStyle={[styles.content, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 24 }]}
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[
+        styles.content,
+        { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 100 },
+      ]}
       showsVerticalScrollIndicator={false}
     >
-      {/* Top Row - Search & Add Button */}
       <View style={styles.topRow}>
         <View style={styles.searchBar}>
           <Ionicons name="search-outline" size={16} color="#000000" />
@@ -203,68 +246,71 @@ export default function CardsScreen() {
             onChangeText={setSearchQuery}
           />
         </View>
-        
+
         <TouchableOpacity style={styles.addButton} activeOpacity={0.8} onPress={handleAddCard}>
-          <Ionicons name="add" size={16} color="#FFFFFF" />
+          <Ionicons name="add" size={16} color="#000000" />
         </TouchableOpacity>
       </View>
 
-      {/* User Card */}
-      <LinearGradient
-        colors={["#EB8100", "#FFF5E8"]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-        style={styles.userCard}
-      >
+      <View style={styles.userCard}>
+        <Image source={USER_AVATAR} style={styles.userAvatar} />
         <View style={styles.userCardContent}>
           <Text style={styles.userName}>{fullName}</Text>
           <Text style={styles.userId}>{userId}</Text>
         </View>
-        <TouchableOpacity style={styles.qrButton} activeOpacity={0.7} onPress={handleUserCardPress}>
-          <Ionicons name="qr-code" size={24} color="#000000" />
+        <TouchableOpacity
+          style={styles.qrButton}
+          activeOpacity={0.7}
+          onPress={handleUserCardPress}
+        >
+          <Ionicons name="scan-outline" size={22} color="#000000" />
         </TouchableOpacity>
-      </LinearGradient>
+      </View>
 
-      {/* Nearest To You Section */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>{t("nearestToYou")}</Text>
-          <TouchableOpacity onPress={handleShowAll} activeOpacity={0.7}>
+          <TouchableOpacity onPress={handleShowAllNearby} activeOpacity={0.7}>
             <Text style={styles.showAll}>{t("showAll")}</Text>
           </TouchableOpacity>
         </View>
 
-        <View style={styles.nearbyRow}>
+        <ScrollView
+          horizontal
+          nestedScrollEnabled
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.nearbyRow}
+        >
           {filteredNearbyStores.map((store) => (
-            <NearbyCard 
-              key={store.id} 
-              item={store} 
+            <NearbyCard
+              key={store.id}
+              item={store}
               cardWidth={nearbyCardWidth}
               onPress={() => handleCardPress(store.name, store.cardNumber)}
             />
           ))}
-        </View>
+        </ScrollView>
       </View>
 
-      {/* Your Cards Section */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>{t("yourCards")}</Text>
-          <TouchableOpacity onPress={handleShowAll} activeOpacity={0.7}>
+          <TouchableOpacity onPress={handleShowAllYourCards} activeOpacity={0.7}>
             <Text style={styles.showAll}>{t("showAll")}</Text>
           </TouchableOpacity>
         </View>
-        
+
         <View style={styles.cardsGrid}>
           {filteredLoyaltyCards.map((card) => (
-            <LoyaltyCard 
-              key={card.id} 
-              item={card} 
-              cardWidth={loyaltyCardWidth} 
+            <LoyaltyCard
+              key={card.id}
+              item={card}
+              cardWidth={loyaltyCardWidth}
               cardHeight={loyaltyCardHeight}
-              onPress={card.hasCard && card.name && card.cardNumber 
-                ? () => handleCardPress(card.name!, card.cardNumber!) 
-                : undefined
+              onPress={
+                card.hasCard
+                  ? () => handleCardPress(card.name, card.cardNumber)
+                  : undefined
               }
             />
           ))}
@@ -277,7 +323,7 @@ export default function CardsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#FAFAFA",
   },
   content: {
     paddingHorizontal: 16,
@@ -317,20 +363,9 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 999,
-    backgroundColor: "#EB8100",
+    backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
-  },
-  userCard: {
-    height: 179,
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 28,
-    borderWidth: 0.5,
-    borderColor: "#E4E4E7",
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-end",
     ...(Platform.OS === "web"
       ? { boxShadow: "0px 3px 10px rgba(0, 0, 0, 0.1)" }
       : {
@@ -341,17 +376,46 @@ const styles = StyleSheet.create({
           elevation: 3,
         }),
   },
+  userCard: {
+    minHeight: 100,
+    borderRadius: 20,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    marginBottom: 28,
+    borderWidth: 0.5,
+    borderColor: "#E4E4E7",
+    backgroundColor: "#FFFFFF",
+    flexDirection: "row",
+    alignItems: "center",
+    ...(Platform.OS === "web"
+      ? { boxShadow: "0px 3px 10px rgba(0, 0, 0, 0.05)" }
+      : {
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 3 },
+          shadowOpacity: 0.05,
+          shadowRadius: 10,
+          elevation: 2,
+        }),
+  },
+  userAvatar: {
+    width: 66,
+    height: 66,
+    borderRadius: 999,
+  },
   userCardContent: {
     flex: 1,
+    marginLeft: 14,
   },
   userName: {
     fontSize: 16,
+    lineHeight: 19,
     fontWeight: "700",
     color: "#000000",
-    marginBottom: 4,
+    marginBottom: 2,
   },
   userId: {
     fontSize: 14,
+    lineHeight: 17,
     fontWeight: "500",
     color: "#000000",
   },
@@ -362,23 +426,47 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   section: {
-    marginBottom: 26,
+    marginBottom: 24,
   },
   sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 14,
   },
   sectionTitle: {
     fontSize: 20,
+    lineHeight: 24,
     fontWeight: "700",
     color: "#000000",
   },
   showAll: {
     fontSize: 12,
+    lineHeight: 15,
     fontWeight: "600",
     color: "#7C7C7C",
+  },
+  nearbyRow: {
+    flexDirection: "row",
+    gap: 14,
+  },
+  nearbyCard: {
+    height: 118,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    borderWidth: 0.5,
+    borderColor: "#E4E4E7",
+    alignItems: "center",
+    justifyContent: "center",
+    ...(Platform.OS === "web"
+      ? { boxShadow: "0px 3px 10px rgba(0, 0, 0, 0.05)" }
+      : {
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 3 },
+          shadowOpacity: 0.05,
+          shadowRadius: 10,
+          elevation: 2,
+        }),
   },
   cardsGrid: {
     flexDirection: "row",
@@ -387,44 +475,22 @@ const styles = StyleSheet.create({
   },
   loyaltyCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 14,
+    borderRadius: 12,
     borderWidth: 0.5,
     borderColor: "#E4E4E7",
     alignItems: "center",
     justifyContent: "center",
     ...(Platform.OS === "web"
-      ? { boxShadow: "0px 3px 10px rgba(0, 0, 0, 0.1)" }
+      ? { boxShadow: "0px 3px 10px rgba(0, 0, 0, 0.05)" }
       : {
           shadowColor: "#000",
           shadowOffset: { width: 0, height: 3 },
-          shadowOpacity: 0.1,
+          shadowOpacity: 0.05,
           shadowRadius: 10,
-          elevation: 3,
+          elevation: 2,
         }),
   },
   loyaltyCardEmpty: {
     backgroundColor: "#FFFFFF",
-  },
-  nearbyRow: {
-    flexDirection: "row",
-    gap: 14,
-  },
-  nearbyCard: {
-    height: 109,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 14,
-    borderWidth: 0.5,
-    borderColor: "#E4E4E7",
-    alignItems: "center",
-    justifyContent: "center",
-    ...(Platform.OS === "web"
-      ? { boxShadow: "0px 3px 10px rgba(0, 0, 0, 0.1)" }
-      : {
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: 3 },
-          shadowOpacity: 0.1,
-          shadowRadius: 10,
-          elevation: 3,
-        }),
   },
 });

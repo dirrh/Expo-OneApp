@@ -3,7 +3,7 @@ import { View, StyleSheet, ImageBackground, Text, TouchableOpacity, Platform, us
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
-import { Video, ResizeMode } from "expo-av";
+import { VideoView, useVideoPlayer } from "expo-video";
 import BranchCard from "../components/BranchCard";
 import { Asset } from "expo-asset";
 import { useFocusEffect } from "@react-navigation/native";
@@ -158,7 +158,10 @@ const ReelItemComponent = memo(
         isVisible: boolean;
     }) => {
         const { t } = useTranslation();
-        const videoRef = useRef<Video>(null);
+        const videoPlayer = useVideoPlayer(item.video ?? null, (player) => {
+            player.loop = true;
+            player.muted = true;
+        });
         const lastTapRef = useRef(0);
         const [isLiked, setIsLiked] = React.useState(false);
         const posterOpacity = useSharedValue(1);
@@ -170,6 +173,19 @@ const ReelItemComponent = memo(
         // Translate offers
         const translatedOffers = item.branch.offerKeys.map(key => t(key));
         const shouldPlay = isVisible && !isScrolling;
+
+        useEffect(() => {
+            if (item.type !== "video" || !item.video) {
+                videoPlayer.pause();
+                return;
+            }
+
+            if (shouldPlay) {
+                videoPlayer.play();
+            } else {
+                videoPlayer.pause();
+            }
+        }, [item.type, item.video, shouldPlay, videoPlayer]);
 
         useEffect(() => {
             posterOpacity.value = 1;
@@ -350,15 +366,12 @@ const ReelItemComponent = memo(
                 <View style={[styles.reel, { height }]}>
                     <View style={styles.videoContainer}>
                         <ImageBackground source={posterSource} style={styles.video} resizeMode="cover" blurRadius={12} />
-                        <Video
-                            ref={videoRef}
-                            source={item.video}
+                        <VideoView
+                            player={videoPlayer}
                             style={styles.video}
-                            resizeMode={ResizeMode.COVER}
-                            shouldPlay={shouldPlay}
-                            isLooping
-                            isMuted
-                            onReadyForDisplay={() => {
+                            nativeControls={false}
+                            contentFit="cover"
+                            onFirstFrameRender={() => {
                                 posterOpacity.value = withTiming(0, { duration: 250 });
                             }}
                         />

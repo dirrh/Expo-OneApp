@@ -181,7 +181,7 @@ export interface DiscoverSearchSheetProps {
   text: string;
   setText: Dispatch<SetStateAction<string>>;
   filtered: BranchCardProps[];
-  t: (key: string) => string;
+  t: (key: string, options?: Record<string, unknown>) => string;
 }
 
 export interface DiscoverFilterSheetProps {
@@ -204,7 +204,7 @@ export interface DiscoverFilterSheetProps {
   setAppliedRatings: Dispatch<SetStateAction<Set<string>>>;
   setSub: Dispatch<SetStateAction<Set<string>>>;
   subcategoryChipWidth: number;
-  t: (key: string) => string;
+  t: (key: string, options?: Record<string, unknown>) => string;
 }
 
 export interface DiscoverBranchOverlayProps {
@@ -218,5 +218,5 @@ export interface DiscoverBranchOverlayProps {
   setFilter: Dispatch<SetStateAction<string>>;
   branches: BranchCardProps[];
   branchCardWidth: number;
-  t: (key: string) => string;
+  t: (key: string, options?: Record<string, unknown>) => string;
 }

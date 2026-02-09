@@ -101,14 +101,14 @@ export default function CardsAddScreen() {
 
   const handleCardPress = useCallback(
     (cardName: string, cardNumber: string) => {
-      navigation.navigate("LoyaltyCardDetail", { cardName, cardNumber });
+      navigation.navigate("CardsSelectedCard", { cardName, cardNumber });
     },
     [navigation]
   );
 
   const handleAddCard = useCallback(() => {
-    // TODO: add new card flow
-  }, []);
+    navigation.navigate("CardsAddChoose");
+  }, [navigation]);
 
   return (
     <View style={styles.container}>

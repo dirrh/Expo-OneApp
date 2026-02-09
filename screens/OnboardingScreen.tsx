@@ -147,7 +147,11 @@ export default function OnboardingScreen() {
 
   /* ---------- UI ---------- */
 
-  const sectionStyle = { width: "100%", maxWidth: contentMaxWidth, alignSelf: "center" as const };
+  const sectionStyle = {
+    width: "100%" as const,
+    maxWidth: contentMaxWidth,
+    alignSelf: "center" as const,
+  };
 
   return (
     <SafeAreaView style={styles.container}>

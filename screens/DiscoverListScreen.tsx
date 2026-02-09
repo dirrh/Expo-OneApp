@@ -3,7 +3,6 @@ import {
   View,
   StyleSheet,
   FlatList,
-  Modal,
   Pressable,
   Text,
   ImageSourcePropType,
@@ -176,6 +175,9 @@ type SortOption = typeof SORT_OPTIONS[number];
 // Filter options
 const FILTER_OPTIONS: DiscoverCategory[] = ["Fitness", "Gastro", "Relax", "Beauty"];
 const SUBCATEGORIES = ["Vegan", "Coffee", "Asian", "Pizza", "Sushi", "Fast Food", "Seafood", "Beer"];
+const SORT_MENU_MIN_WIDTH = 180;
+const SORT_MENU_HORIZONTAL_MARGIN = 16;
+const SORT_MENU_OFFSET = 8;
 
 export default function DiscoverListScreen() {
   const insets = useSafeAreaInsets();
@@ -189,13 +191,19 @@ export default function DiscoverListScreen() {
   // Stav pre sort dropdown
   const [sortOption, setSortOption] = useState<SortOption>("trending");
   const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
+  const [sortContainerLayout, setSortContainerLayout] = useState({ x: 0, y: 0 });
+  const [sortTriggerLayout, setSortTriggerLayout] = useState({
+    x: 0,
+    y: 0,
+    height: 0,
+  });
 
   // Stav pre bočný filter
   const [sideFilterOpen, setSideFilterOpen] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
-      const shouldHideTabBar = sideFilterOpen || sortDropdownOpen;
+      const shouldHideTabBar = sideFilterOpen;
       navigation.setOptions({
         tabBarStyle: { display: shouldHideTabBar ? "none" : "flex" },
       });
@@ -204,8 +212,13 @@ export default function DiscoverListScreen() {
           tabBarStyle: { display: "flex" },
         });
       };
-    }, [navigation, sideFilterOpen, sortDropdownOpen])
+    }, [navigation, sideFilterOpen])
   );
+
+  useEffect(() => {
+    if (!sideFilterOpen || !sortDropdownOpen) return;
+    setSortDropdownOpen(false);
+  }, [sideFilterOpen, sortDropdownOpen]);
 
   const scale = useMemo(() => Math.min(1, Math.max(0.82, screenWidth / 393)), [screenWidth]);
   const homeCategoriesTopSpacing = useMemo(
@@ -216,10 +229,36 @@ export default function DiscoverListScreen() {
     () => Math.max(0, homeCategoriesTopSpacing - 16),
     [homeCategoriesTopSpacing]
   );
-  const sortMenuTop = useMemo(
-    () => insets.top + 16 + 44 + 16 + sortTopSpacing + 40,
+  const sortMenuFallbackTop = useMemo(
+    () => insets.top + 16 + 44 + 16 + sortTopSpacing + 30 + SORT_MENU_OFFSET,
     [insets.top, sortTopSpacing]
   );
+  const sortMenuPosition = useMemo(() => {
+    const maxLeft = Math.max(
+      SORT_MENU_HORIZONTAL_MARGIN,
+      screenWidth - SORT_MENU_HORIZONTAL_MARGIN - SORT_MENU_MIN_WIDTH
+    );
+
+    const measuredTop =
+      sortContainerLayout.y + sortTriggerLayout.y + sortTriggerLayout.height + SORT_MENU_OFFSET;
+    const measuredLeft = sortContainerLayout.x + sortTriggerLayout.x;
+    const hasMeasuredTrigger = sortTriggerLayout.height > 0;
+
+    return {
+      top: hasMeasuredTrigger ? Math.max(0, measuredTop) : sortMenuFallbackTop,
+      left: hasMeasuredTrigger
+        ? Math.max(SORT_MENU_HORIZONTAL_MARGIN, Math.min(measuredLeft, maxLeft))
+        : SORT_MENU_HORIZONTAL_MARGIN,
+    };
+  }, [
+    screenWidth,
+    sortContainerLayout.x,
+    sortContainerLayout.y,
+    sortTriggerLayout.x,
+    sortTriggerLayout.y,
+    sortTriggerLayout.height,
+    sortMenuFallbackTop,
+  ]);
   const cardHeight = Math.round(112 * scale);
   const cardPadding = Math.round(16 * scale);
   const cardHeightWithMargin = cardHeight + 16;
@@ -404,65 +443,40 @@ export default function DiscoverListScreen() {
       </View>
 
       {/* Sort dropdown */}
-      <View style={[styles.sortContainer, { paddingTop: sortTopSpacing }]}>
-        <TouchableOpacity
-          style={styles.sortDropdown}
-          activeOpacity={0.85}
-          onPress={() => setSortDropdownOpen(!sortDropdownOpen)}
-        >
-          <Text style={styles.sortText}>{t(sortOption)}</Text>
-          <Ionicons
-            name="chevron-down-outline"
-            size={16}
-            color="#000"
-            style={[styles.sortCaret, sortDropdownOpen && styles.sortCaretOpen]}
-          />
-        </TouchableOpacity>
-      </View>
-      <Modal
-        visible={sortDropdownOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setSortDropdownOpen(false)}
+      <View
+        style={[styles.sortContainer, { paddingTop: sortTopSpacing }]}
+        onLayout={(event) => {
+          const { x, y } = event.nativeEvent.layout;
+          setSortContainerLayout((prev) => {
+            if (prev.x === x && prev.y === y) return prev;
+            return { x, y };
+          });
+        }}
       >
-        <View style={styles.sortModalRoot}>
-          <Pressable
-            style={styles.sortModalBackdrop}
-            onPress={() => setSortDropdownOpen(false)}
-          />
-          <View
-            style={[
-              styles.sortMenu,
-              styles.sortMenuPortal,
-              { top: sortMenuTop, left: 16 },
-            ]}
+        <View
+          onLayout={(event) => {
+            const { x, y, height } = event.nativeEvent.layout;
+            setSortTriggerLayout((prev) => {
+              if (prev.x === x && prev.y === y && prev.height === height) return prev;
+              return { x, y, height };
+            });
+          }}
+        >
+          <TouchableOpacity
+            style={styles.sortDropdown}
+            activeOpacity={0.85}
+            onPress={() => setSortDropdownOpen((prev) => !prev)}
           >
-            {SORT_OPTIONS.map((option) => (
-              <TouchableOpacity
-                key={option}
-                style={[
-                  styles.sortMenuItem,
-                  sortOption === option && styles.sortMenuItemActive,
-                ]}
-                activeOpacity={0.85}
-                onPress={() => {
-                  setSortOption(option);
-                  setSortDropdownOpen(false);
-                }}
-              >
-                <Text
-                  style={[
-                    styles.sortMenuText,
-                    sortOption === option && styles.sortMenuTextActive,
-                  ]}
-                >
-                  {t(option)}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+            <Text style={styles.sortText}>{t(sortOption)}</Text>
+            <Ionicons
+              name="chevron-down-outline"
+              size={16}
+              color="#000"
+              style={[styles.sortCaret, sortDropdownOpen && styles.sortCaretOpen]}
+            />
+          </TouchableOpacity>
         </View>
-      </Modal>
+      </View>
 
       {/* List */}
       {loading ? (
@@ -500,6 +514,50 @@ export default function DiscoverListScreen() {
           removeClippedSubviews={false}
         />
       )}
+
+      {sortDropdownOpen ? (
+        <View style={styles.sortOverlay} pointerEvents="box-none">
+          <Pressable
+            style={styles.sortOverlayBackdrop}
+            onPress={() => setSortDropdownOpen(false)}
+          />
+          <View
+            style={[
+              styles.sortMenu,
+              styles.sortMenuPortal,
+              {
+                top: sortMenuPosition.top,
+                left: sortMenuPosition.left,
+                maxWidth: screenWidth - SORT_MENU_HORIZONTAL_MARGIN * 2,
+              },
+            ]}
+          >
+            {SORT_OPTIONS.map((option) => (
+              <TouchableOpacity
+                key={option}
+                style={[
+                  styles.sortMenuItem,
+                  sortOption === option && styles.sortMenuItemActive,
+                ]}
+                activeOpacity={0.85}
+                onPress={() => {
+                  setSortOption(option);
+                  setSortDropdownOpen(false);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.sortMenuText,
+                    sortOption === option && styles.sortMenuTextActive,
+                  ]}
+                >
+                  {t(option)}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -589,7 +647,7 @@ const styles = StyleSheet.create({
   },
   sortMenu: {
     position: "absolute",
-    zIndex: 300,
+    zIndex: 5001,
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
     borderWidth: 1,
@@ -603,16 +661,18 @@ const styles = StyleSheet.create({
           shadowOpacity: 0.15,
           shadowRadius: 24,
           shadowOffset: { width: 0, height: 8 },
-          elevation: 300,
+          elevation: 5001,
         }),
   },
   sortMenuPortal: {
     position: "absolute",
   },
-  sortModalRoot: {
-    flex: 1,
+  sortOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 5000,
+    elevation: 5000,
   },
-  sortModalBackdrop: {
+  sortOverlayBackdrop: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "transparent",
   },

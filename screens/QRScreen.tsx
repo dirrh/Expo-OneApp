@@ -1,91 +1,159 @@
-import React from "react";
-import { View, Text, StyleSheet, Image, useWindowDimensions } from "react-native";
+import React, { useMemo } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  useWindowDimensions,
+  TouchableOpacity,
+  Platform,
+  ScrollView,
+} from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 import QRCode from "react-native-qrcode-svg";
 import { useAuth } from "../lib/AuthContext";
 import { extractNameFromEmail } from "../lib/utils/userUtils";
 import { useDynamicQRCode } from "../lib/hooks/useDynamicQRCode";
-import { useTranslation } from "react-i18next";
+import { TAB_BAR_BASE_HEIGHT, TAB_BAR_MIN_INSET } from "../lib/constants/layout";
+
+const USER_AVATAR = require("../images/photo.png");
 
 export default function QRScreen() {
+  const navigation = useNavigation<any>();
   const { width: screenWidth } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  const { t } = useTranslation();
-  const qrPadding = 20;
-  const qrMaxSize = 325;
-  const qrSize = Math.max(
-    180,
-    Math.floor(Math.min(qrMaxSize, screenWidth - 32 - qrPadding * 2))
-  );
   const { token } = useDynamicQRCode({ userId: user?.id });
+  const horizontalPadding = 16;
 
   const userName = extractNameFromEmail(user?.email);
-  const firstName = userName?.firstName || t("user");
-  const lastName = userName?.lastName || "";
+  const firstName = userName?.firstName || "Martin";
+  const lastName = userName?.lastName || "Novak";
   const fullName = lastName ? `${firstName} ${lastName}` : firstName;
-  const userId = user?.id || "N/A";
+
+  const cardNumber = "123 456 7890";
+  const qrCardWidth = useMemo(
+    () => Math.max(0, screenWidth - horizontalPadding * 2),
+    [screenWidth]
+  );
+  const qrSize = useMemo(() => {
+    const preferred = qrCardWidth - 48;
+    const maxAllowed = Math.max(120, qrCardWidth - 24);
+    return Math.min(maxAllowed, Math.max(140, Math.min(240, preferred)));
+  }, [qrCardWidth]);
+  const cardNumberLineHeight = 22;
+  const cardNumberTopGap = 14;
+  const sideInset = useMemo(
+    () => Math.round((qrCardWidth - qrSize) / 2),
+    [qrCardWidth, qrSize]
+  );
+  const qrContentHeight = qrSize + cardNumberTopGap + cardNumberLineHeight;
+  const qrCardHeight = qrContentHeight + sideInset * 2;
+  const bottomPadding = useMemo(
+    () => TAB_BAR_BASE_HEIGHT + Math.max(insets.bottom, TAB_BAR_MIN_INSET) + 16,
+    [insets.bottom]
+  );
 
   return (
-    <View style={styles.container}>
-      <View style={styles.containerItems}>
-        <Image source={require("../images/photo.png")} style={styles.image} />
-        <Text style={styles.containerTextTop}>{fullName}</Text>
-        <Text style={styles.containerTextBottom}>
-          {t("idLabel", { id: userId.substring(0, 8) })}
-        </Text>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[
+        styles.content,
+        { paddingTop: insets.top + 8, paddingBottom: bottomPadding },
+      ]}
+      showsVerticalScrollIndicator={false}
+    >
+      <TouchableOpacity
+        style={styles.backButton}
+        activeOpacity={0.75}
+        onPress={() => navigation.goBack()}
+      >
+        <Ionicons name="chevron-back" size={30} color="#000000" />
+      </TouchableOpacity>
+
+      <View style={styles.profileBlock}>
+        <Image source={USER_AVATAR} style={styles.avatar} />
+        <Text style={styles.userName}>{fullName}</Text>
       </View>
 
-      <View style={[styles.containerQr, { padding: qrPadding }]}>
-        <QRCode
-          value={token}
-          size={qrSize}
-          backgroundColor="white"
-          color="black"
-          logoBorderRadius={5}
-        />
+      <View style={[styles.qrCard, { width: qrCardWidth, height: qrCardHeight }]}>
+        <View style={styles.qrContent}>
+          <QRCode
+            value={token}
+            size={qrSize}
+            backgroundColor="#FFFFFF"
+            color="#000000"
+          />
+          <Text style={styles.cardNumber}>{cardNumber}</Text>
+        </View>
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: "#FAFAFA",
+  },
+  content: {
+    alignItems: "center",
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    alignSelf: "flex-start",
+    marginLeft: 12,
+    alignItems: "center",
     justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#FFFFFF",
   },
-  image: {
+  profileBlock: {
+    marginTop: 22,
+    alignItems: "center",
+  },
+  avatar: {
     width: 120,
-    height: 160,
-    borderRadius: 5,
-    margin: 15,
-  },
-  containerItems: {
-    flexDirection: "column",
-    justifyContent: "space-between",
-    alignContent: "center",
-  },
-  containerTextTop: {
-    textAlign: "center",
-    margin: 2,
-    fontWeight: "900",
-    fontSize: 22,
-    fontFamily: "Inter",
-  },
-  containerTextBottom: {
-    textAlign: "center",
-    marginBottom: 25,
-    color: "gray",
-    fontWeight: "bold",
-    fontSize: 18,
-    fontFamily: "Inter",
-  },
-  containerQr: {
-    backgroundColor: "#FFFFFF",
+    height: 143,
     borderRadius: 20,
-    maxWidth: 420,
-    width: "90%",
+  },
+  userName: {
+    marginTop: 14,
+    fontSize: 22,
+    lineHeight: 26,
+    fontWeight: "700",
+    color: "#000000",
+    textAlign: "center",
+  },
+  qrCard: {
+    marginTop: 34,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#E4E4E7",
+    backgroundColor: "#FFFFFF",
     alignItems: "center",
-    elevation: 5,
+    justifyContent: "center",
+    ...(Platform.OS === "web"
+      ? { boxShadow: "0px 3px 10px rgba(0, 0, 0, 0.05)" }
+      : {
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 3 },
+          shadowOpacity: 0.05,
+          shadowRadius: 10,
+          elevation: 2,
+        }),
+  },
+  qrContent: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cardNumber: {
+    marginTop: 14,
+    fontSize: 18,
+    lineHeight: 22,
+    fontWeight: "600",
+    color: "#767676",
+    textAlign: "center",
   },
 });

@@ -1,46 +1,96 @@
-import React from "react";
+import React, { useMemo, useCallback } from "react";
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   Image,
-  Platform,
   useWindowDimensions,
+  Linking,
+  ScrollView,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import QRCode from "react-native-qrcode-svg";
-import { SvgUri } from "react-native-svg";
+import Barcode from "@kichiyaki/react-native-barcode-generator";
+import { useTranslation } from "react-i18next";
+import { TAB_BAR_BASE_HEIGHT, TAB_BAR_MIN_INSET } from "../lib/constants/layout";
 
-// Barcode image from images folder
-const BarcodeImage = require("../images/barcode.png");
-
-// Brandfetch Logo URLs
-const BRANDFETCH_CLIENT = "1id2wnRBnylM5mUQzYz";
-const LOGO_URLS: Record<string, string> = {
-  TESCO: `https://cdn.brandfetch.io/domain/tesco.com/w/800/h/200/logo?c=${BRANDFETCH_CLIENT}`,
-  BILLA: `https://cdn.brandfetch.io/domain/billa.at/w/800/h/239/logo?c=${BRANDFETCH_CLIENT}`,
-  dm: `https://cdn.brandfetch.io/domain/dm.de/w/800/h/300/logo?c=${BRANDFETCH_CLIENT}`,
-  "101 DROGÉRIA": "https://101drogerie.sk/themes/nerd/assets/images/logo_new.svg",
-  "teta drogerie": "https://www.tetadrogerie.cz/img/logo.svg",
-  Kaufland: `https://cdn.brandfetch.io/domain/kaufland.de/w/800/h/300/logo?c=${BRANDFETCH_CLIENT}`,
+const OFFER_IMAGES = {
+  TESCO: require("../assets/offers/tesco_offer.jpg"),
+  BILLA: require("../assets/offers/billa_offer.jpg"),
+  "101 DROGERIA": require("../assets/offers/drogeria101_offer.jpg"),
+  "teta drogerie": require("../assets/offers/teta_offer.jpg"),
+  Kaufland: require("../assets/offers/kaufland_offer.jpg"),
 };
 
-const LOGO_SCALES: Record<string, number> = {
-  "101 DROGÉRIA": 1.15,
-  "teta drogerie": 1.15,
-};
-
-// Card types - some use barcode, some use QR
 const CARD_TYPES: Record<string, "barcode" | "qr"> = {
   TESCO: "barcode",
   BILLA: "barcode",
   dm: "qr",
-  "101 DROGÉRIA": "barcode",
+  "101 DROGERIA": "barcode",
   "teta drogerie": "barcode",
   Kaufland: "barcode",
+};
+
+const CARD_WEBSITES: Record<string, string> = {
+  TESCO: "https://www.tesco.com",
+  BILLA: "https://www.billa.sk",
+  dm: "https://www.dm.sk",
+  "101 DROGERIA": "https://101drogerie.sk",
+  "teta drogerie": "https://www.tetadrogerie.sk",
+  Kaufland: "https://www.kaufland.sk",
+};
+
+type OfferItem = {
+  image: number;
+  labelKey: string;
+  dateKey: string;
+  buttonTextKey: string;
+  imageMode?: "cover" | "contain";
+  imageBackgroundColor?: string;
+};
+
+const CARD_OFFERS: Record<string, OfferItem> = {
+  TESCO: {
+    image: OFFER_IMAGES.TESCO,
+    labelKey: "cardsOfferCurrentOffer",
+    dateKey: "cardsOfferDateTesco",
+    buttonTextKey: "cardsView",
+  },
+  BILLA: {
+    image: OFFER_IMAGES.BILLA,
+    labelKey: "cardsOfferFreshWeek",
+    dateKey: "cardsOfferDateBilla",
+    buttonTextKey: "cardsView",
+  },
+  dm: {
+    image: require("../assets/offers/dm_logo.webp"),
+    labelKey: "cardsOfferCurrentOffer",
+    dateKey: "cardsOfferDateDm",
+    buttonTextKey: "cardsView",
+    imageMode: "contain",
+    imageBackgroundColor: "#F8D1CA",
+  },
+  "101 DROGERIA": {
+    image: OFFER_IMAGES["101 DROGERIA"],
+    labelKey: "cardsOfferDrogeriaDeal",
+    dateKey: "cardsOfferDate101Drogeria",
+    buttonTextKey: "cardsView",
+  },
+  "teta drogerie": {
+    image: OFFER_IMAGES["teta drogerie"],
+    labelKey: "cardsOfferCareSpecial",
+    dateKey: "cardsOfferDateTeta",
+    buttonTextKey: "cardsView",
+  },
+  Kaufland: {
+    image: OFFER_IMAGES.Kaufland,
+    labelKey: "cardsOfferWeeklyPrices",
+    dateKey: "cardsOfferDateKaufland",
+    buttonTextKey: "cardsView",
+  },
 };
 
 interface RouteParams {
@@ -48,159 +98,371 @@ interface RouteParams {
   cardNumber: string;
 }
 
+const resolveCardKey = (cardName: string): string => {
+  if (cardName.toLowerCase().includes("101 dro")) {
+    return "101 DROGERIA";
+  }
+  return cardName;
+};
+
+const formatCardTitle = (name: string): string =>
+  name
+    .split(" ")
+    .map((word) => {
+      if (word.toLowerCase() === "dm") {
+        return "DM";
+      }
+      if (!word.length) {
+        return word;
+      }
+      return `${word[0].toUpperCase()}${word.slice(1).toLowerCase()}`;
+    })
+    .join(" ");
+
 export default function LoyaltyCardDetailScreen() {
-  const navigation = useNavigation();
+  const { t } = useTranslation();
+  const navigation = useNavigation<any>();
   const route = useRoute();
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
+  const horizontalPadding = 16;
 
-  const { cardName = "TESCO", cardNumber = "123 456 7890" } = (route.params as RouteParams) || {};
-  
-  const logoUrl = LOGO_URLS[cardName] || LOGO_URLS.TESCO;
-  const isLogoSvg = logoUrl.includes(".svg");
-  const logoScale = LOGO_SCALES[cardName] || 1;
-  const codeType = CARD_TYPES[cardName] || "barcode";
-  
-  // Remove spaces from card number for barcode/QR
+  const { cardName = "TESCO", cardNumber = "123 456 7890" } =
+    (route.params as RouteParams) || {};
+
+  const resolvedCardName = resolveCardKey(cardName);
+  const codeType = CARD_TYPES[resolvedCardName] || "barcode";
   const cleanCardNumber = cardNumber.replace(/\s/g, "");
-  
-  const cardWidth = Math.min(362, screenWidth - 32);
-  const codeWidth = cardWidth - 50;
+  const websiteUrl = CARD_WEBSITES[resolvedCardName] || CARD_WEBSITES.TESCO;
+  const offer = CARD_OFFERS[resolvedCardName] || CARD_OFFERS.TESCO;
+
+  const contentWidth = useMemo(
+    () => Math.max(0, screenWidth - horizontalPadding * 2),
+    [screenWidth, horizontalPadding]
+  );
+  const cardWidth = contentWidth;
+  const sectionWidth = contentWidth;
+  const qrSize = useMemo(() => {
+    const preferred = cardWidth - 120;
+    const maxAllowed = Math.max(120, cardWidth - 40);
+    return Math.min(maxAllowed, Math.max(140, Math.min(240, preferred)));
+  }, [cardWidth]);
+  const qrCardHeight = useMemo(
+    () => Math.max(264, Math.round(cardWidth * 0.92)),
+    [cardWidth]
+  );
+  const barcodeCardHeight = useMemo(
+    () => Math.max(210, Math.round(cardWidth * 0.705)),
+    [cardWidth]
+  );
+  const barcodeWidth = useMemo(
+    () => Math.min(312.48, cardWidth - 48),
+    [cardWidth]
+  );
+  const barcodeHeight = useMemo(
+    () => Math.max(88, Math.min(114.88, cardWidth * 0.318)),
+    [cardWidth]
+  );
+  const barcodeFormat = useMemo(
+    () =>
+      /^\d+$/.test(cleanCardNumber) && cleanCardNumber.length % 2 === 0
+        ? "CODE128C"
+        : "CODE128",
+    [cleanCardNumber]
+  );
+  const barcodeLineWidth = useMemo(
+    () => (barcodeFormat === "CODE128C" ? 4 : 3),
+    [barcodeFormat]
+  );
+  const isQrCard = codeType === "qr";
+  const title = useMemo(() => formatCardTitle(cardName), [cardName]);
+  const bottomPadding = useMemo(
+    () => TAB_BAR_BASE_HEIGHT + Math.max(insets.bottom, TAB_BAR_MIN_INSET) + 12,
+    [insets.bottom]
+  );
+
+  const handleVisitWebsite = useCallback(() => {
+    Linking.openURL(websiteUrl).catch(() => {});
+  }, [websiteUrl]);
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* Header */}
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[
+        styles.content,
+        { paddingTop: insets.top + 8, paddingBottom: bottomPadding },
+      ]}
+      showsVerticalScrollIndicator={false}
+    >
       <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton} 
+        <TouchableOpacity
+          style={styles.iconButton}
           onPress={() => navigation.goBack()}
-          activeOpacity={0.7}
+          activeOpacity={0.75}
         >
-          <Ionicons name="chevron-back" size={25} color="#000" />
+          <Ionicons name="chevron-back" size={30} color="#000000" />
         </TouchableOpacity>
 
-        <Text style={styles.headerTitle}>{cardName}</Text>
+        <Text style={styles.headerTitle}>{title}</Text>
 
-        <TouchableOpacity style={styles.menuButton} activeOpacity={0.7}>
-          <Ionicons name="ellipsis-horizontal" size={24} color="#000" />
+        <TouchableOpacity style={styles.iconButton} activeOpacity={0.75}>
+          <Ionicons name="ellipsis-vertical" size={22} color="#000000" />
         </TouchableOpacity>
       </View>
 
-      {/* Card */}
-      <View style={[styles.card, { width: cardWidth, height: codeType === "barcode" ? 240 : 380 }]}>
-        {/* Logo */}
-        {isLogoSvg ? (
-          <SvgUri uri={logoUrl} width={76 * logoScale} height={50 * logoScale} />
-        ) : (
-          <Image
-            source={{ uri: logoUrl }}
-            style={[styles.logo, { transform: [{ scale: logoScale }] }]}
-            resizeMode="contain"
-          />
-        )}
-
-        {/* Barcode or QR Code */}
-        <View style={styles.codeContainer}>
-          {codeType === "barcode" ? (
-            <Image
-              source={BarcodeImage}
-              style={{ width: 430, height: 160 }}
-              resizeMode="stretch"
+      <View
+        style={[
+          styles.codeCard,
+          { width: cardWidth, height: isQrCard ? qrCardHeight : barcodeCardHeight },
+        ]}
+      >
+        {isQrCard ? (
+          <View style={styles.qrContent}>
+            <QRCode
+              value={cleanCardNumber}
+              size={qrSize}
+              backgroundColor="#FFFFFF"
+              color="#000000"
             />
-          ) : (
-            <>
-              <QRCode
-                value={cleanCardNumber}
-                size={240}
-                backgroundColor="white"
-                color="black"
-              />
-              {/* Card Number - only for QR codes */}
-              <Text style={styles.cardNumber}>{cardNumber}</Text>
-            </>
-          )}
+            <Text style={[styles.cardNumber, styles.qrCardNumber]}>{cardNumber}</Text>
+          </View>
+        ) : (
+          <>
+            <Barcode
+              value={cleanCardNumber}
+              format={barcodeFormat}
+              width={barcodeLineWidth}
+              maxWidth={barcodeWidth}
+              height={barcodeHeight}
+              lineColor="#000000"
+              background="#FFFFFF"
+              text=""
+            />
+            <Text style={styles.cardNumber}>{cardNumber}</Text>
+          </>
+        )}
+      </View>
+
+      <View
+        style={[
+          styles.recommendedSection,
+          { width: sectionWidth, marginTop: isQrCard ? 26 : 24 },
+        ]}
+      >
+        <Text style={styles.sectionTitle}>{t("cardsRecommended")}</Text>
+
+        <View style={styles.offerCard}>
+          <View
+            style={[
+              styles.offerImageFrame,
+              offer.imageBackgroundColor
+                ? { backgroundColor: offer.imageBackgroundColor }
+                : null,
+            ]}
+          >
+            <Image
+              source={offer.image}
+              style={
+                offer.imageMode === "contain"
+                  ? styles.offerImageContain
+                  : styles.offerImage
+              }
+              resizeMode={offer.imageMode || "cover"}
+            />
+          </View>
+
+          <View style={styles.offerContent}>
+            <Text style={styles.offerLabel}>{t(offer.labelKey)}</Text>
+            <Text style={styles.offerDate}>{t(offer.dateKey)}</Text>
+
+            <TouchableOpacity style={styles.viewButton} activeOpacity={0.75}>
+              <Text style={styles.viewButtonText}>{t(offer.buttonTextKey)}</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
-    </View>
+
+      <View style={[styles.bottomActions, { width: sectionWidth }]}>
+        <TouchableOpacity
+          style={styles.websiteButton}
+          activeOpacity={0.85}
+          onPress={handleVisitWebsite}
+        >
+          <Text style={styles.websiteButtonText}>{t("cardsVisitWebsite")}</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.profileButton} activeOpacity={0.85}>
+          <Text style={styles.profileButtonText}>{t("cardsOpenProfile")}</Text>
+        </TouchableOpacity>
+      </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#FAFAFA",
+  },
+  content: {
+    flexGrow: 1,
+    alignItems: "center",
   },
   header: {
+    width: "100%",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 11,
+    paddingHorizontal: 12,
     height: 48,
-    marginBottom: 20,
+    marginBottom: 24,
   },
-  backButton: {
+  iconButton: {
     width: 48,
     height: 48,
-    alignItems: "flex-start",
+    alignItems: "center",
     justifyContent: "center",
   },
   headerTitle: {
     fontSize: 20,
+    lineHeight: 24,
     fontWeight: "700",
     color: "#000000",
-    textAlign: "center",
   },
-  menuButton: {
-    width: 48,
-    height: 48,
+  codeCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-    ...(Platform.OS === "web"
-      ? { boxShadow: "0px 3px 10px rgba(0, 0, 0, 0.1)" }
-      : {
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: 3 },
-          shadowOpacity: 0.1,
-          shadowRadius: 10,
-          elevation: 3,
-        }),
-  },
-  card: {
-    alignSelf: "center",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    borderWidth: 0.5,
+    borderWidth: 1,
     borderColor: "#E4E4E7",
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 25,
-    paddingHorizontal: 25,
-    ...(Platform.OS === "web"
-      ? { boxShadow: "0px 3px 10px rgba(0, 0, 0, 0.1)" }
-      : {
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: 3 },
-          shadowOpacity: 0.1,
-          shadowRadius: 10,
-          elevation: 3,
-        }),
-  },
-  logo: {
-    width: 76,
-    height: 50,
-    marginBottom: 16,
-  },
-  codeContainer: {
-    alignItems: "center",
-    justifyContent: "center",
+    paddingHorizontal: 24,
+    paddingVertical: 24,
   },
   cardNumber: {
+    marginTop: 12,
     fontSize: 18,
+    lineHeight: 22,
     fontWeight: "600",
     color: "#767676",
     textAlign: "center",
-    marginTop: 16,
+  },
+  qrContent: {
+    width: "100%",
+    height: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  qrCardNumber: {
+    marginTop: 6,
+  },
+  recommendedSection: {
+    marginTop: 24,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    lineHeight: 24,
+    fontWeight: "700",
+    color: "#000000",
+    marginBottom: 10,
+  },
+  offerCard: {
+    height: 117,
+    borderRadius: 14,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  offerImageFrame: {
+    width: 83,
+    height: 83,
+    borderRadius: 6,
+    borderWidth: 0.5,
+    borderColor: "#E4E4E7",
+    backgroundColor: "#FFFFFF",
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  offerImage: {
+    width: "100%",
+    height: "100%",
+  },
+  offerImageContain: {
+    width: "72%",
+    height: "72%",
+  },
+  offerContent: {
+    flex: 1,
+    marginLeft: 14,
+  },
+  offerLabel: {
+    fontSize: 13,
+    lineHeight: 16,
+    fontWeight: "400",
+    color: "#000000",
+    marginBottom: 2,
+  },
+  offerDate: {
+    fontSize: 13,
+    lineHeight: 16,
+    fontWeight: "700",
+    color: "#000000",
+    marginBottom: 8,
+  },
+  viewButton: {
+    width: "100%",
+    maxWidth: 195,
+    height: 40,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#D7D7D7",
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "flex-start",
+  },
+  viewButtonText: {
+    fontSize: 14,
+    lineHeight: 17,
+    fontWeight: "600",
+    color: "#18181B",
+  },
+  bottomActions: {
+    marginTop: "auto",
+  },
+  websiteButton: {
+    height: 40,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#D7D7D7",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 9,
+    backgroundColor: "#FFFFFF",
+  },
+  websiteButtonText: {
+    fontSize: 14,
+    lineHeight: 17,
+    fontWeight: "700",
+    color: "#000000",
+  },
+  profileButton: {
+    height: 40,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#000000",
+  },
+  profileButtonText: {
+    fontSize: 14,
+    lineHeight: 17,
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
 });

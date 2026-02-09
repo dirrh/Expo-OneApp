@@ -1,30 +1,50 @@
 import { useMemo } from "react";
 import Supercluster from "supercluster";
-import type { Feature, Point } from "geojson";
 import type { DiscoverMapMarker } from "../interfaces";
 
 type ClusterPointProps = {
-  id: string;
+  id?: string;
   markerId?: string;
+  weight?: number;
   isCluster?: boolean;
+  cluster?: boolean;
+  cluster_id?: number;
   point_count?: number;
 };
 
-export type ClusterFeature = Feature<Point, ClusterPointProps>;
+export type ClusterFeature = {
+  type: "Feature";
+  id?: string | number;
+  geometry: { type: "Point"; coordinates: [number, number] };
+  properties: ClusterPointProps;
+};
+
+type ClusterPointInputFeature = {
+  type: "Feature";
+  id?: string | number;
+  geometry: { type: "Point"; coordinates: [number, number] };
+  properties: {
+    id: string;
+    markerId: string;
+    weight: number;
+    isCluster: boolean;
+  };
+};
 
 const WORLD_BOUNDS: [number, number, number, number] = [-180, -85, 180, 85];
 
-const toGeoJsonPoint = (marker: DiscoverMapMarker): ClusterFeature => ({
+const toGeoJsonPoint = (marker: DiscoverMapMarker): ClusterPointInputFeature => ({
   type: "Feature",
   id: marker.id,
   properties: {
     id: marker.id,
     markerId: marker.id,
+    weight: 1,
     isCluster: false,
   },
   geometry: {
     type: "Point",
-    coordinates: [marker.coord.lng, marker.coord.lat],
+    coordinates: [marker.coord.lng, marker.coord.lat] as [number, number],
   },
 });
 
@@ -48,7 +68,7 @@ export const useDiscoverClusters = (
     const normalizedZoom = normalizeZoom(zoom);
     const dynamicRadius = clusterRadius ?? getClusterRadiusForZoom(normalizedZoom);
 
-    const index = new Supercluster<ClusterPointProps>({
+    const index = new Supercluster({
       radius: dynamicRadius,
       maxZoom: 20,
       minPoints: 2,
@@ -61,7 +81,7 @@ export const useDiscoverClusters = (
       .map(toGeoJsonPoint);
     index.load(points);
 
-    const clusters = index.getClusters(WORLD_BOUNDS, normalizedZoom) as ClusterFeature[];
+    const clusters = index.getClusters(WORLD_BOUNDS, normalizedZoom) as unknown as ClusterFeature[];
 
     return { clusters, index };
   }, [markers, zoom, clusterRadius]);
