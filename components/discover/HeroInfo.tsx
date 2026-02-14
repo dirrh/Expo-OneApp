@@ -7,20 +7,15 @@ type Props = {
   ratingCount?: number;
   distance: string;
   hours: string;
-  category?: string;
 };
 
 // memo() zabraňuje zbytočným renderom ak sa props nezmenia
-export const HeroInfo = memo(function HeroInfo({ title, rating, ratingCount, distance, hours, category }: Props) {
-  const badgeLabel = category || "Fitness";
+export const HeroInfo = memo(function HeroInfo({ title, rating, ratingCount, distance, hours }: Props) {
   return (
     <View style={styles.container}>
-      {/* TITLE + BADGE */}
+      {/* TITLE */}
       <View style={styles.titleRow}>
         <Text style={styles.title}>{title}</Text>
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>{badgeLabel}</Text>
-        </View>
       </View>
 
       {/* META - rating, vzdialenosť, hodiny */}
@@ -76,21 +71,6 @@ const styles = StyleSheet.create({
     textShadowColor: "rgba(0,0,0,0.78)",
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 6,
-  },
-  badge: {
-    backgroundColor: "#EB8100",
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 9999,
-    marginLeft: 10,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  badgeText: {
-    color: "#fff",
-    fontSize: 9,
-    lineHeight: 11,
-    fontFamily: "Inter_600SemiBold",
   },
   metaRow: {
     flexDirection: "row",

@@ -62,6 +62,17 @@ export function AddReviewModal({ visible, onClose, onSubmit, branchName }: Props
     onClose();
   }, [onClose]);
 
+  const getRatingLabel = useCallback(
+    (value: number) => {
+      if (value === 5) return t("ratingLabel5");
+      if (value === 4) return t("ratingLabel4");
+      if (value === 3) return t("ratingLabel3");
+      if (value === 2) return t("ratingLabel2");
+      return t("ratingLabel1");
+    },
+    [t]
+  );
+
   const renderStars = () => {
     const stars = [];
     for (let i = 1; i <= 5; i++) {
@@ -128,10 +139,7 @@ export function AddReviewModal({ visible, onClose, onSubmit, branchName }: Props
             </View>
             {rating > 0 && (
               <Text style={styles.ratingText}>
-                {rating === 5 ? "⭐ Excellent!" : 
-                 rating === 4 ? "👍 Great!" : 
-                 rating === 3 ? "😊 Good" : 
-                 rating === 2 ? "😐 Fair" : "😕 Poor"}
+                {getRatingLabel(rating)}
               </Text>
             )}
           </View>

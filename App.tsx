@@ -2,13 +2,13 @@ import React from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { ActivityIndicator, StatusBar, View, Platform, Text, TextInput, StyleSheet } from "react-native";
+import { ActivityIndicator, StatusBar, View, Platform } from "react-native";
 
 import Tabs from "./components/Tabs";
 import SubscriptionActivationScreen from "./screens/profile/SubscriptionActivationScreen";
 import FavoriteBranchesScreen from "./screens/FavoriteBranchesScreen";
 import SettingsScreen from "./screens/profile/SettingsScreen";
-import UserAccountScreen from "./screens/profile/UserAccountScreen"
+import UserAccountScreen from "./screens/profile/UserAccountScreen";
 import LanguageScreen from "./screens/profile/LanguageScreen";
 import BenefitsScreen from "./screens/BenefitsScreen";
 
@@ -37,9 +37,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import "./i18n";
 import BusinessDetailScreen from "./screens/BusinessDetailScreen";
 
-// AUTH
 import { AuthProvider } from "./lib/AuthContext";
-//AUTH
 
 if (typeof global.TextEncoder === "undefined") {
   // @ts-ignore
@@ -52,43 +50,6 @@ if (typeof global.TextDecoder === "undefined") {
 
 const Stack = createNativeStackNavigator();
 
-// Globálne nastavenie Inter fontu pre všetky Text a TextInput komponenty
-let defaultFontsPatched = false;
-const setDefaultFonts = () => {
-  if (defaultFontsPatched) {
-    return;
-  }
-  defaultFontsPatched = true;
-
-  const mergeDefaultFont = (style: any) => {
-    const resolved = StyleSheet.flatten(style) || {};
-    if (resolved.fontFamily) {
-      return resolved;
-    }
-    return { ...resolved, fontFamily: "Inter_400Regular" };
-  };
-
-  const patchRender = (Component: any) => {
-    if (!Component?.render) {
-      return;
-    }
-    const oldRender = Component.render;
-    Component.render = function (...args: any[]) {
-      const origin = oldRender.call(this, ...args);
-      if (!React.isValidElement(origin)) {
-        return origin;
-      }
-      const element = origin as React.ReactElement<any>;
-      return React.cloneElement(element, {
-        style: mergeDefaultFont(element.props?.style),
-      });
-    };
-  };
-
-  patchRender(Text as any);
-  patchRender(TextInput as any);
-};
-
 export default function App() {
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
@@ -97,18 +58,11 @@ export default function App() {
     Inter_700Bold,
   });
 
-  // Nastaví Inter font po načítaní fontov
-  React.useEffect(() => {
-    if (fontsLoaded) {
-      setDefaultFonts();
-    }
-  }, [fontsLoaded]);
-
   if (!fontsLoaded) {
     return (
       <GestureHandlerRootView style={{ flex: 1 }}>
         <SafeAreaProvider>
-          {Platform.OS !== 'web' && (
+          {Platform.OS !== "web" && (
             <StatusBar translucent backgroundColor="transparent" barStyle="dark-content" />
           )}
           <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
@@ -123,7 +77,7 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <AuthProvider>
-          {Platform.OS !== 'web' && (
+          {Platform.OS !== "web" && (
             <StatusBar translucent backgroundColor="transparent" barStyle="dark-content" />
           )}
           <NavigationContainer>
@@ -179,17 +133,17 @@ export default function App() {
               />
               <Stack.Screen name="Discover" component={DiscoverScreen} />
               <Stack.Screen name="ShowMore" component={ShowMoreScreen} />
-              <Stack.Screen name="EditLocation" component={EditLocationScreen}/>
-              <Stack.Screen 
-                name="QRModal" 
+              <Stack.Screen name="EditLocation" component={EditLocationScreen} />
+              <Stack.Screen
+                name="QRModal"
                 component={QRScreen}
-                options={{ 
-                  presentation: 'modal',
-                  animation: 'slide_from_bottom'
+                options={{
+                  presentation: "modal",
+                  animation: "slide_from_bottom",
                 }}
               />
-              <Stack.Screen 
-                name="LoyaltyCardDetail" 
+              <Stack.Screen
+                name="LoyaltyCardDetail"
                 component={LoyaltyCardDetailScreen}
               />
             </Stack.Navigator>

@@ -98,9 +98,6 @@ const LONG_PRESS_MIN_DURATION = 260;
 const LONG_PRESS_MAX_DISTANCE = 14;
 const SPEED_BOOST_RATE = 2;
 const SPEED_BOOST_LEFT_ZONE_RATIO = 0.4;
-const REEL_SNAP_DISTANCE_THRESHOLD = 0.78;
-const REEL_SNAP_VELOCITY_THRESHOLD_IOS = 0.42;
-const REEL_SNAP_VELOCITY_THRESHOLD_ANDROID = 0.55;
 const SOURCE_ANCHOR_SWITCH_THRESHOLD = 0.58;
 const LIKE_BURST_SIZE = 86;
 
@@ -909,7 +906,8 @@ export default function FeedScreen() {
     const [isAppActive, setIsAppActive] = React.useState(true);
     const insets = useSafeAreaInsets();
     const { height: screenHeight, width: screenWidth } = useWindowDimensions();
-    const reelHeight = useMemo(() => Math.max(1, Math.round(screenHeight)), [screenHeight]);
+    const [feedViewportHeight, setFeedViewportHeight] = React.useState(() => Math.max(1, screenHeight));
+    const reelHeight = useMemo(() => Math.max(1, feedViewportHeight || screenHeight), [feedViewportHeight, screenHeight]);
     const initialLoopIndex = useMemo(() => normalizeToLoopCenterIndex(0), []);
     const [visibleIndex, setVisibleIndex] = React.useState(initialLoopIndex);
     const [audioVisibleIndex, setAudioVisibleIndex] = React.useState(initialLoopIndex);
@@ -923,8 +921,8 @@ export default function FeedScreen() {
     const momentumInProgressRef = useRef(false);
     const scrollReleaseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const currentIndexRef = useRef(initialLoopIndex);
-    const scrollStartIndexRef = useRef(initialLoopIndex);
     const sourceAnchorIndexRef = useRef(initialLoopIndex);
+    const lastScrollOffsetYRef = useRef(initialLoopIndex * reelHeight);
     const setScrollingState = useCallback((value: boolean) => {
         isScrollingRef.current = value;
         setIsScrolling((prev) => (prev === value ? prev : value));
@@ -934,6 +932,10 @@ export default function FeedScreen() {
             clearTimeout(scrollReleaseTimeoutRef.current);
             scrollReleaseTimeoutRef.current = null;
         }
+    }, []);
+    const handleFeedLayout = useCallback((e: any) => {
+        const nextHeight = Math.max(1, e.nativeEvent.layout.height);
+        setFeedViewportHeight((prev) => (Math.abs(prev - nextHeight) < 0.5 ? prev : nextHeight));
     }, []);
     const branchCardWidth = useMemo(
         () => Math.max(280, Math.min(340, screenWidth - 48)),
@@ -976,19 +978,11 @@ export default function FeedScreen() {
             return 0.99;
         }
         if (Platform.OS === "android") {
-            return 0.995;
+            return "fast" as const;
         }
         return 0.998;
     }, []);
-    const reelSnapVelocityThreshold = useMemo(() => {
-        if (Platform.OS === "ios") {
-            return REEL_SNAP_VELOCITY_THRESHOLD_IOS;
-        }
-        if (Platform.OS === "android") {
-            return REEL_SNAP_VELOCITY_THRESHOLD_ANDROID;
-        }
-        return 1.2;
-    }, []);
+    const useAndroidNativePaging = Platform.OS === "android";
     const sourceCandidateCenterIndex = useMemo(
         () => (isScrolling ? sourceAnchorIndex : visibleIndex),
         [isScrolling, sourceAnchorIndex, visibleIndex]
@@ -1074,6 +1068,15 @@ export default function FeedScreen() {
         },
         [clampIndex, reelHeight]
     );
+    useEffect(() => {
+        if (reelHeight <= 0) {
+            return;
+        }
+        const stableIndex = clampIndex(currentIndexRef.current);
+        requestAnimationFrame(() => {
+            safeScrollToIndex(stableIndex, false);
+        });
+    }, [clampIndex, reelHeight, safeScrollToIndex]);
     const recenterAroundLoopMiddle = useCallback(
         (index: number) => {
             const clampedIndex = clampIndex(index);
@@ -1116,30 +1119,45 @@ export default function FeedScreen() {
         momentumInProgressRef.current = true;
         clearScrollReleaseTimeout();
         setScrollingState(true);
-    }, [clearScrollReleaseTimeout, setScrollingState]);
+        updateAudioVisibleIndex(sourceAnchorIndexRef.current);
+    }, [clearScrollReleaseTimeout, setScrollingState, updateAudioVisibleIndex]);
 
     const handleMomentumEnd = useCallback(
         (e: any) => {
             momentumInProgressRef.current = false;
             clearScrollReleaseTimeout();
             const offsetY = e.nativeEvent.contentOffset.y;
+            lastScrollOffsetYRef.current = offsetY;
             if (!Number.isFinite(offsetY) || reelHeight <= 0) {
                 setScrollingState(false);
                 return;
             }
             const rawIndex = Math.round(offsetY / reelHeight);
             const targetIndex = clampIndex(rawIndex);
-            if (targetIndex !== rawIndex) {
-                safeScrollToIndex(targetIndex, true);
-            }
             const stableIndex = recenterAroundLoopMiddle(targetIndex);
             currentIndexRef.current = stableIndex;
             setVisibleIndex(stableIndex);
             updateAudioVisibleIndex(stableIndex);
             updateSourceAnchorIndex(stableIndex);
+            const targetOffset = stableIndex * reelHeight;
+            if (useAndroidNativePaging && Math.abs(offsetY - targetOffset) > 2) {
+                requestAnimationFrame(() => {
+                    safeScrollToIndex(stableIndex, false);
+                });
+            }
             setScrollingState(false);
         },
-        [clampIndex, clearScrollReleaseTimeout, reelHeight, recenterAroundLoopMiddle, safeScrollToIndex, setScrollingState, updateAudioVisibleIndex, updateSourceAnchorIndex]
+        [
+            clampIndex,
+            clearScrollReleaseTimeout,
+            reelHeight,
+            recenterAroundLoopMiddle,
+            safeScrollToIndex,
+            setScrollingState,
+            updateAudioVisibleIndex,
+            updateSourceAnchorIndex,
+            useAndroidNativePaging,
+        ]
     );
 
     const handleZoomStateChange = useCallback((value: boolean) => {
@@ -1160,136 +1178,118 @@ export default function FeedScreen() {
 
     return (
         <View style={styles.container}>
-            <FlatList<ReelLoopItem>
-                ref={listRef}
-                data={REELS_LOOP_DATA}
-                keyExtractor={(item) => item.key}
-                renderItem={({ item, index }) => (
-                    <ReelItemComponent
-                        item={item.reel}
-                        height={reelHeight}
-                        actionsBottom={actionsBottom}
-                        branchCardWidth={branchCardWidth}
-                        overlayViewportWidth={screenWidth}
-                        branchCardOffset={branchCardOffset}
-                        isScrolling={isScrolling}
-                        isVisible={index === visibleIndex}
-                        isAudioVisible={index === audioVisibleIndex}
-                        isSourceAnchor={index === sourceAnchorIndex}
-                        isSourceCandidate={Math.abs(index - sourceCandidateCenterIndex) <= 1}
-                        isPlaybackAllowed={isPlaybackAllowed}
-                        isZooming={isZooming}
-                        onZoomStateChange={handleZoomStateChange}
-                        onPinchTouchStateChange={handlePinchTouchStateChange}
-                        onSpeedBoostStateChange={handleSpeedBoostStateChange}
-                    />
-                )}
-                showsVerticalScrollIndicator={false}
-                pagingEnabled
-                snapToInterval={reelHeight}
-                snapToAlignment="start"
-                decelerationRate={feedDecelerationRate}
-                disableIntervalMomentum
-                scrollEventThrottle={16}
-                initialNumToRender={2}
-                maxToRenderPerBatch={feedMaxToRenderPerBatch}
-                windowSize={feedWindowSize}
-                updateCellsBatchingPeriod={8}
-                removeClippedSubviews={false}
-                initialScrollIndex={initialLoopIndex}
-                getItemLayout={(_, index) => ({
-                    length: reelHeight,
-                    offset: reelHeight * index,
-                    index,
-                })}
-                style={{ height: reelHeight }}
-                onViewableItemsChanged={onViewableItemsChanged}
-                viewabilityConfig={viewabilityConfig}
-                onScrollBeginDrag={() => {
-                    momentumInProgressRef.current = false;
-                    clearScrollReleaseTimeout();
-                    setScrollingState(true);
-                    scrollStartIndexRef.current = currentIndexRef.current;
-                    updateAudioVisibleIndex(currentIndexRef.current);
-                    updateSourceAnchorIndex(currentIndexRef.current);
-                }}
-                onScroll={(e) => {
-                    if (!isScrollingRef.current || reelHeight <= 0) {
-                        return;
-                    }
-                    const offsetY = e.nativeEvent.contentOffset.y;
-                    if (!Number.isFinite(offsetY)) {
-                        return;
-                    }
-                    const pageOffset = offsetY / reelHeight;
-                    const anchorIndex = sourceAnchorIndexRef.current;
-                    let nextSourceIndex = anchorIndex;
+            <View style={styles.feedListContainer} onLayout={handleFeedLayout}>
+                <FlatList<ReelLoopItem>
+                    ref={listRef}
+                    data={REELS_LOOP_DATA}
+                    keyExtractor={(item) => item.key}
+                    renderItem={({ item, index }) => (
+                        <ReelItemComponent
+                            item={item.reel}
+                            height={reelHeight}
+                            actionsBottom={actionsBottom}
+                            branchCardWidth={branchCardWidth}
+                            overlayViewportWidth={screenWidth}
+                            branchCardOffset={branchCardOffset}
+                            isScrolling={isScrolling}
+                            isVisible={index === visibleIndex}
+                            isAudioVisible={index === audioVisibleIndex}
+                            isSourceAnchor={index === sourceAnchorIndex}
+                            isSourceCandidate={Math.abs(index - sourceCandidateCenterIndex) <= 1}
+                            isPlaybackAllowed={isPlaybackAllowed}
+                            isZooming={isZooming}
+                            onZoomStateChange={handleZoomStateChange}
+                            onPinchTouchStateChange={handlePinchTouchStateChange}
+                            onSpeedBoostStateChange={handleSpeedBoostStateChange}
+                        />
+                    )}
+                    showsVerticalScrollIndicator={false}
+                    pagingEnabled
+                    snapToInterval={useAndroidNativePaging ? undefined : reelHeight}
+                    snapToAlignment={useAndroidNativePaging ? undefined : "start"}
+                    decelerationRate={feedDecelerationRate}
+                    disableIntervalMomentum={false}
+                    scrollEventThrottle={16}
+                    initialNumToRender={2}
+                    maxToRenderPerBatch={feedMaxToRenderPerBatch}
+                    windowSize={feedWindowSize}
+                    updateCellsBatchingPeriod={8}
+                    removeClippedSubviews={false}
+                    initialScrollIndex={initialLoopIndex}
+                    getItemLayout={(_, index) => ({
+                        length: reelHeight,
+                        offset: reelHeight * index,
+                        index,
+                    })}
+                    style={styles.feedList}
+                    onViewableItemsChanged={onViewableItemsChanged}
+                    viewabilityConfig={viewabilityConfig}
+                    onScrollBeginDrag={() => {
+                        momentumInProgressRef.current = false;
+                        clearScrollReleaseTimeout();
+                        setScrollingState(true);
+                        updateAudioVisibleIndex(currentIndexRef.current);
+                        updateSourceAnchorIndex(currentIndexRef.current);
+                    }}
+                    onScroll={(e) => {
+                        if (!isScrollingRef.current || reelHeight <= 0) {
+                            return;
+                        }
+                        const offsetY = e.nativeEvent.contentOffset.y;
+                        lastScrollOffsetYRef.current = offsetY;
+                        if (!Number.isFinite(offsetY)) {
+                            return;
+                        }
+                        const pageOffset = offsetY / reelHeight;
+                        const anchorIndex = sourceAnchorIndexRef.current;
+                        let nextSourceIndex = anchorIndex;
 
-                    if (pageOffset >= anchorIndex + SOURCE_ANCHOR_SWITCH_THRESHOLD) {
-                        nextSourceIndex = clampIndex(anchorIndex + 1);
-                    } else if (pageOffset <= anchorIndex - SOURCE_ANCHOR_SWITCH_THRESHOLD) {
-                        nextSourceIndex = clampIndex(anchorIndex - 1);
-                    }
+                        if (pageOffset >= anchorIndex + SOURCE_ANCHOR_SWITCH_THRESHOLD) {
+                            nextSourceIndex = clampIndex(anchorIndex + 1);
+                        } else if (pageOffset <= anchorIndex - SOURCE_ANCHOR_SWITCH_THRESHOLD) {
+                            nextSourceIndex = clampIndex(anchorIndex - 1);
+                        }
 
-                    if (nextSourceIndex !== anchorIndex) {
-                        updateSourceAnchorIndex(nextSourceIndex);
-                    }
-                }}
-                onScrollEndDrag={(e) => {
-                    const velocityY = e.nativeEvent.velocity?.y ?? 0;
-                    const offsetY = e.nativeEvent.contentOffset.y;
-                    if (!Number.isFinite(offsetY) || !Number.isFinite(velocityY) || reelHeight <= 0) {
-                        setScrollingState(false);
-                        return;
-                    }
-                    const startIndex = scrollStartIndexRef.current;
-                    const startOffsetY = startIndex * reelHeight;
-                    const deltaPages = (offsetY - startOffsetY) / reelHeight;
-                    const shouldKeepCurrent =
-                        Math.abs(deltaPages) < REEL_SNAP_DISTANCE_THRESHOLD &&
-                        Math.abs(velocityY) < reelSnapVelocityThreshold;
-
-                    if (shouldKeepCurrent) {
-                        const stableStartIndex = recenterAroundLoopMiddle(startIndex);
-                        safeScrollToIndex(stableStartIndex, true);
-                        currentIndexRef.current = stableStartIndex;
-                        setVisibleIndex(stableStartIndex);
-                        updateAudioVisibleIndex(stableStartIndex);
-                        updateSourceAnchorIndex(stableStartIndex);
-                    } else {
-                        const rawTargetIndex = Math.round(offsetY / reelHeight);
-                        let predictedTargetIndex = clampIndex(rawTargetIndex);
-                        if (predictedTargetIndex === startIndex) {
-                            const dragDirection = Math.sign(deltaPages);
-                            const velocityDirection = Math.sign(velocityY);
-                            const direction = dragDirection !== 0 ? dragDirection : velocityDirection;
-                            if (direction !== 0) {
-                                predictedTargetIndex = clampIndex(startIndex + (direction > 0 ? 1 : -1));
+                        if (nextSourceIndex !== anchorIndex) {
+                            updateSourceAnchorIndex(nextSourceIndex);
+                            updateAudioVisibleIndex(nextSourceIndex);
+                        }
+                    }}
+                    onScrollEndDrag={() => {
+                        clearScrollReleaseTimeout();
+                        scrollReleaseTimeoutRef.current = setTimeout(() => {
+                            if (!momentumInProgressRef.current) {
+                                const fallbackOffsetY = lastScrollOffsetYRef.current;
+                                if (!Number.isFinite(fallbackOffsetY) || reelHeight <= 0) {
+                                    setScrollingState(false);
+                                    return;
+                                }
+                                const fallbackRawIndex = Math.round(fallbackOffsetY / reelHeight);
+                                const fallbackIndex = recenterAroundLoopMiddle(clampIndex(fallbackRawIndex));
+                                currentIndexRef.current = fallbackIndex;
+                                setVisibleIndex(fallbackIndex);
+                                updateAudioVisibleIndex(fallbackIndex);
+                                updateSourceAnchorIndex(fallbackIndex);
+                                const fallbackTargetOffset = fallbackIndex * reelHeight;
+                                if (useAndroidNativePaging && Math.abs(fallbackOffsetY - fallbackTargetOffset) > 2) {
+                                    safeScrollToIndex(fallbackIndex, false);
+                                }
+                                setScrollingState(false);
                             }
-                        }
-                        const stablePredictedIndex = recenterAroundLoopMiddle(predictedTargetIndex);
-                        updateAudioVisibleIndex(stablePredictedIndex);
-                        updateSourceAnchorIndex(stablePredictedIndex);
-                    }
-
-                    clearScrollReleaseTimeout();
-                    scrollReleaseTimeoutRef.current = setTimeout(() => {
-                        if (!momentumInProgressRef.current) {
-                            setScrollingState(false);
-                        }
-                    }, 180);
-                }}
-                onScrollToIndexFailed={(info) => {
-                    const fallbackOffset = Math.max(0, info.index * reelHeight);
-                    listRef.current?.scrollToOffset({ offset: fallbackOffset, animated: false });
-                    requestAnimationFrame(() => {
-                        safeScrollToIndex(info.index, false);
-                    });
-                }}
-                onMomentumScrollBegin={handleMomentumStart}
-                onMomentumScrollEnd={handleMomentumEnd}
-                scrollEnabled={!isZooming && !isPinchTouchActive && !isSpeedBoosting}
-            />
+                        }, 120);
+                    }}
+                    onScrollToIndexFailed={(info) => {
+                        const fallbackOffset = Math.max(0, info.index * reelHeight);
+                        listRef.current?.scrollToOffset({ offset: fallbackOffset, animated: false });
+                        requestAnimationFrame(() => {
+                            safeScrollToIndex(info.index, false);
+                        });
+                    }}
+                    onMomentumScrollBegin={handleMomentumStart}
+                    onMomentumScrollEnd={handleMomentumEnd}
+                    scrollEnabled={!isZooming && !isPinchTouchActive && !isSpeedBoosting}
+                />
+            </View>
 
             {!isZooming && !isSpeedBoosting ? (
                 <View
@@ -1333,6 +1333,12 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: "#000",
+    },
+    feedListContainer: {
+        flex: 1,
+    },
+    feedList: {
+        flex: 1,
     },
     reel: {
         width: "100%",

@@ -13,11 +13,21 @@ type Props = {
 // memo() zabraňuje zbytočným renderom ak sa props nezmenia
 export const TabMenu = memo(function TabMenu({ items, active, onChange, width }: Props) {
   const { t } = useTranslation();
+  const fallbackLabels: Record<string, string> = {
+    home: "Home",
+    news: "News",
+    benefits: "Benefits",
+    info: "Info",
+    reviews: "Reviews",
+  };
   
   return (
     <View style={styles.container}>
       {items.map((x) => {
         const isActive = active === x;
+        const translationKey = `tab_${x}`;
+        const translated = t(translationKey);
+        const label = translated === translationKey ? fallbackLabels[x] ?? x : translated;
   return (
         <TouchableOpacity
           key={x}
@@ -29,7 +39,7 @@ export const TabMenu = memo(function TabMenu({ items, active, onChange, width }:
             ]}
         >
             <Text style={[styles.tabText, isActive && styles.tabTextActive]}>
-              {t(`tab_${x}`)}
+              {label}
             </Text>
         </TouchableOpacity>
         );

@@ -45,7 +45,7 @@ const translateBranchOffers = (branch: BranchData, t: (key: string) => string): 
 const CITY_CLUSTER_ZOOM = 11;           // pod týmto = city cluster
 const CLUSTER_MAX_ZOOM = 16;            // nad týmto = jednotlivé markery
 const FORCE_CLUSTER_ZOOM = 14;          // do tychto zoomov zobrazujeme iba clustre
-const SINGLE_MODE_ZOOM = 15;          // od tohto zoomu len single piny
+const SINGLE_MODE_ZOOM = 14;          // od tohto zoomu len single piny
 const DEFAULT_CAMERA_ZOOM = 14;
 const DEFAULT_CITY_CENTER: [number, number] = [18.091, 48.3069];
 
@@ -58,6 +58,20 @@ const IOS_CLUSTER_CELL_PX = 80;        // ~Android - 10px
 
 // Static map zoom (LocationSheet + InfoSection)
 const STATIC_MAP_ZOOM = 14;
+
+// Inline marker label engine (no overlay projections)
+const MAP_INLINE_LABELS_ENABLED = true;
+const MAP_FULL_SPRITES_V1 = true;
+const MAP_FULL_SPRITES_LOGS_ENABLED = false;
+const MAP_LABEL_ENTER_ZOOM = 12.6;
+const MAP_LABEL_EXIT_ZOOM = 12.3;
+const MAP_LABEL_LOW_ZOOM_MAX = 12;
+const MAP_LABEL_MID_ZOOM_MAX = 20;
+const MAP_LABEL_HIGH_ZOOM_MAX = 28;
+const MAP_LABEL_MAX_MARKERS = 600;
+const MAP_LABEL_CANDIDATE_MULTIPLIER = 3;
+const MAP_LABEL_COLLISION_GAP_X = 4;
+const MAP_LABEL_COLLISION_GAP_Y = 3;
 
 export {
   DUMMY_BRANCH,
@@ -75,4 +89,16 @@ export {
   ANDROID_CLUSTER_CELL_PX,
   IOS_CLUSTER_CELL_PX,
   STATIC_MAP_ZOOM,
+  MAP_INLINE_LABELS_ENABLED,
+  MAP_FULL_SPRITES_V1,
+  MAP_FULL_SPRITES_LOGS_ENABLED,
+  MAP_LABEL_ENTER_ZOOM,
+  MAP_LABEL_EXIT_ZOOM,
+  MAP_LABEL_LOW_ZOOM_MAX,
+  MAP_LABEL_MID_ZOOM_MAX,
+  MAP_LABEL_HIGH_ZOOM_MAX,
+  MAP_LABEL_MAX_MARKERS,
+  MAP_LABEL_CANDIDATE_MULTIPLIER,
+  MAP_LABEL_COLLISION_GAP_X,
+  MAP_LABEL_COLLISION_GAP_Y,
 };

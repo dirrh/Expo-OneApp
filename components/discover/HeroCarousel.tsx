@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback } from "react";
 import { FlatList, Image, Platform, StyleSheet, View } from "react-native";
 
 type Props = {
@@ -13,7 +13,13 @@ export function HeroCarousel({ data, height, width, index, onIndexChange }: Prop
   const renderItem = useCallback(
     ({ item }: { item: any }) => (
       <View style={{ width, height }}>
-        <Image source={item.image} style={carouselStyles.image} resizeMode="cover" />
+        <Image
+          source={item.image}
+          style={carouselStyles.image}
+          resizeMode="cover"
+          resizeMethod="resize"
+          fadeDuration={0}
+        />
       </View>
     ),
     [height, width]

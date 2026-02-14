@@ -52,6 +52,32 @@ const CATEGORY_GALLERY_IMAGES: Record<DiscoverCategory, ImageSourcePropType[]> =
   ],
 };
 
+const normalizeMarkerTitle = (marker: DiscoverMapMarker) => {
+  const raw = marker.title?.trim();
+  if (raw && raw.length > 3) {
+    return raw;
+  }
+  return formatTitleFromId(marker.id);
+};
+
+const normalizeMarkerItem = (marker: DiscoverMapMarker): DiscoverMapMarker => {
+  const rating = Number.isFinite(marker.rating)
+    ? marker.rating
+    : Number.parseFloat(marker.ratingFormatted ?? "");
+
+  const normalizedRating = Number.isFinite(rating)
+    ? Math.min(5, Math.max(0, rating))
+    : 0;
+
+  return {
+    ...marker,
+    title: normalizeMarkerTitle(marker),
+    markerSpriteKey: marker.markerSpriteKey ?? marker.id,
+    rating: normalizedRating,
+    ratingFormatted: normalizedRating.toFixed(1),
+  };
+};
+
 /**
  * Typ pre návratovú hodnotu hooku
  */
@@ -141,7 +167,7 @@ export const useDiscoverData = ({
         }));
         
         setBranches(translated);
-        setMarkers(markerData);
+        setMarkers(markerData.map(normalizeMarkerItem));
       })
       .catch((err) => {
         if (!active) return;
@@ -243,7 +269,7 @@ export const useDiscoverData = ({
       const override = markerBranchOverrides[marker.id] ?? {};
       
       // Názov - z override alebo vygenerujeme z ID
-      const title = override.title ?? formatTitleFromId(marker.id);
+      const title = override.title ?? normalizeMarkerTitle(marker);
       
       // Kategória - z override alebo z markera
       const category = override.category ?? (marker.category === "Multi" ? "" : marker.category);
@@ -270,6 +296,7 @@ export const useDiscoverData = ({
         ...translatedDummy,        // základné hodnoty (preložené)
         ...override,               // vlastné hodnoty
         title,
+        coordinates: [marker.coord.lng, marker.coord.lat],
         category: resolvedCategory ?? DUMMY_BRANCH.category ?? "Fitness",
         rating: marker.rating,
         distance: `${(Math.random() * 2 + 0.5).toFixed(1)} km`,  // náhodná vzdialenosť (TODO: vypočítať reálnu)
@@ -352,3 +379,4 @@ export const useSavedLocationMarkers = (
     [locations]
   );
 };
+

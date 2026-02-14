@@ -12,6 +12,8 @@ import { useTranslation } from "react-i18next";
 
 type Props = {
   onActivate: () => void;
+  limit?: number;
+  onShowAll?: () => void;
 };
 
 type BenefitStatus = "activated" | "available" | "locked" | "expired";
@@ -189,15 +191,35 @@ const styles = StyleSheet.create({
     color: "#FAFAFA",
     textAlign: "center",
   },
+  showAllWrapper: {
+    alignItems: "center",
+    marginTop: 16,
+    marginBottom: 6,
+  },
+  showAllText: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 12,
+    lineHeight: 15,
+    color: "#7C7C7C",
+  },
 });
 
 // memo() zabranuje zbytocnym renderom ak sa props nezmenia
-export const BenefitsSection = memo(function BenefitsSection({ onActivate }: Props) {
+export const BenefitsSection = memo(function BenefitsSection({
+  onActivate,
+  limit,
+  onShowAll,
+}: Props) {
   const { t } = useTranslation();
+  const showAllRaw = t("showAll");
+  const showAllLabel =
+    showAllRaw === "showAll" || showAllRaw === "Show All" ? "Show all" : showAllRaw;
+  const visibleBenefits = typeof limit === "number" ? DUMMY_BENEFITS.slice(0, limit) : DUMMY_BENEFITS;
+  const canShowMore = typeof limit === "number" && DUMMY_BENEFITS.length > limit && Boolean(onShowAll);
 
   return (
     <View style={styles.list}>
-      {DUMMY_BENEFITS.map((benefit, index) => {
+      {visibleBenefits.map((benefit, index) => {
         const isAvailable = benefit.status === "available";
         const isDisabled = benefit.status !== "available";
         const buttonStyle = isAvailable ? styles.activeBtn : styles.disabledBtn;
@@ -231,6 +253,12 @@ export const BenefitsSection = memo(function BenefitsSection({ onActivate }: Pro
           </View>
         );
       })}
+
+      {canShowMore && (
+        <TouchableOpacity style={styles.showAllWrapper} onPress={onShowAll}>
+          <Text style={styles.showAllText}>{showAllLabel}</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 });

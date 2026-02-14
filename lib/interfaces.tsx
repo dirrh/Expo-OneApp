@@ -40,6 +40,7 @@ export type BranchData = {
   title: string;
   image: ImageSourcePropType;
   images?: ImageSourcePropType[];
+  coordinates?: [number, number];
   rating: number;
   distance: string;
   hours: string;
@@ -66,6 +67,9 @@ export interface BranchCardProps extends BranchData {
 export interface DiscoverMapMarker {
   id: string;
   title?: string;
+  labelPriority?: number;
+  markerSpriteUrl?: string;
+  markerSpriteKey?: string;
   coord: { lng: number; lat: number };
   groupId?: string;
   groupCount?: number;
@@ -75,11 +79,25 @@ export interface DiscoverMapMarker {
   category: DiscoverCategory | "Multi";
 }
 
+export interface DiscoverMapLabelPolicy {
+  minZoom: number;
+  enterZoom?: number;
+  exitZoom?: number;
+  lowZoomMax: number;
+  midZoomMax: number;
+  highZoomMax: number;
+  maxMarkersForLabels?: number;
+}
+
 export interface DiscoverMapProps {
   cameraRef: MapViewRef;
   filteredMarkers: DiscoverMapMarker[];
   userCoord?: [number, number] | null;
   hasActiveFilter?: boolean;
+  labelPolicy?: Partial<DiscoverMapLabelPolicy>;
+  markerRenderPolicy?: {
+    fullSpritesEnabled?: boolean;
+  };
   onCameraChanged: (
     center: [number, number],
     zoom: number,

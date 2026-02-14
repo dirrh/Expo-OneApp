@@ -269,3 +269,56 @@ export const BADGED_ICON_SOURCES: Record<BadgedCategory, Record<BadgedRatingKey,
     "5.0": require("../../images/icons/badged/beauty/beauty_rating_5.0.png"),
   },
 };
+
+const BADGED_RATING_VALUES = BADGED_RATING_KEYS.map((value) =>
+  Number.parseFloat(value)
+);
+
+const clampRating = (value: number) => Math.min(5, Math.max(0, value));
+
+export const normalizeBadgedRatingKey = (
+  rating?: number | string | null
+): BadgedRatingKey => {
+  const parsed =
+    typeof rating === "number"
+      ? rating
+      : typeof rating === "string"
+        ? Number.parseFloat(rating)
+        : NaN;
+
+  if (!Number.isFinite(parsed)) {
+    return "0.0";
+  }
+
+  const rounded = Number.parseFloat(clampRating(parsed).toFixed(1));
+  const roundedKey = rounded.toFixed(1) as BadgedRatingKey;
+  if (BADGED_ICON_SOURCES.Fitness[roundedKey]) {
+    return roundedKey;
+  }
+
+  let nearestKey: BadgedRatingKey = BADGED_RATING_KEYS[0];
+  let nearestDelta = Number.POSITIVE_INFINITY;
+  BADGED_RATING_VALUES.forEach((value, index) => {
+    const delta = Math.abs(value - rounded);
+    if (delta < nearestDelta) {
+      nearestDelta = delta;
+      nearestKey = BADGED_RATING_KEYS[index];
+    }
+  });
+
+  return nearestKey;
+};
+
+export const resolveBadgedIconSource = (
+  category: BadgedCategory | string | undefined,
+  rating?: number | string | null
+) => {
+  if (!category || !(category in BADGED_ICON_SOURCES)) {
+    return undefined;
+  }
+  const key = normalizeBadgedRatingKey(rating);
+  const ratingMap =
+    BADGED_ICON_SOURCES[category as BadgedCategory] ??
+    BADGED_ICON_SOURCES.Fitness;
+  return ratingMap[key] ?? ratingMap["0.0"];
+};

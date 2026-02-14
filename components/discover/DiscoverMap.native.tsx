@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Image,
   Platform,
   StyleSheet,
   Text,
@@ -11,8 +12,11 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import MapView, { Marker, type Region } from "react-native-maps";
 import Supercluster from "supercluster";
-import type { ImageSourcePropType, ImageURISource } from "react-native";
-import type { DiscoverMapProps, DiscoverMapMarker } from "../../lib/interfaces";
+import type { ImageURISource } from "react-native";
+import type {
+  DiscoverMapProps,
+  DiscoverMapMarker,
+} from "../../lib/interfaces";
 import { styles } from "./discoverStyles";
 import {
   normalizeCenter,
@@ -21,9 +25,14 @@ import {
   zoomToRegion,
 } from "../../lib/maps/camera";
 import {
-  BADGED_ICON_SOURCES,
-  BadgedCategory,
-} from "../../lib/maps/badgedIcons";
+  type MarkerLabelCandidate,
+} from "../../lib/maps/labelSelection";
+import {
+  getMarkerRemoteSpriteUrl,
+  getMarkerSpriteKey,
+  hasLocalFullMarkerSprite,
+  resolveMarkerImage,
+} from "../../lib/maps/markerImageProvider";
 import {
   CLUSTER_ICON_SOURCES,
   ClusterCountKey,
@@ -41,12 +50,10 @@ import {
   IOS_SINGLE_MODE_ZOOM,
   ANDROID_CLUSTER_CELL_PX,
   IOS_CLUSTER_CELL_PX,
+  MAP_FULL_SPRITES_LOGS_ENABLED,
+  MAP_FULL_SPRITES_V1,
 } from "../../lib/constants/discover";
 
-const FITNESS_ICON = require("../../images/icons/fitness/fitness_without_review.png");
-const GASTRO_ICON = require("../../images/icons/gastro/gastro_without_rating.png");
-const RELAX_ICON = require("../../images/icons/relax/relax_without_rating.png");
-const BEAUTY_ICON = require("../../images/icons/beauty/beauty_without_rating.png");
 const MULTI_ICON = require("../../images/icons/multi/multi.png");
 const CLUSTER_ID_PREFIX = "cluster:";
 const USER_MARKER_ID = "user-location";
@@ -68,6 +75,14 @@ const PIN_TRIM_X = 0;
 const PIN_TRIM_Y = 0;
 const BADGED_CANVAS_HEIGHT = 226;
 const BADGED_PIN_OFFSET_Y = 40;
+const BADGED_TITLE_WIDTH = 120;
+const BADGED_TITLE_HEIGHT = 18;
+const MARKER_TITLE_OFFSET_Y = 8;
+const BADGED_TITLE_MAX_WIDTH = 560;
+const BADGED_TITLE_HORIZONTAL_PADDING = 10;
+const BADGED_TITLE_CHAR_PX = 9.2;
+const FULL_SPRITE_VIEWPORT_MARGIN_X = 96;
+const FULL_SPRITE_VIEWPORT_MARGIN_Y = 72;
 
 const BASE_ANCHOR_X =
   (PIN_TRIM_X + PIN_TRIM_WIDTH / 2) / PIN_CANVAS_WIDTH;
@@ -99,6 +114,7 @@ type RenderMarker = {
   image?: number | ImageURISource;
   anchor?: { x: number; y: number };
   category?: DiscoverMapMarker["category"];
+  markerData?: DiscoverMapMarker;
   zIndex: number;
   isCluster: boolean;
   isStacked?: boolean;
@@ -110,34 +126,6 @@ type ClusterPointFeature = {
   type: "Feature";
   geometry: { type: "Point"; coordinates: [number, number] };
   properties: { markerId: string; weight: number };
-};
-
-const toIconSource = (source?: ImageSourcePropType | null) => {
-  const isUriSource = (value: unknown): value is ImageURISource => {
-    if (!value || typeof value !== "object" || Array.isArray(value)) {
-      return false;
-    }
-    const uri = (value as ImageURISource).uri;
-    return typeof uri === "string" && uri.length > 0;
-  };
-
-  if (!source) {
-    return undefined;
-  }
-  if (typeof source === "number") {
-    return Number.isFinite(source) && source > 0 ? source : undefined;
-  }
-  if (Array.isArray(source)) {
-    const first = source[0];
-    if (!first) {
-      return undefined;
-    }
-    if (typeof first === "number") {
-      return Number.isFinite(first) && first > 0 ? first : undefined;
-    }
-    return isUriSource(first) ? first : undefined;
-  }
-  return isUriSource(source) ? source : undefined;
 };
 
 const projectToWorld = (
@@ -167,6 +155,29 @@ const getPixelDistanceSq = (
 
 const clampNumber = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
+
+const appendUniqueValue = (items: string[], value: string) =>
+  items.includes(value) ? items : [...items, value];
+
+const estimateInlineTitleWidth = (title: string) => {
+  const normalized = title.trim();
+  if (!normalized) {
+    return BADGED_TITLE_WIDTH;
+  }
+  const estimated =
+    normalized.length * BADGED_TITLE_CHAR_PX + BADGED_TITLE_HORIZONTAL_PADDING * 2;
+  return Math.round(clampNumber(estimated, BADGED_TITLE_WIDTH, BADGED_TITLE_MAX_WIDTH));
+};
+
+const wrapWorldDelta = (delta: number, worldSize: number) => {
+  if (delta > worldSize / 2) {
+    return delta - worldSize;
+  }
+  if (delta < -worldSize / 2) {
+    return delta + worldSize;
+  }
+  return delta;
+};
 
 const isFiniteCoordinate = (latitude: number, longitude: number) => {
   return Number.isFinite(latitude) && Number.isFinite(longitude);
@@ -220,6 +231,36 @@ const getTooltipCategoryIcon = (
   }
 };
 
+const toMarkerTitle = (marker: DiscoverMapMarker) => {
+  const fallback = marker.id
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (match) => match.toUpperCase());
+
+  const explicit = marker.title?.trim();
+  if (explicit && explicit.length > 3) {
+    return explicit;
+  }
+  return fallback;
+};
+
+const getMarkerNumericRating = (marker?: DiscoverMapMarker) => {
+  if (!marker) {
+    return null;
+  }
+  const parsed =
+    typeof marker.rating === "number"
+      ? marker.rating
+      : typeof marker.ratingFormatted === "string"
+        ? Number.parseFloat(marker.ratingFormatted)
+        : NaN;
+  if (!Number.isFinite(parsed)) {
+    return null;
+  }
+  return Math.min(5, Math.max(0, parsed));
+};
+
 const CATEGORY_PIN_COLORS: Record<DiscoverMapMarker["category"], string> = {
   Fitness: "#2563EB",
   Gastro: "#16A34A",
@@ -266,6 +307,8 @@ function DiscoverMap({
   cityCenter,
   onMarkerPress,
   initialCamera,
+  labelPolicy,
+  markerRenderPolicy,
 }: DiscoverMapProps) {
   const fallbackCenter = mapCenter ?? cityCenter ?? DEFAULT_CITY_CENTER;
   const fallbackZoom = mapZoom ?? DEFAULT_CAMERA_ZOOM;
@@ -353,25 +396,6 @@ function DiscoverMap({
     return Array.from(grouped.values());
   }, [filteredMarkers]);
 
-  const getRatingIcon = useCallback((marker?: DiscoverMapMarker) => {
-    if (!marker) return undefined;
-    if (marker.category === "Multi") return undefined;
-
-    const numericRating =
-      typeof marker.rating === "number"
-        ? marker.rating
-        : typeof marker.ratingFormatted === "string"
-          ? Number.parseFloat(marker.ratingFormatted)
-          : NaN;
-
-    if (!Number.isFinite(numericRating)) return undefined;
-
-    const clamped = Math.min(5, Math.max(0, numericRating));
-    const ratingKey = clamped.toFixed(1);
-    const iconsForCategory = BADGED_ICON_SOURCES[marker.category as BadgedCategory];
-    return iconsForCategory?.[ratingKey as keyof typeof iconsForCategory];
-  }, []);
-
   const effectiveZoomRaw = Platform.OS === "ios" ? zoom + IOS_ZOOM_OFFSET : zoom;
   const effectiveZoom = Math.max(0, Math.min(20, effectiveZoomRaw));
   const superclusterZoom = Math.max(0, Math.min(20, Math.floor(effectiveZoom)));
@@ -379,6 +403,8 @@ function DiscoverMap({
     Platform.OS === "ios" ? IOS_FORCE_CLUSTER_ZOOM : FORCE_CLUSTER_ZOOM;
   const singleModeZoom =
     Platform.OS === "ios" ? IOS_SINGLE_MODE_ZOOM : SINGLE_MODE_ZOOM;
+  const fullSpritesEnabled =
+    markerRenderPolicy?.fullSpritesEnabled ?? MAP_FULL_SPRITES_V1;
   const stableClusterZoom = Math.max(
     0,
     Math.min(
@@ -804,32 +830,12 @@ function DiscoverMap({
         }
 
         const marker = group.items[0];
-        const ratingIcon = getRatingIcon(marker);
-        const fallbackIcon =
-          toIconSource(marker?.icon) ??
-          (marker?.category === "Fitness"
-            ? FITNESS_ICON
-            : marker?.category === "Gastro"
-              ? GASTRO_ICON
-              : marker?.category === "Relax"
-                ? RELAX_ICON
-                : marker?.category === "Beauty"
-                  ? BEAUTY_ICON
-                  : MULTI_ICON);
-        const image = ratingIcon ?? fallbackIcon;
-
         markers.push({
           key: `single-layer:${marker.id}`,
           id: marker.id,
           coordinate: group.coordinate,
-          image,
           category: marker.category,
-          anchor: image
-            ? {
-                x: ratingIcon ? BADGED_ANCHOR_X : BASE_ANCHOR_X,
-                y: ratingIcon ? BADGED_ANCHOR_Y : BASE_ANCHOR_Y,
-              }
-            : undefined,
+          markerData: marker,
           zIndex: 1,
           isCluster: false,
           isStacked: false,
@@ -855,8 +861,39 @@ function DiscoverMap({
     hasActiveFilter,
     showSingleLayer,
     singleLayerMarkers,
-    getRatingIcon,
   ]);
+
+  const labelCandidates = useMemo<MarkerLabelCandidate[]>(() => {
+    const candidates: MarkerLabelCandidate[] = [];
+    singleLayerMarkers.forEach((group) => {
+      if (group.items.length !== 1) {
+        return;
+      }
+      const marker = group.items[0];
+      if (!marker || marker.category === "Multi") {
+        return;
+      }
+      const title = toMarkerTitle(marker).trim();
+      if (!title) {
+        return;
+      }
+      const rating = getMarkerNumericRating(marker);
+      if (rating === null) {
+        return;
+      }
+      candidates.push({
+        id: marker.id,
+        title,
+        coordinate: group.coordinate,
+        rating,
+        estimatedWidth: estimateInlineTitleWidth(title),
+        labelPriority: Number.isFinite(marker.labelPriority)
+          ? Number(marker.labelPriority)
+          : 0,
+      });
+    });
+    return candidates;
+  }, [singleLayerMarkers]);
 
   const [selectedStackedMarkerId, setSelectedStackedMarkerId] = useState<string | null>(
     null
@@ -866,6 +903,12 @@ function DiscoverMap({
     y: number;
   } | null>(null);
   const [mapLayoutSize, setMapLayoutSize] = useState({ width: 0, height: 0 });
+  const [inlineLabelIds, setInlineLabelIds] = useState<string[]>([]);
+  const [readyFullSpriteIds, setReadyFullSpriteIds] = useState<string[]>([]);
+  const [failedRemoteSpriteKeys, setFailedRemoteSpriteKeys] = useState<string[]>([]);
+  const inlineLabelHashRef = useRef("");
+  const inlineLabelsEnabledRef = useRef(false);
+  const pendingRemoteSpritePrefetchRef = useRef(new Set<string>());
   const suppressNextMapPressRef = useRef(false);
   const pendingStackedOpenRef = useRef<{
     id: string;
@@ -896,6 +939,106 @@ function DiscoverMap({
     setSelectedStackedMarkerId(null);
     setStackedTooltipPoint(null);
   }, [clearPendingStackedOpen]);
+
+  const commitInlineLabelIds = useCallback((nextIds: string[], enabled: boolean) => {
+    const nextHash = nextIds.join("|");
+    const hasSameState =
+      inlineLabelHashRef.current === nextHash &&
+      inlineLabelsEnabledRef.current === enabled;
+    if (hasSameState) {
+      return;
+    }
+    inlineLabelHashRef.current = nextHash;
+    inlineLabelsEnabledRef.current = enabled;
+    setInlineLabelIds(nextIds);
+  }, []);
+
+  const recomputeInlineLabels = useCallback(
+    (nextCenter: [number, number], nextZoom: number) => {
+      if (
+        !fullSpritesEnabled ||
+        mapLayoutSize.width <= 0 ||
+        mapLayoutSize.height <= 0 ||
+        labelCandidates.length === 0
+      ) {
+        commitInlineLabelIds([], false);
+        return;
+      }
+
+      const effectiveNextZoomRaw =
+        Platform.OS === "ios" ? nextZoom + IOS_ZOOM_OFFSET : nextZoom;
+      const effectiveNextZoom = clampNumber(effectiveNextZoomRaw, 0, 20);
+
+      if (effectiveNextZoom < singleModeZoom) {
+        commitInlineLabelIds([], false);
+        return;
+      }
+
+      const worldSize = 256 * Math.pow(2, effectiveNextZoom);
+      const centerPoint = projectToWorld(nextCenter[0], nextCenter[1], worldSize);
+      const visibleIds: string[] = [];
+
+      labelCandidates.forEach((candidate) => {
+        const candidatePoint = projectToWorld(
+          candidate.coordinate.longitude,
+          candidate.coordinate.latitude,
+          worldSize
+        );
+
+        const dx = wrapWorldDelta(candidatePoint.x - centerPoint.x, worldSize);
+        const dy = candidatePoint.y - centerPoint.y;
+        const screenX = mapLayoutSize.width / 2 + dx;
+        const screenY = mapLayoutSize.height / 2 + dy;
+
+        if (
+          screenX < -FULL_SPRITE_VIEWPORT_MARGIN_X ||
+          screenX > mapLayoutSize.width + FULL_SPRITE_VIEWPORT_MARGIN_X ||
+          screenY < -FULL_SPRITE_VIEWPORT_MARGIN_Y ||
+          screenY > mapLayoutSize.height + FULL_SPRITE_VIEWPORT_MARGIN_Y
+        ) {
+          return;
+        }
+
+        visibleIds.push(candidate.id);
+      });
+
+      commitInlineLabelIds(visibleIds, true);
+    },
+    [
+      commitInlineLabelIds,
+      labelCandidates,
+      mapLayoutSize.height,
+      mapLayoutSize.width,
+      singleModeZoom,
+      fullSpritesEnabled,
+    ]
+  );
+
+  const fullSpriteCandidateIdSet = useMemo(() => {
+    return new Set(inlineLabelIds);
+  }, [inlineLabelIds]);
+
+  const readyFullSpriteIdSet = useMemo(
+    () => new Set(readyFullSpriteIds),
+    [readyFullSpriteIds]
+  );
+
+  const failedRemoteSpriteKeySet = useMemo(
+    () => new Set(failedRemoteSpriteKeys),
+    [failedRemoteSpriteKeys]
+  );
+
+  const singleMarkerById = useMemo(() => {
+    const markerMap = new Map<string, DiscoverMapMarker>();
+    singleLayerMarkers.forEach((group) => {
+      if (group.items.length !== 1) {
+        return;
+      }
+      const marker = group.items[0];
+      markerMap.set(marker.id, marker);
+    });
+    return markerMap;
+  }, [singleLayerMarkers]);
 
   const updateStackedTooltipPosition = useCallback(
     async (marker: RenderMarker | null) => {
@@ -939,6 +1082,108 @@ function DiscoverMap({
       closeStackedTooltip();
     }
   }, [selectedStackedMarkerId, renderMarkers, closeStackedTooltip]);
+
+  useEffect(() => {
+    recomputeInlineLabels(cameraCenter, zoom);
+  }, [cameraCenter, labelCandidates, mapLayoutSize.height, mapLayoutSize.width, recomputeInlineLabels, zoom]);
+
+  useEffect(() => {
+    if (!fullSpritesEnabled || !showSingleLayer) {
+      setReadyFullSpriteIds((previous) => (previous.length > 0 ? [] : previous));
+      return;
+    }
+
+    const targetIdSet = new Set(inlineLabelIds);
+    setReadyFullSpriteIds((previous) => {
+      const next = previous.filter((id) => targetIdSet.has(id));
+      return next.length === previous.length ? previous : next;
+    });
+
+    const immediateReadyMarkerIds: string[] = [];
+
+    inlineLabelIds.forEach((markerId) => {
+      const marker = singleMarkerById.get(markerId);
+      if (!marker || marker.category === "Multi") {
+        return;
+      }
+
+      const spriteKey = getMarkerSpriteKey(marker);
+      const remoteSpriteUrl = getMarkerRemoteSpriteUrl(marker);
+      const hasLocalSprite = hasLocalFullMarkerSprite(marker);
+
+      if (!remoteSpriteUrl || failedRemoteSpriteKeySet.has(spriteKey)) {
+        if (hasLocalSprite && !readyFullSpriteIdSet.has(markerId)) {
+          immediateReadyMarkerIds.push(markerId);
+        }
+        return;
+      }
+
+      if (pendingRemoteSpritePrefetchRef.current.has(spriteKey)) {
+        return;
+      }
+
+      pendingRemoteSpritePrefetchRef.current.add(spriteKey);
+      void Image.prefetch(remoteSpriteUrl)
+        .then((prefetchOk) => {
+          if (prefetchOk) {
+            setReadyFullSpriteIds((previous) => appendUniqueValue(previous, markerId));
+            return;
+          }
+          setFailedRemoteSpriteKeys((previous) => appendUniqueValue(previous, spriteKey));
+          if (hasLocalSprite) {
+            requestAnimationFrame(() => {
+              setReadyFullSpriteIds((previous) => appendUniqueValue(previous, markerId));
+            });
+          }
+        })
+        .catch(() => {
+          setFailedRemoteSpriteKeys((previous) => appendUniqueValue(previous, spriteKey));
+          if (hasLocalSprite) {
+            requestAnimationFrame(() => {
+              setReadyFullSpriteIds((previous) => appendUniqueValue(previous, markerId));
+            });
+          }
+        })
+        .finally(() => {
+          pendingRemoteSpritePrefetchRef.current.delete(spriteKey);
+        });
+    });
+
+    if (immediateReadyMarkerIds.length > 0) {
+      setReadyFullSpriteIds((previous) => {
+        let changed = false;
+        const nextSet = new Set(previous);
+        immediateReadyMarkerIds.forEach((markerId) => {
+          if (!nextSet.has(markerId)) {
+            nextSet.add(markerId);
+            changed = true;
+          }
+        });
+        return changed ? Array.from(nextSet) : previous;
+      });
+    }
+  }, [
+    failedRemoteSpriteKeySet,
+    fullSpritesEnabled,
+    inlineLabelIds,
+    readyFullSpriteIdSet,
+    showSingleLayer,
+    singleMarkerById,
+  ]);
+
+  useEffect(() => {
+    if (!MAP_FULL_SPRITES_LOGS_ENABLED) {
+      return;
+    }
+    console.debug(
+      `[map_full_sprites_v1] markers=${filteredMarkers.length} selected=${inlineLabelIds.length} ready=${readyFullSpriteIds.length} remoteFailures=${failedRemoteSpriteKeys.length}`
+    );
+  }, [
+    failedRemoteSpriteKeys.length,
+    filteredMarkers.length,
+    inlineLabelIds.length,
+    readyFullSpriteIds.length,
+  ]);
 
   const tooltipItems = selectedStackedMarker?.stackedItems ?? [];
   const stackedTooltipLayout = useMemo(() => {
@@ -1094,14 +1339,6 @@ function DiscoverMap({
     }
   }, [markGestureActive, selectedStackedMarkerId, closeStackedTooltip]);
 
-  const handleTouchStart = useCallback(() => {
-    markGestureActive();
-  }, [markGestureActive]);
-
-  const handleTouchEnd = useCallback(() => {
-    scheduleGestureRelease();
-  }, [scheduleGestureRelease]);
-
   const handleRegionChange = useCallback(
     (region: Region) => {
       if (!isValidRegion(region)) {
@@ -1123,7 +1360,6 @@ function DiscoverMap({
       if (!gestureRef.current) {
         return;
       }
-
       onCameraChanged(nextCenter, nextZoom, true);
     },
     [applyRenderCamera, onCameraChanged]
@@ -1166,11 +1402,13 @@ function DiscoverMap({
       if (selectedStackedMarker) {
         void updateStackedTooltipPosition(selectedStackedMarker);
       }
+      recomputeInlineLabels(nextCenter, nextZoom);
     },
     [
       applyRenderCamera,
       clearPendingStackedOpen,
       onCameraChanged,
+      recomputeInlineLabels,
       renderMarkers,
       scheduleGestureRelease,
       selectedStackedMarker,
@@ -1310,8 +1548,15 @@ function DiscoverMap({
       if (selectedStackedMarker) {
         void updateStackedTooltipPosition(selectedStackedMarker);
       }
+      recomputeInlineLabels(cameraCenter, zoom);
     },
-    [selectedStackedMarker, updateStackedTooltipPosition]
+    [
+      cameraCenter,
+      recomputeInlineLabels,
+      selectedStackedMarker,
+      updateStackedTooltipPosition,
+      zoom,
+    ]
   );
 
   const markerElements = useMemo(
@@ -1321,9 +1566,26 @@ function DiscoverMap({
           isValidMapCoordinate(marker.coordinate.latitude, marker.coordinate.longitude)
         )
         .map((marker) => {
-          const useCustomImage = isValidMarkerImage(marker.image);
-          const markerImage = useCustomImage ? marker.image : undefined;
-          const markerAnchor = useCustomImage ? marker.anchor : undefined;
+          let markerImage: number | ImageURISource | undefined = marker.image;
+          let markerAnchor: { x: number; y: number } | undefined = marker.anchor;
+
+          if (!marker.isCluster && !marker.isStacked && marker.markerData) {
+            const shouldRenderFullSprite =
+              fullSpritesEnabled &&
+              showSingleLayer &&
+              fullSpriteCandidateIdSet.has(marker.id) &&
+              readyFullSpriteIdSet.has(marker.id);
+            const resolved = resolveMarkerImage(marker.markerData, {
+              preferFullSprite: shouldRenderFullSprite,
+              remoteSpriteFailureKeys: failedRemoteSpriteKeySet,
+            });
+            markerImage = resolved.image;
+            markerAnchor = resolved.anchor;
+          }
+
+          const useCustomImage = isValidMarkerImage(markerImage);
+          const imageProp = useCustomImage ? markerImage : undefined;
+          const anchorProp = useCustomImage ? markerAnchor : undefined;
           const markerPinColor = useCustomImage
             ? undefined
             : getDefaultPinColor(marker, hasActiveFilter);
@@ -1334,15 +1596,24 @@ function DiscoverMap({
               coordinate={marker.coordinate}
               zIndex={marker.zIndex}
               onPress={() => handleMarkerPress(marker)}
-              {...(markerImage
-                ? { image: markerImage, tracksViewChanges: false }
+              {...(imageProp
+                ? { image: imageProp, tracksViewChanges: false }
                 : {})}
-              {...(markerAnchor ? { anchor: markerAnchor } : {})}
+              {...(anchorProp ? { anchor: anchorProp } : {})}
               {...(markerPinColor ? { pinColor: markerPinColor } : {})}
             />
           );
         }),
-    [renderMarkers, hasActiveFilter, handleMarkerPress]
+    [
+      failedRemoteSpriteKeySet,
+      fullSpriteCandidateIdSet,
+      fullSpritesEnabled,
+      hasActiveFilter,
+      handleMarkerPress,
+      readyFullSpriteIdSet,
+      renderMarkers,
+      showSingleLayer,
+    ]
   );
 
   if (Platform.OS === "web") {
@@ -1363,10 +1634,8 @@ function DiscoverMap({
         initialRegion={initialRegion}
         onMapReady={() => {
           void syncRenderCameraFromNative();
+          recomputeInlineLabels(cameraCenter, zoom);
         }}
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-        onTouchCancel={handleTouchEnd}
         onPanDrag={handlePanDrag}
         onPress={handleMapPress}
         onRegionChange={handleRegionChange}

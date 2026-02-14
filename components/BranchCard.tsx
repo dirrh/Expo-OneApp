@@ -47,6 +47,7 @@ function BranchCard(props: BranchCardProps) {
     phone,
     email,
     website,
+    coordinates,
     onPress,
   } = props;
 
@@ -146,6 +147,7 @@ function BranchCard(props: BranchCardProps) {
       phone,
       email,
       website,
+      coordinates,
     };
 
     if (onPress) {
