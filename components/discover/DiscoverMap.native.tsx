@@ -29,7 +29,6 @@ import {
   clampNumber,
   getDefaultPinColor,
   getIOSScaledMarkerSize,
-  getIOSScaledSizeFromDimensions,
   getMarkerNumericRating,
   getPixelDistanceSq,
   getTooltipCategoryIcon,
@@ -1836,22 +1835,51 @@ function DiscoverMap({
           const inlineLabelSelected = inlineLabelIdSet.has(marker.id);
           const hasLocalInlineFullSprite =
             marker.markerData ? hasLocalFullMarkerSprite(marker.markerData) : false;
-          const shouldUseInlineFullSprite =
+          const canUseIOSStableInlineSprite =
             isIOSStableMarkersMode &&
             fullSpritesEnabled &&
-            inlineLabelSelected &&
             hasLocalInlineFullSprite &&
             !marker.isCluster &&
-            !marker.isStacked;
+            !marker.isStacked &&
+            Boolean(marker.markerData);
+          let iosStableCompactImage: number | undefined;
+          let iosStableCompactAnchor: { x: number; y: number } | undefined;
+          let iosStableFullImage: number | undefined;
+          let iosStableFullAnchor: { x: number; y: number } | undefined;
 
           if (!marker.isCluster && !marker.isStacked && marker.markerData) {
-            const resolved = resolveMarkerImage(marker.markerData, {
-              preferFullSprite: shouldUseInlineFullSprite,
-              preferLocalFullSprite: isIOS,
-              remoteSpriteFailureKeys: failedRemoteSpriteKeySet,
-            });
-            markerImage = resolved.image;
-            markerAnchor = resolved.anchor;
+            if (canUseIOSStableInlineSprite) {
+              const compactResolved = resolveMarkerImage(marker.markerData, {
+                preferFullSprite: false,
+                remoteSpriteFailureKeys: failedRemoteSpriteKeySet,
+              });
+              markerImage = compactResolved.image;
+              markerAnchor = compactResolved.anchor;
+              if (typeof compactResolved.image === "number") {
+                iosStableCompactImage = compactResolved.image;
+                iosStableCompactAnchor = compactResolved.anchor;
+              }
+
+              const fullResolved = resolveMarkerImage(marker.markerData, {
+                preferFullSprite: true,
+                preferLocalFullSprite: true,
+                remoteSpriteFailureKeys: failedRemoteSpriteKeySet,
+              });
+              if (
+                fullResolved.variant !== "compact" &&
+                typeof fullResolved.image === "number"
+              ) {
+                iosStableFullImage = fullResolved.image;
+                iosStableFullAnchor = fullResolved.anchor;
+              }
+            } else {
+              const resolved = resolveMarkerImage(marker.markerData, {
+                preferFullSprite: false,
+                remoteSpriteFailureKeys: failedRemoteSpriteKeySet,
+              });
+              markerImage = resolved.image;
+              markerAnchor = resolved.anchor;
+            }
           }
 
           const useCustomImage = isValidMarkerImage(markerImage);
@@ -1870,21 +1898,22 @@ function DiscoverMap({
             useOverlayFullSprites && fullOpacityForMarker >= 1 - FULL_SPRITE_FADE_EPSILON
               ? 0
               : 1;
+          const numericImageProp = typeof imageProp === "number" ? imageProp : undefined;
+          const iosCompactImageSource =
+            typeof iosStableCompactImage === "number"
+              ? iosStableCompactImage
+              : numericImageProp;
           const shouldRenderIOSScaledStaticImage =
-            isIOSStableMarkersMode && typeof imageProp === "number";
-          const iosFullSpriteMetrics =
-            shouldRenderIOSScaledStaticImage && marker.markerData
-              ? getMarkerFullSpriteMetrics(marker.markerData)
-              : null;
+            isIOSStableMarkersMode &&
+            typeof iosCompactImageSource === "number";
+          const iosFullImageSource =
+            typeof iosStableFullImage === "number" ? iosStableFullImage : undefined;
           const iosScaledMarkerSize = shouldRenderIOSScaledStaticImage
-            ? getIOSScaledMarkerSize(imageProp)
+            ? getIOSScaledMarkerSize(iosCompactImageSource!)
             : undefined;
           const iosScaledFullSpriteSize =
-            shouldRenderIOSScaledStaticImage && iosFullSpriteMetrics
-              ? getIOSScaledSizeFromDimensions(
-                  iosFullSpriteMetrics.width,
-                  iosFullSpriteMetrics.height
-                )
+            shouldRenderIOSScaledStaticImage && typeof iosFullImageSource === "number"
+              ? getIOSScaledMarkerSize(iosFullImageSource!)
               : undefined;
           const iosScaledMarkerWrapperSize =
             shouldRenderIOSScaledStaticImage && iosScaledMarkerSize
@@ -1899,15 +1928,12 @@ function DiscoverMap({
                   ),
                 }
               : undefined;
-          const iosScaledActiveAnchor =
-            shouldRenderIOSScaledStaticImage && anchorProp
-              ? anchorProp
-              : { x: 0.5, y: 1 };
+          const iosScaledActiveAnchor = iosStableCompactAnchor ?? anchorProp ?? { x: 0.5, y: 1 };
           const iosScaledWrapperAnchor =
-            shouldRenderIOSScaledStaticImage && iosFullSpriteMetrics?.anchor
-              ? iosFullSpriteMetrics.anchor
+            shouldRenderIOSScaledStaticImage && iosStableFullAnchor
+              ? iosStableFullAnchor
               : iosScaledActiveAnchor;
-          const iosScaledImageOffset =
+          const iosScaledCompactOffset =
             shouldRenderIOSScaledStaticImage &&
             iosScaledMarkerSize &&
             iosScaledMarkerWrapperSize
@@ -1920,6 +1946,26 @@ function DiscoverMap({
                     iosScaledActiveAnchor.y * iosScaledMarkerSize.height,
                 }
               : undefined;
+          const iosScaledFullOffset =
+            shouldRenderIOSScaledStaticImage &&
+            iosScaledFullSpriteSize &&
+            iosScaledMarkerWrapperSize
+              ? {
+                  left:
+                    iosScaledWrapperAnchor.x * iosScaledMarkerWrapperSize.width -
+                    (iosStableFullAnchor?.x ?? iosScaledWrapperAnchor.x) *
+                      iosScaledFullSpriteSize.width,
+                  top:
+                    iosScaledWrapperAnchor.y * iosScaledMarkerWrapperSize.height -
+                    (iosStableFullAnchor?.y ?? iosScaledWrapperAnchor.y) *
+                      iosScaledFullSpriteSize.height,
+                }
+              : undefined;
+          const iosUseDualLayer =
+            shouldRenderIOSScaledStaticImage &&
+            typeof iosFullImageSource === "number" &&
+            iosScaledFullSpriteSize &&
+            iosScaledFullOffset;
           const resolvedAnchorProp =
             shouldRenderIOSScaledStaticImage && iosScaledWrapperAnchor
               ? iosScaledWrapperAnchor
@@ -1943,7 +1989,7 @@ function DiscoverMap({
               {shouldRenderIOSScaledStaticImage &&
               iosScaledMarkerSize &&
               iosScaledMarkerWrapperSize &&
-              iosScaledImageOffset ? (
+              iosScaledCompactOffset ? (
                 <View
                   style={[
                     localStyles.iosMarkerImageWrap,
@@ -1954,15 +2000,33 @@ function DiscoverMap({
                   ]}
                 >
                   <Image
-                    source={imageProp}
+                    source={iosCompactImageSource!}
                     style={[
                       localStyles.iosMarkerImage,
                       iosScaledMarkerSize,
-                      iosScaledImageOffset,
+                      iosScaledCompactOffset,
+                      iosUseDualLayer && inlineLabelSelected
+                        ? localStyles.iosMarkerLayerHidden
+                        : localStyles.iosMarkerLayerVisible,
                     ]}
                     resizeMode="contain"
                     fadeDuration={0}
                   />
+                  {iosUseDualLayer && iosScaledFullOffset ? (
+                    <Image
+                      source={iosFullImageSource!}
+                      style={[
+                        localStyles.iosMarkerImage,
+                        iosScaledFullSpriteSize,
+                        iosScaledFullOffset,
+                        inlineLabelSelected
+                          ? localStyles.iosMarkerLayerVisible
+                          : localStyles.iosMarkerLayerHidden,
+                      ]}
+                      resizeMode="contain"
+                      fadeDuration={0}
+                    />
+                  ) : null}
                 </View>
               ) : null}
             </Marker>
@@ -2146,6 +2210,12 @@ const localStyles = StyleSheet.create({
   },
   iosMarkerImage: {
     position: "absolute",
+  },
+  iosMarkerLayerVisible: {
+    opacity: 1,
+  },
+  iosMarkerLayerHidden: {
+    opacity: 0,
   },
   tooltipBackdrop: {
     ...StyleSheet.absoluteFillObject,
