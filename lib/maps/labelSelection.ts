@@ -231,7 +231,8 @@ const toRankingScore = (
         ? 1
         : 0;
   const baseScore = ratingNorm * 0.55 + distanceNorm * 0.35 + priorityNorm * 0.1;
-  return baseScore + (isSticky ? stickyScoreBonus : 0);
+  const orphanBonus = candidate.neighborCount === 0 ? 0.08 : 0;
+  return baseScore + (isSticky ? stickyScoreBonus : 0) + orphanBonus;
 };
 
 const compareRankedEntries = (a: RankedCandidateEntry, b: RankedCandidateEntry) => {

@@ -190,6 +190,7 @@ export type ResolvedMarkerImage = {
 
 export type ResolveMarkerImageContext = {
   preferFullSprite?: boolean;
+  preferLocalFullSprite?: boolean;
   remoteSpriteFailureKeys?: Set<string>;
 };
 
@@ -200,9 +201,24 @@ export const resolveMarkerImage = (
   const spriteKey = getMarkerSpriteKey(marker);
   const spriteKeyCandidates = getMarkerSpriteKeyCandidates(marker);
   const preferFull = Boolean(context?.preferFullSprite);
+  const preferLocalFull = Boolean(context?.preferLocalFullSprite);
   const failedRemoteKeys = context?.remoteSpriteFailureKeys;
 
   if (preferFull) {
+    const localFull =
+      getLocalFullMarkerSprite(spriteKey) ??
+      spriteKeyCandidates
+        .map((candidate) => getLocalFullMarkerSprite(candidate))
+        .find((candidate) => Boolean(candidate));
+    if (preferLocalFull && localFull) {
+      return {
+        image: localFull.image,
+        anchor: resolveLocalFullAnchor(localFull.width, localFull.height),
+        variant: "local-full",
+        spriteKey,
+      };
+    }
+
     const remoteUrl = getMarkerRemoteSpriteUrl(marker);
     if (remoteUrl && !failedRemoteKeys?.has(spriteKey)) {
       return {
@@ -213,11 +229,6 @@ export const resolveMarkerImage = (
       };
     }
 
-    const localFull =
-      getLocalFullMarkerSprite(spriteKey) ??
-      spriteKeyCandidates
-        .map((candidate) => getLocalFullMarkerSprite(candidate))
-        .find((candidate) => Boolean(candidate));
     if (localFull) {
       return {
         image: localFull.image,
@@ -234,9 +245,10 @@ export const resolveMarkerImage = (
     marker.category !== "Multi" && rating !== null
       ? resolveBadgedIconSource(marker.category, rating)
       : undefined;
+  const finalImage = ratingIcon ?? compactIcon ?? MULTI_ICON;
 
   return {
-    image: ratingIcon ?? compactIcon,
+    image: finalImage,
     anchor: ratingIcon
       ? { x: BADGED_ANCHOR_X, y: BADGED_ANCHOR_Y }
       : { x: BASE_ANCHOR_X, y: BASE_ANCHOR_Y },

@@ -29,6 +29,7 @@ import {
   clampNumber,
   getDefaultPinColor,
   getIOSScaledMarkerSize,
+  getIOSScaledSizeFromDimensions,
   getMarkerNumericRating,
   getPixelDistanceSq,
   getTooltipCategoryIcon,
@@ -75,6 +76,10 @@ import {
   MAP_LABEL_DENSE_MARKER_COUNT_THRESHOLD,
   MAP_FULL_SPRITES_LOGS_ENABLED,
   MAP_FULL_SPRITES_V1,
+  MAP_IOS_STABLE_MARKERS_LOGS_ENABLED,
+  MAP_IOS_STABLE_MARKERS_V1,
+  IOS_LABEL_RECOMPUTE_PAN_THRESHOLD_PX,
+  IOS_LABEL_RECOMPUTE_ZOOM_THRESHOLD,
 } from "../../lib/constants/discover";
 
 const MULTI_ICON = require("../../images/icons/multi/multi.png");
@@ -305,8 +310,12 @@ function DiscoverMap({
     Platform.OS === "ios" ? IOS_FORCE_CLUSTER_ZOOM : FORCE_CLUSTER_ZOOM;
   const singleModeZoom =
     Platform.OS === "ios" ? IOS_SINGLE_MODE_ZOOM : SINGLE_MODE_ZOOM;
+  const isIOS = Platform.OS === "ios";
+  const isIOSStableMarkersMode = isIOS && MAP_IOS_STABLE_MARKERS_V1;
   const fullSpritesEnabled =
     markerRenderPolicy?.fullSpritesEnabled ?? MAP_FULL_SPRITES_V1;
+  const fullSpriteFadeEnabled = !isIOSStableMarkersMode;
+  const useOverlayFullSprites = fullSpritesEnabled && !isIOSStableMarkersMode;
   const resolvedLabelPolicy = useMemo(
     () => normalizeDiscoverMapLabelPolicy(labelPolicy),
     [labelPolicy]
@@ -807,6 +816,22 @@ function DiscoverMap({
     });
     return candidates;
   }, [singleLayerMarkers]);
+  const localFullSpriteIdSet = useMemo(() => {
+    const ids = new Set<string>();
+    singleLayerMarkers.forEach((group) => {
+      if (group.items.length !== 1) {
+        return;
+      }
+      const marker = group.items[0];
+      if (!marker || marker.category === "Multi") {
+        return;
+      }
+      if (hasLocalFullMarkerSprite(marker)) {
+        ids.add(marker.id);
+      }
+    });
+    return ids;
+  }, [singleLayerMarkers]);
 
   const [selectedStackedMarkerId, setSelectedStackedMarkerId] = useState<string | null>(
     null
@@ -838,6 +863,19 @@ function DiscoverMap({
     id: string;
     timeout: ReturnType<typeof setTimeout> | null;
   } | null>(null);
+  const lastInlineRecomputeRef = useRef<{
+    center: [number, number];
+    zoom: number;
+  } | null>(null);
+  const recomputeCounterRef = useRef(0);
+  const mountedRef = useRef(true);
+  const prefetchGenerationRef = useRef(0);
+
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const clearPendingStackedOpen = useCallback(() => {
     const pending = pendingStackedOpenRef.current;
@@ -896,6 +934,7 @@ function DiscoverMap({
         labelCandidates.length === 0
       ) {
         commitInlineLabelIds([], false);
+        lastInlineRecomputeRef.current = null;
         forceInlineLabelIdsRef.current.clear();
         return;
       }
@@ -903,10 +942,46 @@ function DiscoverMap({
       const effectiveNextZoomRaw =
         Platform.OS === "ios" ? nextZoom + IOS_ZOOM_OFFSET : nextZoom;
       const effectiveNextZoom = clampNumber(effectiveNextZoomRaw, 0, 20);
+      const hasForcedIds = forceInlineLabelIdsRef.current.size > 0;
+      const shouldThrottleIOSRecompute =
+        isIOSStableMarkersMode &&
+        source === "region-complete" &&
+        !hasForcedIds;
+
+      if (shouldThrottleIOSRecompute) {
+        const previousRecompute = lastInlineRecomputeRef.current;
+        if (previousRecompute) {
+          const worldSize = 256 * Math.pow(2, effectiveNextZoom);
+          const previousPoint = projectToWorld(
+            previousRecompute.center[0],
+            previousRecompute.center[1],
+            worldSize
+          );
+          const nextPoint = projectToWorld(nextCenter[0], nextCenter[1], worldSize);
+          const deltaX = wrapWorldDelta(nextPoint.x - previousPoint.x, worldSize);
+          const deltaY = nextPoint.y - previousPoint.y;
+          const panDeltaPx = Math.hypot(deltaX, deltaY);
+          const zoomDelta = Math.abs(effectiveNextZoom - previousRecompute.zoom);
+
+          if (
+            panDeltaPx < IOS_LABEL_RECOMPUTE_PAN_THRESHOLD_PX &&
+            zoomDelta < IOS_LABEL_RECOMPUTE_ZOOM_THRESHOLD
+          ) {
+            return;
+          }
+        }
+      }
+
+      const previousHash = inlineLabelHashRef.current;
+      const previousEnabled = inlineLabelsEnabledRef.current;
 
       if (!mapLabelCollisionV2Enabled) {
         if (effectiveNextZoom < singleModeZoom) {
           commitInlineLabelIds([], false);
+          lastInlineRecomputeRef.current = {
+            center: [nextCenter[0], nextCenter[1]],
+            zoom: effectiveNextZoom,
+          };
           forceInlineLabelIdsRef.current.clear();
           return;
         }
@@ -940,6 +1015,10 @@ function DiscoverMap({
         });
 
         commitInlineLabelIds(visibleIds, true);
+        lastInlineRecomputeRef.current = {
+          center: [nextCenter[0], nextCenter[1]],
+          zoom: effectiveNextZoom,
+        };
         forceInlineLabelIdsRef.current.clear();
         return;
       }
@@ -978,7 +1057,26 @@ function DiscoverMap({
       });
 
       commitInlineLabelIds(selection.ids, selection.enabled);
+      lastInlineRecomputeRef.current = {
+        center: [nextCenter[0], nextCenter[1]],
+        zoom: effectiveNextZoom,
+      };
       forceInlineLabelIdsRef.current.clear();
+      const currentHash = selection.hash;
+      const hashChanged =
+        previousHash !== currentHash || previousEnabled !== selection.enabled;
+      if (hashChanged) {
+        recomputeCounterRef.current += 1;
+      }
+      if (isIOSStableMarkersMode && MAP_IOS_STABLE_MARKERS_LOGS_ENABLED) {
+        const recomputeMs = Date.now() - startedAtMs;
+        const fallbackCount = selection.ids.filter(
+          (id) => !localFullSpriteIdSet.has(id)
+        ).length;
+        console.debug(
+          `[map_ios_stable_markers_v1] source=${source} markers=${labelCandidates.length} inlineLabelCount=${selection.ids.length} selectionHashChanges=${recomputeCounterRef.current} recomputeMs=${recomputeMs} fallbackCount=${fallbackCount}`
+        );
+      }
 
       if (MAP_LABEL_COLLISION_V2_LOGS_ENABLED) {
         const recomputeMs = Date.now() - startedAtMs;
@@ -995,6 +1093,8 @@ function DiscoverMap({
       mapLayoutSize.width,
       singleModeZoom,
       fullSpritesEnabled,
+      isIOSStableMarkersMode,
+      localFullSpriteIdSet,
       resolvedLabelPolicy,
     ]
   );
@@ -1003,9 +1103,10 @@ function DiscoverMap({
     () => new Set(readyFullSpriteIds),
     [readyFullSpriteIds]
   );
+  const inlineLabelIdSet = useMemo(() => new Set(inlineLabelIds), [inlineLabelIds]);
 
   const fullSpriteTargetIdSet = useMemo(() => {
-    if (!fullSpritesEnabled || !showSingleLayer) {
+    if (!useOverlayFullSprites || !showSingleLayer) {
       return new Set<string>();
     }
     const next = new Set<string>();
@@ -1015,7 +1116,7 @@ function DiscoverMap({
       }
     });
     return next;
-  }, [fullSpritesEnabled, inlineLabelIds, readyFullSpriteIdSet, showSingleLayer]);
+  }, [useOverlayFullSprites, inlineLabelIds, readyFullSpriteIdSet, showSingleLayer]);
 
   const fullSpriteTargetHash = useMemo(() => {
     if (fullSpriteTargetIdSet.size === 0) {
@@ -1101,8 +1202,9 @@ function DiscoverMap({
   useEffect(() => {
     const previous = previousShowSingleLayerRef.current;
     if (!previous && showSingleLayer) {
-      clusterToSingleFadeUntilRef.current =
-        Date.now() + CLUSTER_TO_SINGLE_FADE_WINDOW_MS;
+      clusterToSingleFadeUntilRef.current = fullSpriteFadeEnabled
+        ? Date.now() + CLUSTER_TO_SINGLE_FADE_WINDOW_MS
+        : 0;
     } else if (previous && !showSingleLayer) {
       clusterToSingleFadeUntilRef.current = 0;
       stopFullSpriteFade();
@@ -1112,12 +1214,12 @@ function DiscoverMap({
       }
     }
     previousShowSingleLayerRef.current = showSingleLayer;
-  }, [showSingleLayer, stopFullSpriteFade]);
+  }, [fullSpriteFadeEnabled, showSingleLayer, stopFullSpriteFade]);
 
   useEffect(() => {
     fullSpriteTargetIdsRef.current = new Set(fullSpriteTargetIdSet);
 
-    if (!isClusterToSingleFadeActive()) {
+    if (!fullSpriteFadeEnabled || !isClusterToSingleFadeActive()) {
       stopFullSpriteFade();
       const immediateMap: Record<string, number> = {};
       fullSpriteTargetIdSet.forEach((id) => {
@@ -1134,6 +1236,7 @@ function DiscoverMap({
       fullSpriteFadeRafRef.current = requestAnimationFrame(runFullSpriteFadeFrame);
     }
   }, [
+    fullSpriteFadeEnabled,
     fullSpriteTargetHash,
     fullSpriteTargetIdSet,
     isClusterToSingleFadeActive,
@@ -1207,7 +1310,14 @@ function DiscoverMap({
   }, [labelCandidates, recomputeInlineLabels]);
 
   useEffect(() => {
+    const generation = prefetchGenerationRef.current + 1;
+    prefetchGenerationRef.current = generation;
+
     if (!fullSpritesEnabled || !showSingleLayer) {
+      setReadyFullSpriteIds((previous) => (previous.length > 0 ? [] : previous));
+      return;
+    }
+    if (isIOSStableMarkersMode) {
       setReadyFullSpriteIds((previous) => (previous.length > 0 ? [] : previous));
       return;
     }
@@ -1244,6 +1354,12 @@ function DiscoverMap({
       pendingRemoteSpritePrefetchRef.current.add(spriteKey);
       void Image.prefetch(remoteSpriteUrl)
         .then((prefetchOk) => {
+          if (
+            !mountedRef.current ||
+            prefetchGenerationRef.current !== generation
+          ) {
+            return;
+          }
           if (prefetchOk) {
             setReadyFullSpriteIds((previous) => appendUniqueValue(previous, markerId));
             return;
@@ -1251,14 +1367,32 @@ function DiscoverMap({
           setFailedRemoteSpriteKeys((previous) => appendUniqueValue(previous, spriteKey));
           if (hasLocalSprite) {
             requestAnimationFrame(() => {
+              if (
+                !mountedRef.current ||
+                prefetchGenerationRef.current !== generation
+              ) {
+                return;
+              }
               setReadyFullSpriteIds((previous) => appendUniqueValue(previous, markerId));
             });
           }
         })
         .catch(() => {
+          if (
+            !mountedRef.current ||
+            prefetchGenerationRef.current !== generation
+          ) {
+            return;
+          }
           setFailedRemoteSpriteKeys((previous) => appendUniqueValue(previous, spriteKey));
           if (hasLocalSprite) {
             requestAnimationFrame(() => {
+              if (
+                !mountedRef.current ||
+                prefetchGenerationRef.current !== generation
+              ) {
+                return;
+              }
               setReadyFullSpriteIds((previous) => appendUniqueValue(previous, markerId));
             });
           }
@@ -1285,6 +1419,7 @@ function DiscoverMap({
     failedRemoteSpriteKeySet,
     fullSpritesEnabled,
     inlineLabelIds,
+    isIOSStableMarkersMode,
     readyFullSpriteIdSet,
     showSingleLayer,
     singleMarkerById,
@@ -1698,10 +1833,21 @@ function DiscoverMap({
         .map((marker) => {
           let markerImage: number | ImageURISource | undefined = marker.image;
           let markerAnchor: { x: number; y: number } | undefined = marker.anchor;
+          const inlineLabelSelected = inlineLabelIdSet.has(marker.id);
+          const hasLocalInlineFullSprite =
+            marker.markerData ? hasLocalFullMarkerSprite(marker.markerData) : false;
+          const shouldUseInlineFullSprite =
+            isIOSStableMarkersMode &&
+            fullSpritesEnabled &&
+            inlineLabelSelected &&
+            hasLocalInlineFullSprite &&
+            !marker.isCluster &&
+            !marker.isStacked;
 
           if (!marker.isCluster && !marker.isStacked && marker.markerData) {
             const resolved = resolveMarkerImage(marker.markerData, {
-              preferFullSprite: false,
+              preferFullSprite: shouldUseInlineFullSprite,
+              preferLocalFullSprite: isIOS,
               remoteSpriteFailureKeys: failedRemoteSpriteKeySet,
             });
             markerImage = resolved.image;
@@ -1721,12 +1867,63 @@ function DiscoverMap({
           // Keep base pin visually stable during full-sprite fade.
           // We hide compact only when full sprite is effectively fully visible.
           const compactMarkerOpacity =
-            fullOpacityForMarker >= 1 - FULL_SPRITE_FADE_EPSILON ? 0 : 1;
+            useOverlayFullSprites && fullOpacityForMarker >= 1 - FULL_SPRITE_FADE_EPSILON
+              ? 0
+              : 1;
           const shouldRenderIOSScaledStaticImage =
-            Platform.OS === "ios" && typeof imageProp === "number";
+            isIOSStableMarkersMode && typeof imageProp === "number";
+          const iosFullSpriteMetrics =
+            shouldRenderIOSScaledStaticImage && marker.markerData
+              ? getMarkerFullSpriteMetrics(marker.markerData)
+              : null;
           const iosScaledMarkerSize = shouldRenderIOSScaledStaticImage
             ? getIOSScaledMarkerSize(imageProp)
             : undefined;
+          const iosScaledFullSpriteSize =
+            shouldRenderIOSScaledStaticImage && iosFullSpriteMetrics
+              ? getIOSScaledSizeFromDimensions(
+                  iosFullSpriteMetrics.width,
+                  iosFullSpriteMetrics.height
+                )
+              : undefined;
+          const iosScaledMarkerWrapperSize =
+            shouldRenderIOSScaledStaticImage && iosScaledMarkerSize
+              ? {
+                  width: Math.max(
+                    iosScaledMarkerSize.width,
+                    iosScaledFullSpriteSize?.width ?? iosScaledMarkerSize.width
+                  ),
+                  height: Math.max(
+                    iosScaledMarkerSize.height,
+                    iosScaledFullSpriteSize?.height ?? iosScaledMarkerSize.height
+                  ),
+                }
+              : undefined;
+          const iosScaledActiveAnchor =
+            shouldRenderIOSScaledStaticImage && anchorProp
+              ? anchorProp
+              : { x: 0.5, y: 1 };
+          const iosScaledWrapperAnchor =
+            shouldRenderIOSScaledStaticImage && iosFullSpriteMetrics?.anchor
+              ? iosFullSpriteMetrics.anchor
+              : iosScaledActiveAnchor;
+          const iosScaledImageOffset =
+            shouldRenderIOSScaledStaticImage &&
+            iosScaledMarkerSize &&
+            iosScaledMarkerWrapperSize
+              ? {
+                  left:
+                    iosScaledWrapperAnchor.x * iosScaledMarkerWrapperSize.width -
+                    iosScaledActiveAnchor.x * iosScaledMarkerSize.width,
+                  top:
+                    iosScaledWrapperAnchor.y * iosScaledMarkerWrapperSize.height -
+                    iosScaledActiveAnchor.y * iosScaledMarkerSize.height,
+                }
+              : undefined;
+          const resolvedAnchorProp =
+            shouldRenderIOSScaledStaticImage && iosScaledWrapperAnchor
+              ? iosScaledWrapperAnchor
+              : anchorProp;
 
           return (
             <Marker
@@ -1740,16 +1937,33 @@ function DiscoverMap({
                 : shouldRenderIOSScaledStaticImage
                   ? { tracksViewChanges: false }
                   : {})}
-              {...(anchorProp ? { anchor: anchorProp } : {})}
+              {...(resolvedAnchorProp ? { anchor: resolvedAnchorProp } : {})}
               {...(markerPinColor ? { pinColor: markerPinColor } : {})}
             >
-              {shouldRenderIOSScaledStaticImage && iosScaledMarkerSize ? (
-                <Image
-                  source={imageProp}
-                  style={iosScaledMarkerSize}
-                  resizeMode="contain"
-                  fadeDuration={0}
-                />
+              {shouldRenderIOSScaledStaticImage &&
+              iosScaledMarkerSize &&
+              iosScaledMarkerWrapperSize &&
+              iosScaledImageOffset ? (
+                <View
+                  style={[
+                    localStyles.iosMarkerImageWrap,
+                    {
+                      width: iosScaledMarkerWrapperSize.width,
+                      height: iosScaledMarkerWrapperSize.height,
+                    },
+                  ]}
+                >
+                  <Image
+                    source={imageProp}
+                    style={[
+                      localStyles.iosMarkerImage,
+                      iosScaledMarkerSize,
+                      iosScaledImageOffset,
+                    ]}
+                    resizeMode="contain"
+                    fadeDuration={0}
+                  />
+                </View>
               ) : null}
             </Marker>
           );
@@ -1757,14 +1971,18 @@ function DiscoverMap({
     [
       failedRemoteSpriteKeySet,
       fullSpriteOpacityById,
+      fullSpritesEnabled,
       hasActiveFilter,
       handleMarkerPress,
+      isIOSStableMarkersMode,
+      inlineLabelIdSet,
       renderMarkers,
+      useOverlayFullSprites,
     ]
   );
 
   const fullSpriteOverlayElements = useMemo(() => {
-    if (!fullSpritesEnabled) {
+    if (!useOverlayFullSprites) {
       return [] as React.ReactNode[];
     }
 
@@ -1792,11 +2010,6 @@ function DiscoverMap({
 
         const imageProp = resolved.image;
         const anchorProp = resolved.anchor;
-        const shouldRenderIOSScaledStaticImage =
-          Platform.OS === "ios" && typeof imageProp === "number";
-        const iosScaledMarkerSize = shouldRenderIOSScaledStaticImage
-          ? getIOSScaledMarkerSize(imageProp)
-          : undefined;
 
         return (
           <Marker
@@ -1805,28 +2018,15 @@ function DiscoverMap({
             zIndex={marker.zIndex + 1000}
             opacity={opacity}
             onPress={() => handleMarkerPress(marker)}
-            {...(!shouldRenderIOSScaledStaticImage && imageProp
-              ? { image: imageProp, tracksViewChanges: false }
-              : shouldRenderIOSScaledStaticImage
-                ? { tracksViewChanges: false }
-                : {})}
+            {...(imageProp ? { image: imageProp, tracksViewChanges: false } : {})}
             {...(anchorProp ? { anchor: anchorProp } : {})}
-          >
-            {shouldRenderIOSScaledStaticImage && iosScaledMarkerSize ? (
-              <Image
-                source={imageProp}
-                style={iosScaledMarkerSize}
-                resizeMode="contain"
-                fadeDuration={0}
-              />
-            ) : null}
-          </Marker>
+          />
         );
       });
   }, [
     failedRemoteSpriteKeySet,
     fullSpriteOpacityById,
-    fullSpritesEnabled,
+    useOverlayFullSprites,
     handleMarkerPress,
     renderMarkers,
   ]);
@@ -1939,6 +2139,14 @@ function DiscoverMap({
 }
 
 const localStyles = StyleSheet.create({
+  iosMarkerImageWrap: {
+    position: "relative",
+    alignItems: "center",
+    overflow: "visible",
+  },
+  iosMarkerImage: {
+    position: "absolute",
+  },
   tooltipBackdrop: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 20,

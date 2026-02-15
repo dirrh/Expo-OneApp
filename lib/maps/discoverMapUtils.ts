@@ -22,6 +22,11 @@ const CATEGORY_PIN_COLORS: Record<DiscoverMapMarker["category"], string> = {
 
 const IOS_SCALED_MARKER_SIZE_CACHE = new Map<number, { width: number; height: number }>();
 
+export const getIOSScaledSizeFromDimensions = (width: number, height: number) => ({
+  width: Math.max(1, Math.round(width * IOS_MARKER_SIZE_FACTOR)),
+  height: Math.max(1, Math.round(height * IOS_MARKER_SIZE_FACTOR)),
+});
+
 export const projectToWorld = (
   longitude: number,
   latitude: number,
@@ -104,10 +109,7 @@ export const getIOSScaledMarkerSize = (imageSource: number) => {
     typeof resolved?.height === "number" && Number.isFinite(resolved.height)
       ? resolved.height
       : 48;
-  const scaled = {
-    width: Math.max(1, Math.round(baseWidth * IOS_MARKER_SIZE_FACTOR)),
-    height: Math.max(1, Math.round(baseHeight * IOS_MARKER_SIZE_FACTOR)),
-  };
+  const scaled = getIOSScaledSizeFromDimensions(baseWidth, baseHeight);
   IOS_SCALED_MARKER_SIZE_CACHE.set(imageSource, scaled);
   return scaled;
 };
