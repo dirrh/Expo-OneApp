@@ -2,10 +2,9 @@
 // Zodpovednost: renderuje UI, obsluhuje udalosti a lokalny stav obrazovky.
 // Vstup/Vystup: pracuje s navigation params, hookmi a volaniami akcii.
 
-import React, { memo, useCallback, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo } from "react";
 import {
   FlatList,
-  Image,
   Platform,
   ScrollView,
   StyleSheet,
@@ -18,37 +17,21 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
-import { useDiscoverData } from "../lib/hooks";
+import { useDiscoverData, useHomeSearch } from "../lib/hooks";
 import { appendDerivedBranchesFromMarkers } from "../lib/data/mappers";
 import { TAB_BAR_BASE_HEIGHT } from "../lib/constants/layout";
-import type { BranchData, DiscoverCategory } from "../lib/interfaces";
+import type { BranchData } from "../lib/interfaces";
 import { getCategoryPreviewImages } from "../lib/data/assets/categoryAssets";
-
-type HomeCategoryFilter = "All" | DiscoverCategory;
-
-const HOME_CATEGORY_CHIPS: Array<{
-  key: HomeCategoryFilter;
-  iconName?: keyof typeof Ionicons.glyphMap;
-  labelKey: string;
-}> = [
-  { key: "All", labelKey: "showAll" },
-  { key: "Fitness", iconName: "barbell-outline", labelKey: "Fitness" },
-  { key: "Gastro", iconName: "restaurant-outline", labelKey: "Gastro" },
-  { key: "Beauty", iconName: "sparkles-outline", labelKey: "Beauty" },
-  { key: "Relax", iconName: "leaf-outline", labelKey: "Relax" },
-];
-
-const normalizeCategory = (value?: string): HomeCategoryFilter | null => {
-  if (!value) return null;
-
-  const key = value.trim().toLowerCase();
-  if (key === "fitness" || key === "fitnes") return "Fitness";
-  if (key === "gastro" || key === "food" || key === "jedlo") return "Gastro";
-  if (key === "beauty" || key === "krasa" || key === "kozmetika") return "Beauty";
-  if (key === "relax" || key === "wellness") return "Relax";
-  if (key === "all") return "All";
-  return null;
-};
+import HomeSearchOverlay from "../components/home/HomeSearchOverlay";
+import HomeBranchGridCard from "../components/home/HomeBranchGridCard";
+import type { HomeSearchResult } from "../lib/search/homeSearchTypes";
+import { AppConfig } from "../lib/config/AppConfig";
+import {
+  HOME_CATEGORY_CHIPS,
+  normalizeHomeCategory,
+} from "../lib/home/homeCategoryConfig";
+import type { HomeCategoryFilter } from "../lib/home/homeCategoryConfig";
+import type { ShowMoreSection } from "../lib/home/showMoreUtils";
 
 const getBranchKey = (branch: BranchData): string =>
   String(branch.id ?? branch.title).trim().toLowerCase();
@@ -61,69 +44,11 @@ const getStableHash = (value: string): number => {
   return hash;
 };
 
-const ServiceCard = memo(
-  ({
-    item,
-    cardWidth,
-  }: {
-    item: BranchData;
-    cardWidth: number;
-  }) => {
-  const navigation = useNavigation<any>();
-  return (
-    <TouchableOpacity
-      activeOpacity={0.9}
-      onPress={() => navigation.navigate("BusinessDetailScreen", { branch: item })}
-      style={[styles.serviceCard, { width: cardWidth }]}
-    >
-      <Image source={item.image} style={[styles.serviceImage, { width: cardWidth }]} />
-      <Text style={styles.serviceTitle} numberOfLines={1}>
-        {item.title}
-      </Text>
-      <View style={styles.serviceMetaRow}>
-        <View style={styles.serviceMetaItem}>
-          <Ionicons name="star" size={13} color="#FFD000" />
-          <Text style={styles.serviceMetaText}>{item.rating.toFixed(1)}</Text>
-        </View>
-        <View style={styles.serviceMetaItem}>
-          <Ionicons name="location-outline" size={13} color="#7C7C7C" />
-          <Text style={styles.serviceMetaText}>{item.distance}</Text>
-        </View>
-        <View style={styles.serviceMetaItemLast}>
-          <Ionicons name="time-outline" size={13} color="#7C7C7C" />
-          <Text style={styles.serviceMetaText}>{item.hours}</Text>
-        </View>
-      </View>
-      {(item.discount || item.moreCount) && (
-        <View style={styles.serviceOfferRow}>
-          {item.discount ? (
-            <View style={[styles.serviceBadge, styles.serviceBadgePrimary]}>
-              <Text
-                style={[styles.serviceBadgeText, styles.serviceBadgeTextShrink]}
-                numberOfLines={1}
-              >
-                {item.discount}
-              </Text>
-            </View>
-          ) : null}
-          {item.moreCount ? (
-            <View style={[styles.serviceBadge, styles.serviceBadgeSecondary]}>
-              <Text style={styles.serviceBadgeText} numberOfLines={1}>
-                +{item.moreCount} more
-              </Text>
-            </View>
-          ) : null}
-        </View>
-      )}
-    </TouchableOpacity>
-  );
-  }
-);
-
 export default function HomeScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
+  const navigation = useNavigation<any>();
   const layoutScale = useMemo(
     () => Math.min(1.08, Math.max(0.86, screenWidth / 393)),
     [screenWidth]
@@ -140,12 +65,8 @@ export default function HomeScreen() {
     () => 16,
     []
   );
-  const categoriesTopSpacing = useMemo(
-    () => Math.max(24, Math.round(42 * layoutScale)),
-    [layoutScale]
-  );
-  const categoriesBottomSpacing = useMemo(
-    () => Math.max(14, Math.round(22 * layoutScale)),
+  const categoriesVerticalSpacing = useMemo(
+    () => Math.max(12, Math.round(18 * layoutScale)),
     [layoutScale]
   );
   const categoriesChipGap = useMemo(
@@ -161,6 +82,7 @@ export default function HomeScreen() {
     [headerControlsGap, horizontalPadding, screenWidth]
   );
   const [selectedCategory, setSelectedCategory] = React.useState<HomeCategoryFilter>("All");
+  const [isSearchOverlayVisible, setIsSearchOverlayVisible] = React.useState(false);
   const { branches, markers, buildBranchFromMarker } = useDiscoverData({ t });
   const homeBranchesSource = useMemo(
     () => appendDerivedBranchesFromMarkers(branches, markers, buildBranchFromMarker),
@@ -170,7 +92,7 @@ export default function HomeScreen() {
   const homeBranches = useMemo(
     () =>
       homeBranchesSource.map((branch) => {
-        const normalizedCategory = normalizeCategory(branch.category);
+        const normalizedCategory = normalizeHomeCategory(branch.category);
         if (!normalizedCategory || normalizedCategory === "All") {
           return branch;
         }
@@ -201,9 +123,31 @@ export default function HomeScreen() {
     }
 
     return homeBranches.filter(
-      (branch) => normalizeCategory(branch.category) === selectedCategory
+      (branch) => normalizeHomeCategory(branch.category) === selectedCategory
     );
   }, [homeBranches, selectedCategory]);
+
+  const {
+    query: searchQuery,
+    setQuery: setSearchQuery,
+    scope: searchScope,
+    setScope: setSearchScope,
+    scopeOptions: searchScopeOptions,
+    history: searchHistory,
+    clearHistory: clearSearchHistory,
+    applySuggestionQuery,
+    rememberQuery,
+    results: searchResults,
+    isSearchActive,
+    popularQueries,
+    resetSearch,
+  } = useHomeSearch({
+    branches: homeBranches,
+    selectedCategory,
+    isVisible: isSearchOverlayVisible,
+    localeKey: i18n.language,
+    enabled: AppConfig.homeSearchV2Enabled,
+  });
 
   const openNearYou = useMemo(() => filteredBranches.slice(0, 6), [filteredBranches]);
   const trending = useMemo(() => filteredBranches.slice(0, 6), [filteredBranches]);
@@ -212,7 +156,6 @@ export default function HomeScreen() {
     [filteredBranches]
   );
 
-  const sidePadding = horizontalPadding;
   const cardGap = useMemo(
     () => Math.min(27, Math.max(16, Math.round(27 * layoutScale))),
     [layoutScale]
@@ -224,7 +167,7 @@ export default function HomeScreen() {
 
   const renderService = useCallback(
     ({ item }: { item: BranchData }) => {
-      return <ServiceCard item={item} cardWidth={cardWidth} />;
+      return <HomeBranchGridCard branch={item} cardWidth={cardWidth} />;
     },
     [cardWidth]
   );
@@ -235,7 +178,7 @@ export default function HomeScreen() {
   );
 
   const sectionList = useMemo(
-    () => [
+    (): Array<{ key: ShowMoreSection; title: string; data: BranchData[] }> => [
       { key: "openNearYou", title: t("openNearYou"), data: openNearYou },
       { key: "trending", title: t("trending"), data: trending },
       { key: "topRated", title: t("topRated"), data: topRated },
@@ -243,7 +186,7 @@ export default function HomeScreen() {
     [openNearYou, trending, topRated, t]
   );
 
-  const sectionKeyExtractor = useCallback((item: { key: string }) => item.key, []);
+  const sectionKeyExtractor = useCallback((item: { key: ShowMoreSection }) => item.key, []);
   const sectionSeparator = useCallback(() => <View style={{ height: 0 }} />, []);
   const topRowStyle = useMemo(
     () => [styles.topRow, { paddingHorizontal: horizontalPadding, gap: headerControlsGap }],
@@ -254,8 +197,65 @@ export default function HomeScreen() {
     [categoriesChipGap, horizontalPadding]
   );
   const sectionContainerStyle = useMemo(
-    () => [styles.section, { paddingHorizontal: sidePadding }],
-    [sidePadding]
+    () => styles.section,
+    []
+  );
+  const sectionHeaderStyle = useMemo(
+    () => [styles.sectionHeader, { paddingHorizontal: horizontalPadding }],
+    [horizontalPadding]
+  );
+  const servicesRowStyle = useMemo(
+    () => [styles.servicesRow, { paddingLeft: horizontalPadding }],
+    [horizontalPadding]
+  );
+
+  useEffect(() => {
+    if (!AppConfig.homeSearchV2Enabled) {
+      return;
+    }
+
+    navigation.setOptions({
+      tabBarStyle: { display: isSearchOverlayVisible ? "none" : "flex" },
+    });
+
+    return () => {
+      navigation.setOptions({
+        tabBarStyle: { display: "flex" },
+      });
+    };
+  }, [isSearchOverlayVisible, navigation]);
+
+  const handleOpenSearch = useCallback(() => {
+    if (!AppConfig.homeSearchV2Enabled) {
+      return;
+    }
+    setIsSearchOverlayVisible(true);
+  }, []);
+
+  const handleCloseSearch = useCallback(() => {
+    setIsSearchOverlayVisible(false);
+    resetSearch();
+  }, [resetSearch]);
+
+  const handleApplySuggestion = useCallback(
+    (value: string) => {
+      applySuggestionQuery(value);
+    },
+    [applySuggestionQuery]
+  );
+
+  const handleSelectSearchResult = useCallback(
+    (result: HomeSearchResult) => {
+      const normalizedQuery = searchQuery.trim();
+      if (normalizedQuery.length > 0) {
+        rememberQuery(normalizedQuery);
+      }
+
+      setIsSearchOverlayVisible(false);
+      resetSearch();
+      navigation.navigate("BusinessDetailScreen", { branch: result.branch });
+    },
+    [navigation, rememberQuery, resetSearch, searchQuery]
   );
 
   const listHeader = useMemo(
@@ -275,18 +275,23 @@ export default function HomeScreen() {
             <Text style={styles.locationText}>{t("yourLocation")}</Text>
             <Ionicons name="chevron-down-outline" size={16} color="#000" style={{ opacity: 0.7 }} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.searchButton} activeOpacity={0.9}>
+          <TouchableOpacity
+            style={styles.searchButton}
+            activeOpacity={0.9}
+            onPress={handleOpenSearch}
+            accessibilityLabel={t("homeSearchOpenA11y")}
+          >
             <Ionicons name="search-outline" size={20} color="#000" />
           </TouchableOpacity>
         </View>
         <View
           style={[
             styles.categoriesWrap,
-            {
-              marginTop: categoriesTopSpacing,
-              marginBottom: categoriesBottomSpacing,
-            },
-          ]}
+              {
+                marginTop: categoriesVerticalSpacing,
+                marginBottom: categoriesVerticalSpacing,
+              },
+            ]}
         >
           <ScrollView
             horizontal
@@ -320,9 +325,9 @@ export default function HomeScreen() {
       </>
     ),
     [
-      categoriesBottomSpacing,
-      categoriesTopSpacing,
+      categoriesVerticalSpacing,
       categoriesScrollStyle,
+      handleOpenSearch,
       locationChipWidth,
       selectedCategory,
       topRowStyle,
@@ -335,19 +340,21 @@ export default function HomeScreen() {
     [cardGap]
   );
 
-  const navigation = useNavigation<any>();
-
   const handleShowMore = useCallback(
-    (sectionKey: string, sectionTitle: string) => {
-      navigation.navigate("ShowMore", { section: sectionKey, title: sectionTitle });
+    (sectionKey: ShowMoreSection, sectionTitle: string) => {
+      navigation.navigate("ShowMore", {
+        section: sectionKey,
+        title: sectionTitle,
+        initialCategory: selectedCategory,
+      });
     },
-    [navigation]
+    [navigation, selectedCategory]
   );
 
   const renderSection = useCallback(
-    ({ item }: { item: { key: string; title: string; data: BranchData[] } }) => (
+    ({ item }: { item: { key: ShowMoreSection; title: string; data: BranchData[] } }) => (
       <View style={sectionContainerStyle}>
-        <View style={styles.sectionHeader}>
+        <View style={sectionHeaderStyle}>
           <Text style={styles.sectionTitle}>{item.title}</Text>
           <TouchableOpacity 
             onPress={() => handleShowMore(item.key, item.title)}
@@ -362,10 +369,7 @@ export default function HomeScreen() {
           keyExtractor={keyExtractor}
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={[
-            styles.servicesRow,
-            { paddingRight: sidePadding },
-          ]}
+          contentContainerStyle={servicesRowStyle}
           ItemSeparatorComponent={sectionItemSeparator}
           snapToInterval={cardWidth + cardGap}
           snapToAlignment="start"
@@ -388,6 +392,8 @@ export default function HomeScreen() {
       handleShowMore,
       keyExtractor,
       renderService,
+      servicesRowStyle,
+      sectionHeaderStyle,
       sectionContainerStyle,
       sectionItemSeparator,
       t,
@@ -406,24 +412,48 @@ export default function HomeScreen() {
   );
 
   return (
-    <FlatList
-      data={sectionList}
-      keyExtractor={sectionKeyExtractor}
-      renderItem={renderSection}
-      ListHeaderComponent={listHeader}
-      ItemSeparatorComponent={sectionSeparator}
-      style={styles.container}
-      contentContainerStyle={contentStyle}
-      showsVerticalScrollIndicator={false}
-      bounces={false}
-      alwaysBounceVertical={false}
-      overScrollMode="never"
-      removeClippedSubviews={Platform.OS !== "web"}
-    />
+    <View style={styles.screenRoot}>
+      <FlatList
+        data={sectionList}
+        keyExtractor={sectionKeyExtractor}
+        renderItem={renderSection}
+        ListHeaderComponent={listHeader}
+        ItemSeparatorComponent={sectionSeparator}
+        style={styles.container}
+        contentContainerStyle={contentStyle}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+        alwaysBounceVertical={false}
+        overScrollMode="never"
+        removeClippedSubviews={Platform.OS !== "web"}
+      />
+
+      <HomeSearchOverlay
+        visible={isSearchOverlayVisible}
+        query={searchQuery}
+        setQuery={setSearchQuery}
+        scope={searchScope}
+        setScope={setSearchScope}
+        scopeOptions={searchScopeOptions}
+        history={searchHistory}
+        onClearHistory={clearSearchHistory}
+        popularQueries={popularQueries}
+        onApplySuggestion={handleApplySuggestion}
+        results={searchResults}
+        isSearchActive={isSearchActive}
+        onClose={handleCloseSearch}
+        onSelectResult={handleSelectSearchResult}
+        t={t}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  screenRoot: {
+    flex: 1,
+    backgroundColor: "#FAFAFA",
+  },
   container: {
     flex: 1,
     backgroundColor: "#FAFAFA",
@@ -510,7 +540,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   section: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 0,
     paddingTop: 0,
     paddingBottom: 16,
     gap: 16,
@@ -532,72 +562,6 @@ const styles = StyleSheet.create({
   },
   servicesRow: {
     paddingRight: 0,
-  },
-  serviceCard: {
-    gap: 6,
-  },
-  serviceImage: {
-    height: 134,
-    borderRadius: 6,
-    backgroundColor: "#F3F4F6",
-  },
-  serviceTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#000000",
-  },
-  serviceMetaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  serviceMetaItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingRight: 5,
-    marginRight: 5,
-    borderRightWidth: 0.8,
-    borderRightColor: "#7C7C7C",
-  },
-  serviceMetaItemLast: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-  },
-  serviceMetaText: {
-    fontSize: 12,
-    fontWeight: "500",
-    color: "#7C7C7C",
-  },
-  serviceOfferRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    width: "100%",
-    minWidth: 0,
-    overflow: "hidden",
-  },
-  serviceBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 9999,
-    backgroundColor: "#EB8100",
-  },
-  serviceBadgePrimary: {
-    flexShrink: 1,
-    minWidth: 0,
-  },
-  serviceBadgeSecondary: {
-    flexShrink: 0,
-  },
-  serviceBadgeText: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: "#FFFFFF",
-  },
-  serviceBadgeTextShrink: {
-    flexShrink: 1,
-    minWidth: 0,
   },
 });
 

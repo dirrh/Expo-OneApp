@@ -3,6 +3,7 @@
 // Vstup/Vystup: export branchDtosFixture pre mock datasource.
 
 import type { BranchDto } from "../data/models";
+import { getMockBranchSearchMetadata } from "../data/search/mockBranchSearchMetadata";
 
 // Kluce pre ponuky (prekladaju sa az vo ViewModel vrstve).
 const OFFER_KEYS = {
@@ -12,8 +13,13 @@ const OFFER_KEYS = {
   firstMonthFree: "offer_firstMonthFree",
 };
 
+const withSearchMetadata = (branch: BranchDto): BranchDto => ({
+  ...branch,
+  ...getMockBranchSearchMetadata(branch.id, branch.category, branch.title),
+});
+
 // Mock DTO data pripraveny pre backend kontrakt.
-export const branchDtosFixture: BranchDto[] = [
+const baseBranchDtos: BranchDto[] = [
   {
     id: "gym_365",
     title: "365 GYM Nitra",
@@ -80,3 +86,5 @@ export const branchDtosFixture: BranchDto[] = [
     offersKeys: [OFFER_KEYS.discount20],
   },
 ];
+
+export const branchDtosFixture: BranchDto[] = baseBranchDtos.map(withSearchMetadata);

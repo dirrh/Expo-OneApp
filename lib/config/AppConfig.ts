@@ -5,6 +5,8 @@
 import {
   API_BASE_URL,
   DATA_SOURCE,
+  EXPO_PUBLIC_HOME_SEARCH_V2,
+  EXPO_PUBLIC_SHOW_MORE_V2,
   SUPABASE_ANON_KEY,
   SUPABASE_URL,
 } from "@env";
@@ -16,6 +18,8 @@ export interface AppConfigValue {
   apiBaseUrl?: string;
   supabaseUrl?: string;
   supabaseAnonKey?: string;
+  homeSearchV2Enabled: boolean;
+  showMoreV2Enabled: boolean;
 }
 
 const getTrimmedValue = (value?: string | null) => {
@@ -54,11 +58,35 @@ const parseDataSource = (value?: string): DataSourceMode => {
   return "mock";
 };
 
+const parseBooleanFlag = (value?: string, defaultValue = false): boolean => {
+  if (!value) {
+    return defaultValue;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (["1", "true", "on", "yes"].includes(normalized)) {
+    return true;
+  }
+  if (["0", "false", "off", "no"].includes(normalized)) {
+    return false;
+  }
+
+  return defaultValue;
+};
+
 const appConfig: AppConfigValue = Object.freeze({
   dataSource: parseDataSource(getEnvValue("DATA_SOURCE", DATA_SOURCE)),
   apiBaseUrl: getEnvValue("API_BASE_URL", API_BASE_URL),
   supabaseUrl: getEnvValue("SUPABASE_URL", SUPABASE_URL),
   supabaseAnonKey: getEnvValue("SUPABASE_ANON_KEY", SUPABASE_ANON_KEY),
+  homeSearchV2Enabled: parseBooleanFlag(
+    getEnvValue("EXPO_PUBLIC_HOME_SEARCH_V2", EXPO_PUBLIC_HOME_SEARCH_V2),
+    true
+  ),
+  showMoreV2Enabled: parseBooleanFlag(
+    getEnvValue("EXPO_PUBLIC_SHOW_MORE_V2", EXPO_PUBLIC_SHOW_MORE_V2),
+    true
+  ),
 });
 
 export const AppConfig = appConfig;

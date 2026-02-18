@@ -7,6 +7,7 @@ import type { BranchDto, BranchViewModel } from "../models";
 import type { DiscoverCategory } from "../../interfaces";
 import { formatTitleFromId, getRatingForId } from "../normalizers";
 import { canonicalOrFallbackId, normalizeId } from "../utils/id";
+import { getMockBranchSearchMetadata } from "../search/mockBranchSearchMetadata";
 import {
   mergeBranchImages,
   toBranchOverride,
@@ -93,6 +94,22 @@ const resolveOffers = (
     .filter((offer): offer is string => Boolean(offer));
 };
 
+const toSearchStringArray = (value?: string[] | null): string[] | undefined => {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const normalized = value
+    .map((item) => (typeof item === "string" ? item.trim() : ""))
+    .filter((item): item is string => item.length > 0);
+
+  if (normalized.length === 0) {
+    return undefined;
+  }
+
+  return Array.from(new Set(normalized));
+};
+
 export const mapBranchDtoToViewModel = (
   dto: BranchDto,
   context: MapperContext
@@ -145,6 +162,25 @@ export const mapBranchDtoToViewModel = (
     Number.isFinite(dto.coordinates[1])
       ? [dto.coordinates[0], dto.coordinates[1]]
       : undefined);
+  const mockSearchMetadata = getMockBranchSearchMetadata(resolvedId, category, title);
+
+  const searchTags =
+    toSearchStringArray(override.searchTags) ??
+    toSearchStringArray(dto.searchTags) ??
+    toSearchStringArray(mockSearchMetadata.searchTags) ??
+    toSearchStringArray(context.defaultBranch.searchTags);
+
+  const searchMenuItems =
+    toSearchStringArray(override.searchMenuItems) ??
+    toSearchStringArray(dto.searchMenuItems) ??
+    toSearchStringArray(mockSearchMetadata.searchMenuItems) ??
+    toSearchStringArray(context.defaultBranch.searchMenuItems);
+
+  const searchAliases =
+    toSearchStringArray(override.searchAliases) ??
+    toSearchStringArray(dto.searchAliases) ??
+    toSearchStringArray(mockSearchMetadata.searchAliases) ??
+    toSearchStringArray(context.defaultBranch.searchAliases);
 
   return {
     ...context.defaultBranch,
@@ -166,5 +202,8 @@ export const mapBranchDtoToViewModel = (
     phone: override.phone ?? dto.phone ?? context.defaultBranch.phone,
     email: override.email ?? dto.email ?? context.defaultBranch.email,
     website: override.website ?? dto.website ?? context.defaultBranch.website,
+    searchTags,
+    searchMenuItems,
+    searchAliases,
   };
 };

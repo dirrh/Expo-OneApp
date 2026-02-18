@@ -51,6 +51,9 @@ export type BranchData = {
   category?: string;
   discount?: string;
   offers?: string[];
+  searchTags?: string[];
+  searchMenuItems?: string[];
+  searchAliases?: string[];
   badgeVariant?: "more" | "all";
   moreCount?: number;
   address?: string;

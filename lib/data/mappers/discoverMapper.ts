@@ -5,6 +5,7 @@
 import type { BranchViewModel, MarkerViewModel } from "../models";
 import { formatTitleFromId } from "../normalizers";
 import { canonicalOrFallbackId, normalizeId } from "../utils/id";
+import { getMockBranchSearchMetadata } from "../search/mockBranchSearchMetadata";
 import { toBranchOverride, type MapperContext } from "./context";
 import type { DiscoverCategory } from "../../interfaces";
 
@@ -34,6 +35,22 @@ const getDerivedDistance = (id: string) => {
   }
   const value = 0.6 + (hash % 26) / 10;
   return `${value.toFixed(1)} km`;
+};
+
+const toSearchStringArray = (value?: string[] | null): string[] | undefined => {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const normalized = value
+    .map((item) => (typeof item === "string" ? item.trim() : ""))
+    .filter((item): item is string => item.length > 0);
+
+  if (normalized.length === 0) {
+    return undefined;
+  }
+
+  return Array.from(new Set(normalized));
 };
 
 // Zoskupi markery podla groupId, inak podla zaokruhlenych suradnic.
@@ -90,6 +107,15 @@ export const buildBranchFromMarkerViewModel = (
   const normalizedRating = Number.isFinite(marker.rating)
     ? Math.min(5, Math.max(0, marker.rating))
     : context.defaultBranch.rating;
+  const mockSearchMetadata = getMockBranchSearchMetadata(marker.id, category, title);
+
+  const searchAliases = toSearchStringArray([
+    ...(override.searchAliases ?? []),
+    ...(mockSearchMetadata.searchAliases ?? []),
+    marker.id,
+    markerId,
+    title,
+  ]);
 
   return {
     ...context.defaultBranch,
@@ -103,6 +129,15 @@ export const buildBranchFromMarkerViewModel = (
     rating: override.rating ?? normalizedRating,
     distance: override.distance ?? getDerivedDistance(markerId),
     hours: override.hours ?? context.defaultBranch.hours,
+    searchTags:
+      toSearchStringArray(override.searchTags) ??
+      toSearchStringArray(mockSearchMetadata.searchTags) ??
+      toSearchStringArray(context.defaultBranch.searchTags),
+    searchMenuItems:
+      toSearchStringArray(override.searchMenuItems) ??
+      toSearchStringArray(mockSearchMetadata.searchMenuItems) ??
+      toSearchStringArray(context.defaultBranch.searchMenuItems),
+    searchAliases,
   };
 };
 

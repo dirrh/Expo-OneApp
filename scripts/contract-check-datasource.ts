@@ -26,6 +26,11 @@ const isOptionalString = (value: unknown) =>
 const isOptionalNumber = (value: unknown) =>
   value === undefined || value === null || (typeof value === "number" && Number.isFinite(value));
 
+const isOptionalStringArray = (value: unknown) =>
+  value === undefined ||
+  value === null ||
+  (Array.isArray(value) && value.every((item) => typeof item === "string"));
+
 const fail = (message: string): never => {
   throw new Error(message);
 };
@@ -53,6 +58,18 @@ const validateBranch = (sourceName: string, branch: BranchDto, index: number) =>
 
   if (!isOptionalString(branch.hours)) {
     fail(`[${sourceName}] branch[${index}] hours must be string/null`);
+  }
+
+  if (!isOptionalStringArray(branch.searchTags)) {
+    fail(`[${sourceName}] branch[${index}] searchTags must be string[]/null`);
+  }
+
+  if (!isOptionalStringArray(branch.searchMenuItems)) {
+    fail(`[${sourceName}] branch[${index}] searchMenuItems must be string[]/null`);
+  }
+
+  if (!isOptionalStringArray(branch.searchAliases)) {
+    fail(`[${sourceName}] branch[${index}] searchAliases must be string[]/null`);
   }
 
   if (
@@ -101,6 +118,9 @@ const descriptorForBranch = (branch: BranchDto) => ({
   coord: Array.isArray(branch.coordinates) ? "array" : typeof branch.coordinates,
   hours: typeof branch.hours,
   distance: typeof branch.distance,
+  searchTags: Array.isArray(branch.searchTags) ? "array" : typeof branch.searchTags,
+  searchMenuItems: Array.isArray(branch.searchMenuItems) ? "array" : typeof branch.searchMenuItems,
+  searchAliases: Array.isArray(branch.searchAliases) ? "array" : typeof branch.searchAliases,
 });
 
 const descriptorForMarker = (marker: MarkerDto) => ({

@@ -15,3 +15,7 @@ export type { UseDiscoverDataReturn } from "./useDiscoverData";
 
 // Dynamicky QR kod.
 export { useDynamicQRCode } from "./useDynamicQRCode";
+
+// Home search v2.
+export { useHomeSearch } from "./useHomeSearch";
+export type { UseHomeSearchReturn } from "./useHomeSearch";

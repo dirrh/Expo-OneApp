@@ -3,6 +3,8 @@ declare module '@env' {
   export const API_BASE_URL: string | undefined;
   export const SUPABASE_ANON_KEY: string;
   export const SUPABASE_URL: string;
+  export const EXPO_PUBLIC_HOME_SEARCH_V2: string | undefined;
+  export const EXPO_PUBLIC_SHOW_MORE_V2: string | undefined;
 }
 
 declare module 'text-encoding' {

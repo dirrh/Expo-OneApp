@@ -28,6 +28,9 @@ export interface BranchDto {
   imageKeys?: string[] | null;
   imageUrl?: string | null;
   imageUrls?: string[] | null;
+  searchTags?: string[] | null;
+  searchMenuItems?: string[] | null;
+  searchAliases?: string[] | null;
   labelPriority?: number | null;
 }
 
