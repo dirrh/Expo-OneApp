@@ -35,6 +35,8 @@ export type MarkerLabelCandidate = {
   labelOffsetX?: number;
   labelOffsetY?: number;
   labelHeight?: number;
+  collisionWidth?: number;
+  collisionHeight?: number;
   screenX?: number;
   screenY?: number;
 };
@@ -130,6 +132,8 @@ type ProjectedCandidate = {
   rating: number;
   labelWidth: number;
   labelHeight: number;
+  collisionWidth: number;
+  collisionHeight: number;
   labelOffsetX: number;
   labelOffsetY: number;
   labelPriority: number;
@@ -534,6 +538,8 @@ export const selectInlineLabelLayout = ({
   const projected: ProjectedCandidate[] = [];
   let projectedLabelWidthSum = 0;
   let projectedLabelHeightSum = 0;
+  let projectedCollisionWidthSum = 0;
+  let projectedCollisionHeightSum = 0;
   const densityCounts = new Map<string, number>();
 
   candidates.forEach((candidate) => {
@@ -600,6 +606,22 @@ export const selectInlineLabelLayout = ({
       typeof candidate.labelOffsetY === "number" && Number.isFinite(candidate.labelOffsetY)
         ? candidate.labelOffsetY
         : labelSize.offsetY;
+    const collisionWidth = clampNumber(
+      typeof candidate.collisionWidth === "number" &&
+        Number.isFinite(candidate.collisionWidth)
+        ? candidate.collisionWidth
+        : labelWidth,
+      16,
+      labelWidth
+    );
+    const collisionHeight = clampNumber(
+      typeof candidate.collisionHeight === "number" &&
+        Number.isFinite(candidate.collisionHeight)
+        ? candidate.collisionHeight
+        : labelHeight,
+      MIN_LABEL_HEIGHT_PX,
+      labelHeight
+    );
     const renderLeft = screenX + labelOffsetX - labelWidth / 2;
     const renderTop = screenY + labelOffsetY;
     const renderRight = renderLeft + labelWidth;
@@ -626,6 +648,8 @@ export const selectInlineLabelLayout = ({
       rating: normalizedRating,
       labelWidth,
       labelHeight,
+      collisionWidth,
+      collisionHeight,
       labelOffsetX,
       labelOffsetY,
       labelPriority: Number.isFinite(candidate.labelPriority)
@@ -636,6 +660,8 @@ export const selectInlineLabelLayout = ({
     });
     projectedLabelWidthSum += labelWidth;
     projectedLabelHeightSum += labelHeight;
+    projectedCollisionWidthSum += collisionWidth;
+    projectedCollisionHeightSum += collisionHeight;
 
     const densityX = Math.floor(screenX / DENSITY_GRID_CELL_SIZE);
     const densityY = Math.floor(screenY / DENSITY_GRID_CELL_SIZE);
@@ -731,11 +757,11 @@ export const selectInlineLabelLayout = ({
   const budget = clampNumber(rawBudget, 1, projectedCount);
   const averageCollisionWidth =
     projected.length > 0
-      ? (projectedLabelWidthSum / projected.length) * resolvedCollisionWidthScale
+      ? (projectedCollisionWidthSum / projected.length) * resolvedCollisionWidthScale
       : labelSize.width * resolvedCollisionWidthScale;
   const averageCollisionHeight =
     projected.length > 0
-      ? (projectedLabelHeightSum / projected.length) * resolvedCollisionHeightScale
+      ? (projectedCollisionHeightSum / projected.length) * resolvedCollisionHeightScale
       : labelSize.height * resolvedCollisionHeightScale;
   const collisionGridCellSize = clampNumber(
     Math.round((averageCollisionWidth + averageCollisionHeight) / 2),
@@ -848,8 +874,8 @@ export const selectInlineLabelLayout = ({
         continue;
       }
 
-      const collisionWidth = candidate.labelWidth * resolvedCollisionWidthScale;
-      const collisionHeight = candidate.labelHeight * resolvedCollisionHeightScale;
+      const collisionWidth = candidate.collisionWidth * resolvedCollisionWidthScale;
+      const collisionHeight = candidate.collisionHeight * resolvedCollisionHeightScale;
       const collisionLeft =
         candidate.screenX +
         candidate.labelOffsetX +
