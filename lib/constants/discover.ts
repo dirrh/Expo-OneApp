@@ -66,6 +66,15 @@ const STATIC_MAP_ZOOM = 14;
 // Inline marker label engine (no overlay projections)
 const MAP_FULL_SPRITES_V1 = true;
 const MAP_FULL_SPRITES_LOGS_ENABLED = false;
+const MARKER_PIPELINE_OPT_ENV = process.env.EXPO_PUBLIC_MAP_MARKER_PIPELINE_OPT_V1
+  ?.trim()
+  .toLowerCase();
+const MAP_MARKER_PIPELINE_OPT_V1 =
+  MARKER_PIPELINE_OPT_ENV === "false" ||
+  MARKER_PIPELINE_OPT_ENV === "0" ||
+  MARKER_PIPELINE_OPT_ENV === "off"
+    ? false
+    : true;
 const IOS_STABLE_MARKERS_ENV = process.env.EXPO_PUBLIC_MAP_IOS_STABLE_MARKERS
   ?.trim()
   .toLowerCase();
@@ -144,6 +153,7 @@ export {
   STATIC_MAP_ZOOM,
   MAP_FULL_SPRITES_V1,
   MAP_FULL_SPRITES_LOGS_ENABLED,
+  MAP_MARKER_PIPELINE_OPT_V1,
   MAP_IOS_STABLE_MARKERS_V1,
   MAP_IOS_STABLE_MARKERS_LOGS_ENABLED,
   MAP_LABEL_COLLISION_V2,
