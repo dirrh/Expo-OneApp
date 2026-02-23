@@ -1,6 +1,7 @@
 import React, { memo, useCallback, useMemo } from "react";
 import {
   FlatList,
+  Image,
   Platform,
   ScrollView,
   StyleSheet,
@@ -12,7 +13,6 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import BranchCard from "../BranchCard";
 import type { HomeSearchResult, HomeSearchScope } from "../../lib/search/homeSearchTypes";
 import HomeSearchAssistChips from "./HomeSearchAssistChips";
 
@@ -33,8 +33,6 @@ interface HomeSearchOverlayProps {
   onSelectResult: (value: HomeSearchResult) => void;
   t: (key: string, options?: Record<string, unknown>) => string;
 }
-
-const RESULT_ITEM_HEIGHT = 144;
 
 /**
  * HomeSearchOverlay: Full-screen vyhľadávacia vrstva na Home so scope filtrom, históriou a výsledkami.
@@ -77,7 +75,7 @@ function HomeSearchOverlay({
     []
   );
   const categoriesVerticalSpacing = useMemo(
-    () => Math.max(12, Math.round(18 * layoutScale)),
+    () => Math.max(6, Math.round(10 * layoutScale)),
     [layoutScale]
   );
   const categoriesChipGap = useMemo(
@@ -91,17 +89,73 @@ function HomeSearchOverlay({
   );
 
   const renderResult = useCallback(
-    ({ item }: { item: HomeSearchResult }) => (
-      <View style={styles.resultItem}>
-        <BranchCard
-          {...item.branch}
-          badgeRowOffset={-4}
-          noElevation
+    ({ item, index }: { item: HomeSearchResult; index: number }) => {
+      const branch = item.branch;
+      const resolvedOffers =
+        Array.isArray(branch.offers) && branch.offers.length > 0
+          ? branch.offers
+          : branch.discount ? [branch.discount] : [];
+      const resolvedMoreCount =
+        typeof branch.moreCount === "number"
+          ? branch.moreCount
+          : Math.max(0, resolvedOffers.length - (resolvedOffers.length > 0 ? 1 : 0));
+      const ratingText = Number.isFinite(branch.rating) ? branch.rating.toFixed(1) : "-";
+      const isFirst = index === 0;
+      const isLast = index === results.length - 1;
+
+      return (
+        <TouchableOpacity
+          activeOpacity={0.88}
+          style={[
+            styles.resultRow,
+            isFirst && styles.resultRowFirst,
+            isLast && styles.resultRowLast,
+          ]}
           onPress={() => onSelectResult(item)}
-        />
-      </View>
-    ),
-    [onSelectResult]
+          accessibilityRole="button"
+          accessibilityLabel={branch.title}
+        >
+          <Image source={branch.image} style={styles.resultImage} resizeMode="cover" />
+          <View style={styles.resultContent}>
+            <View style={styles.resultTopRow}>
+              <Text style={styles.resultTitle} numberOfLines={1}>{branch.title}</Text>
+              <Ionicons name="chevron-forward" size={16} color="#A1A1AA" />
+            </View>
+            <View style={styles.resultMetaRow}>
+              <View style={styles.resultMetaItem}>
+                <Ionicons name="star" size={12} color="#FFD000" />
+                <Text style={styles.resultMetaText}>{ratingText}</Text>
+              </View>
+              <View style={styles.resultMetaItem}>
+                <Ionicons name="location-outline" size={12} color="#7C7C7C" />
+                <Text style={styles.resultMetaText}>{branch.distance}</Text>
+              </View>
+              <View style={styles.resultMetaItem}>
+                <Ionicons name="time-outline" size={12} color="#7C7C7C" />
+                <Text style={styles.resultMetaText}>{branch.hours}</Text>
+              </View>
+            </View>
+            {resolvedOffers.length > 0 ? (
+              <View style={styles.resultOfferRow}>
+                {resolvedOffers[0] ? (
+                  <View style={styles.resultOfferBadge}>
+                    <Text style={styles.resultOfferText} numberOfLines={1}>
+                      {t(resolvedOffers[0])}
+                    </Text>
+                  </View>
+                ) : null}
+                {resolvedMoreCount > 0 ? (
+                  <Text style={styles.resultMoreText} numberOfLines={1}>
+                    + {resolvedMoreCount} {t("more")}
+                  </Text>
+                ) : null}
+              </View>
+            ) : null}
+          </View>
+        </TouchableOpacity>
+      );
+    },
+    [onSelectResult, results.length, t]
   );
 
   if (!visible) {
@@ -221,11 +275,6 @@ function HomeSearchOverlay({
           contentContainerStyle={[styles.listContent, { paddingHorizontal: horizontalPadding }]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
-          getItemLayout={(_, index) => ({
-            length: RESULT_ITEM_HEIGHT,
-            offset: RESULT_ITEM_HEIGHT * index,
-            index,
-          })}
           initialNumToRender={4}
           maxToRenderPerBatch={8}
           windowSize={5}
@@ -305,7 +354,7 @@ const styles = StyleSheet.create({
   },
   headerContent: {
     gap: 0,
-    marginBottom: 10,
+    marginBottom: 4,
   },
   scopeWrap: {
     height: 42,
@@ -340,8 +389,96 @@ const styles = StyleSheet.create({
   idleContent: {
     gap: 18,
   },
-  resultItem: {
-    marginBottom: 6,
+  resultRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    borderWidth: 1,
+    borderTopWidth: 0,
+    borderColor: "#E4E4E7",
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  resultRowFirst: {
+    borderTopWidth: 1,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+  },
+  resultRowLast: {
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+    marginBottom: 10,
+  },
+  resultImage: {
+    width: 72,
+    height: 72,
+    borderRadius: 10,
+    marginRight: 12,
+    backgroundColor: "#E4E4E7",
+  },
+  resultContent: {
+    flex: 1,
+    minWidth: 0,
+  },
+  resultTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  resultTitle: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 16,
+    lineHeight: 20,
+    fontWeight: "700",
+    color: "#111111",
+  },
+  resultMetaRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    columnGap: 8,
+    rowGap: 2,
+    marginTop: 4,
+  },
+  resultMetaItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+  },
+  resultMetaText: {
+    fontSize: 13,
+    lineHeight: 17,
+    fontWeight: "500",
+    color: "#7C7C7C",
+  },
+  resultOfferRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 9,
+    minWidth: 0,
+  },
+  resultOfferBadge: {
+    borderRadius: 999,
+    backgroundColor: "#EB8100",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    maxWidth: "80%",
+  },
+  resultOfferText: {
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: "600",
+    color: "#FFFFFF",
+  },
+  resultMoreText: {
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: "500",
+    color: "#111111",
+    flexShrink: 1,
   },
   emptyWrap: {
     marginTop: 44,

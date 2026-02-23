@@ -4,7 +4,7 @@
  * Prečo: Centrálny profilový hub drží account akcie na jednom mieste a zjednodušuje orientáciu.
  */
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import {
   Pressable,
   ScrollView,
   Alert,
+  Image,
   useWindowDimensions,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -22,9 +23,279 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "../../lib/AuthContext";
 import { getFullNameFromEmail } from "../../lib/utils/userUtils";
 import { LOGGED_OUT_UI_STATE_ENABLED } from "../../lib/constants/auth";
+import type { UserBooking, UserVisit, BranchData } from "../../lib/interfaces";
+import { useFavorites } from "../../lib/FavoritesContext";
+import {
+  DUMMY_FAVORITES,
+  DUMMY_BOOKINGS,
+  DUMMY_MOST_VISITED,
+  DUMMY_LAST_VISITED,
+} from "../../lib/fixtures/profileFixtures";
 
-import BranchCard from "../../components/BranchCard";
 import SignInPromptSheet from "../../components/SignInPromptSheet";
+
+
+// ---------------------------------------------------------------------------
+// Status config
+// ---------------------------------------------------------------------------
+
+const STATUS_CONFIG: Record<UserBooking["status"], { label: string; color: string; bg: string }> = {
+  confirmed: { label: "Potvrdené", color: "#059669", bg: "#ECFDF5" },
+  pending:   { label: "Čaká",      color: "#D97706", bg: "#FFFBEB" },
+  cancelled: { label: "Zrušené",   color: "#DC2626", bg: "#FEF2F2" },
+  completed: { label: "Hotovo",    color: "#71717A", bg: "#F4F4F5" },
+};
+
+// ---------------------------------------------------------------------------
+// Unified ActivityCard  –  connected-row style (like search results)
+// ---------------------------------------------------------------------------
+
+const CARD_IMG = 76;
+const CARD_PH  = 14; // paddingHorizontal
+const CARD_PV  = 13; // paddingVertical
+const CARD_GAP = 13; // gap between image and content
+
+type ActivityCardVariant =
+  | { type: "favorite";    branch: BranchData; offerLabel?: string }
+  | { type: "booking";     booking: UserBooking }
+  | { type: "mostVisited"; visit: UserVisit }
+  | { type: "lastVisited"; visit: UserVisit };
+
+function ActivityCard({
+  variant,
+  onPress,
+}: {
+  variant: ActivityCardVariant;
+  onPress?: () => void;
+}) {
+  const branch =
+    variant.type === "booking"    ? variant.booking.branch
+    : variant.type === "favorite" ? variant.branch
+    : variant.visit.branch;
+
+  // Right badge — only for booking and favorite variants
+  let badge: React.ReactNode = null;
+  if (variant.type === "booking") {
+    const cfg = STATUS_CONFIG[variant.booking.status];
+    badge = (
+      <View style={[acStyles.badge, { backgroundColor: cfg.bg }]}>
+        <Text style={[acStyles.badgeText, { color: cfg.color }]}>{cfg.label}</Text>
+      </View>
+    );
+  } else if (variant.type === "favorite") {
+    badge = (
+      <View style={acStyles.favIcon}>
+        <Ionicons name="heart" size={12} color="#EB8100" />
+      </View>
+    );
+  }
+
+  // Bottom chip
+  let chip: React.ReactNode;
+  if (variant.type === "booking") {
+    chip = (
+      <View style={acStyles.chipGray}>
+        <Ionicons name="calendar-outline" size={11} color="#71717A" />
+        <Text style={acStyles.chipText} numberOfLines={1}>
+          {variant.booking.date}  ·  {variant.booking.time}
+        </Text>
+      </View>
+    );
+  } else if (variant.type === "mostVisited") {
+    chip = (
+      <View style={acStyles.chipOrange}>
+        <Ionicons name="flame-outline" size={11} color="#EB8100" />
+        <Text style={[acStyles.chipText, { color: "#EB8100" }]}>{variant.visit.visitCount}× navštívené</Text>
+      </View>
+    );
+  } else if (variant.type === "lastVisited") {
+    chip = (
+      <View style={acStyles.chipGray}>
+        <Ionicons name="time-outline" size={11} color="#71717A" />
+        <Text style={acStyles.chipText} numberOfLines={1}>{variant.visit.visitedAt}</Text>
+      </View>
+    );
+  } else {
+    chip = variant.offerLabel ? (
+      <View style={acStyles.chipOrange}>
+        <Text style={[acStyles.chipText, { color: "#EB8100" }]} numberOfLines={1}>{variant.offerLabel}</Text>
+      </View>
+    ) : (
+      <View style={acStyles.chipGray}>
+        <Ionicons name="heart-outline" size={11} color="#71717A" />
+        <Text style={acStyles.chipText}>Uložené miesto</Text>
+      </View>
+    );
+  }
+
+  return (
+    <TouchableOpacity
+      activeOpacity={0.85}
+      onPress={onPress}
+      style={acStyles.row}
+    >
+      <Image source={branch.image} style={acStyles.image} resizeMode="cover" />
+
+      <View style={acStyles.content}>
+        <View style={acStyles.topRow}>
+          <Text style={acStyles.title} numberOfLines={1}>{branch.title}</Text>
+          {badge}
+        </View>
+
+        <View style={acStyles.metaRow}>
+          <Ionicons name="star" size={11} color="#FFD000" />
+          <Text style={acStyles.metaText}>{branch.rating.toFixed(1)}</Text>
+          <View style={acStyles.dot} />
+          <Ionicons name="location-outline" size={11} color="#9CA3AF" />
+          <Text style={acStyles.metaText}>{branch.distance}</Text>
+          <View style={acStyles.dot} />
+          <Ionicons name="time-outline" size={11} color="#9CA3AF" />
+          <Text style={acStyles.metaText}>{branch.hours}</Text>
+        </View>
+
+        <View style={acStyles.chipRow}>{chip}</View>
+      </View>
+
+      <Ionicons name="chevron-forward" size={14} color="#D1D5DB" />
+    </TouchableOpacity>
+  );
+}
+
+const acStyles = StyleSheet.create({
+  // Group container: single border + rounded corners, clips child images
+  group: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#E4E4E7",
+    overflow: "hidden",
+    marginBottom: 20,
+  },
+  // Hairline separator indented to align with text content (skips image column)
+  separator: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: "#E4E4E7",
+    marginLeft: CARD_PH + CARD_IMG + CARD_GAP,
+  },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    paddingHorizontal: CARD_PH,
+    paddingVertical: CARD_PV,
+    gap: CARD_GAP,
+  },
+  image: {
+    width: CARD_IMG,
+    height: CARD_IMG,
+    borderRadius: 12,
+    backgroundColor: "#E4E4E7",
+    flexShrink: 0,
+  },
+  content: {
+    flex: 1,
+    minWidth: 0,
+    gap: 6,
+  },
+  topRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  title: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#111827",
+    lineHeight: 20,
+  },
+  badge: {
+    height: 22,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    flexShrink: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  badgeText: {
+    fontSize: 11,
+    fontWeight: "600",
+    lineHeight: 14,
+  },
+  favIcon: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "#FFF4E5",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "nowrap",
+    gap: 4,
+  },
+  metaText: {
+    fontSize: 12,
+    color: "#6B7280",
+    lineHeight: 15,
+  },
+  dot: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: "#D1D5DB",
+  },
+  chipRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  chipOrange: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#FFF4E5",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    maxWidth: "100%",
+  },
+  chipGray: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#F4F4F5",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    maxWidth: "100%",
+  },
+  chipText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#71717A",
+    lineHeight: 14,
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Tabs – underline style (full-width, 4 equal columns)
+// ---------------------------------------------------------------------------
+
+type ProfileTab = "favorites" | "bookings" | "mostVisited" | "lastVisited";
+
+const TABS: { key: ProfileTab; label: string; icon: string }[] = [
+  { key: "favorites",   label: "Obľúbené",   icon: "heart-outline" },
+  { key: "bookings",    label: "Rezervácie",  icon: "calendar-outline" },
+  { key: "mostVisited", label: "Navštívené",  icon: "flame-outline" },
+  { key: "lastVisited", label: "Naposledy",   icon: "time-outline" },
+];
+
+// ---------------------------------------------------------------------------
+// ProfileScreen
+// ---------------------------------------------------------------------------
 
 export default function ProfileScreen() {
   type SubscriptionType = "starter" | "medium" | "gold" | "none";
@@ -41,31 +312,24 @@ export default function ProfileScreen() {
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
-  
-  // Extrahujeme meno z emailu
-  const userName = user ? getFullNameFromEmail(user.email) : "Martin Nov\u00E1k";
+  const [activeTab, setActiveTab] = useState<ProfileTab>("favorites");
+  const { favorites } = useFavorites();
 
-  const handleCloseAuthPrompt = () => {
-    setShowAuthPrompt(false);
-  };
+  // Merge: real favorites first, then defaults not yet in favorites (no duplicates)
+  const displayFavorites = useMemo(() => {
+    const realIds = new Set(favorites.map((b) => b.id));
+    const defaults = DUMMY_FAVORITES.filter((b) => !realIds.has(b.id));
+    return [...favorites, ...defaults];
+  }, [favorites]);
 
-  const handleOpenAuthPrompt = () => {
-    setMenuOpen(false);
-    setShowAuthPrompt(true);
-  };
+  const userName = user ? getFullNameFromEmail(user.email) : "Martin Novák";
 
-  const handleSignIn = () => {
-    setMenuOpen(false);
-    setShowAuthPrompt(false);
-    navigation.navigate("Login");
-  };
+  const handleCloseAuthPrompt = () => setShowAuthPrompt(false);
+  const handleOpenAuthPrompt = () => { setMenuOpen(false); setShowAuthPrompt(true); };
+  const handleSignIn = () => { setMenuOpen(false); setShowAuthPrompt(false); navigation.navigate("Login"); };
 
   const handleSubscriptionPress = () => {
-    if (isLoggedOut) {
-      handleOpenAuthPrompt();
-      return;
-    }
-
+    if (isLoggedOut) { handleOpenAuthPrompt(); return; }
     navigation.navigate("SubscriptionActivation");
   };
 
@@ -74,11 +338,7 @@ export default function ProfileScreen() {
       t("logOut") || "Logout",
       t("logoutConfirm") || "Are you sure you want to logout?",
       [
-        {
-          text: t("cancel") || "Cancel",
-          style: "cancel",
-          onPress: () => setMenuOpen(false),
-        },
+        { text: t("cancel") || "Cancel", style: "cancel", onPress: () => setMenuOpen(false) },
         {
           text: t("logOut") || "Logout",
           style: "destructive",
@@ -86,17 +346,10 @@ export default function ProfileScreen() {
             try {
               await signOut();
               setMenuOpen(false);
-              // Presmerovanie na Login screen
-              navigation.reset({
-                index: 0,
-                routes: [{ name: "Login" }],
-              });
+              navigation.reset({ index: 0, routes: [{ name: "Login" }] });
             } catch (error: any) {
               console.error("Logout error:", error);
-              Alert.alert(
-                t("error") || "Error",
-                error?.message || t("logoutError") || "Failed to logout"
-              );
+              Alert.alert(t("error") || "Error", error?.message || t("logoutError") || "Failed to logout");
             }
           },
         },
@@ -113,92 +366,33 @@ export default function ProfileScreen() {
           <View
             style={[
               styles.dropdown,
-              {
-                top: topPadding + 56,
-                right: contentPadding,
-                width: Math.min(240, screenWidth - contentPadding * 2),
-              },
+              { top: topPadding + 56, right: contentPadding, width: Math.min(240, screenWidth - contentPadding * 2) },
             ]}
           >
-            <DropdownItem
-              icon="person-outline"
-              label={t("userAccount")}
-              onPress={() => {
-                setMenuOpen(false);
-                navigation.navigate("UserAccount");
-              }}
-            />
-
-            <DropdownItem
-              icon="card-outline"
-              label={t("subscription")}
-              onPress={() => {
-                setMenuOpen(false);
-                handleSubscriptionPress();
-              }}
-            />
-
-            <DropdownItem
-              icon="gift-outline"
-              label={t("Benefits")}
-              onPress={() => {
-                setMenuOpen(false);
-                navigation.navigate("Benefits");
-              }}
-            />
-
-            <DropdownItem
-              icon="bookmark-outline"
-              label={t("savedLocations")}
-              onPress={() => {
-                setMenuOpen(false);
-                navigation.navigate("SavedLocations");
-              }}
-            />
-
-            <DropdownItem
-              icon="language-outline"
-              label={t("language")}
-              onPress={() => {
-                setMenuOpen(false);
-                navigation.navigate("Language");
-              }}
-            />
-
-            <DropdownItem
-              icon="settings-outline"
-              label={t("settings")}
-              onPress={() => {
-                setMenuOpen(false);
-                navigation.navigate("Settings");
-              }}
-            />
-
+            <DropdownItem icon="person-outline" label={t("userAccount")}
+              onPress={() => { setMenuOpen(false); navigation.navigate("UserAccount"); }} />
+            <DropdownItem icon="card-outline" label={t("subscription")}
+              onPress={() => { setMenuOpen(false); handleSubscriptionPress(); }} />
+            <DropdownItem icon="gift-outline" label={t("Benefits")}
+              onPress={() => { setMenuOpen(false); navigation.navigate("Benefits"); }} />
+            <DropdownItem icon="bookmark-outline" label={t("savedLocations")}
+              onPress={() => { setMenuOpen(false); navigation.navigate("SavedLocations"); }} />
+            <DropdownItem icon="language-outline" label={t("language")}
+              onPress={() => { setMenuOpen(false); navigation.navigate("Language"); }} />
+            <DropdownItem icon="settings-outline" label={t("settings")}
+              onPress={() => { setMenuOpen(false); navigation.navigate("Settings"); }} />
             <View style={styles.divider} />
-
             {isLoggedOut ? (
-              <DropdownItem
-                icon="log-in-outline"
-                label={t("signIn")}
-                onPress={handleSignIn}
-              />
+              <DropdownItem icon="log-in-outline" label={t("signIn")} onPress={handleSignIn} />
             ) : (
-              <DropdownItem
-                icon="log-out-outline"
-                label={t("logOut")}
-                danger
-                onPress={handleLogout}
-              />
+              <DropdownItem icon="log-out-outline" label={t("logOut")} danger onPress={handleLogout} />
             )}
           </View>
         </>
       )}
 
       <ScrollView
-        contentContainerStyle={[
-          styles.content,
-          { paddingTop: topPadding, paddingHorizontal: contentPadding },
-        ]}
+        contentContainerStyle={[styles.content, { paddingTop: topPadding, paddingHorizontal: contentPadding }]}
         showsVerticalScrollIndicator={false}
       >
         {/* HEADER */}
@@ -207,12 +401,7 @@ export default function ProfileScreen() {
             <View style={styles.avatar} />
             <Text style={styles.name}>{userName}</Text>
           </View>
-
-          {/* HAMBURGER BUTTON */}
-          <TouchableOpacity
-            onPress={() => setMenuOpen(!menuOpen)}
-            style={styles.iconButton}
-          >
+          <TouchableOpacity onPress={() => setMenuOpen(!menuOpen)} style={styles.iconButton}>
             <Ionicons name="menu" size={18} color="#111" />
           </TouchableOpacity>
         </View>
@@ -223,97 +412,91 @@ export default function ProfileScreen() {
             <Text style={styles.cardLabel}>{t("saved")}</Text>
             <Text style={styles.cardValue}>0 €</Text>
           </View>
-
-          <TouchableOpacity
-            style={styles.statCard}
-            onPress={handleSubscriptionPress}
-            activeOpacity={0.85}
-          >
+          <TouchableOpacity style={styles.statCard} onPress={handleSubscriptionPress} activeOpacity={0.85}>
             <Text style={styles.cardLabel}>
-              {subscription === "none"
-                ? t("inactiveSubscription")
-                : t("activeSubscription")}
+              {subscription === "none" ? t("inactiveSubscription") : t("activeSubscription")}
             </Text>
             <Text style={styles.cardValue}>
               {subscription === "none"
                 ? t("activateNow")
-                : subscription.charAt(0).toUpperCase() +
-                  subscription.slice(1)}
+                : subscription.charAt(0).toUpperCase() + subscription.slice(1)}
             </Text>
           </TouchableOpacity>
         </View>
 
-        {/* FAVORITE BRANCHES HEADER */}
+        {/* SECTION: Môj prehľad */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>{t("favoriteBranches")}</Text>
-
-          {/* FILTER BUTTON */}
-          <TouchableOpacity
-            onPress={() => console.log("filter pressed")}
-            style={styles.iconButton}
-          >
-            <Ionicons name="options-outline" size={18} color="#111" />
-          </TouchableOpacity>
+          <Text style={styles.sectionTitle}>Môj prehľad</Text>
         </View>
 
-        {/* FAVORITE BRANCHES LIST */}
-        <View style={styles.branchesList}>
-          <BranchCard
-            title="365 GYM Nitra"
-            image={require("../../assets/365.jpg")}
-            rating={4.6}
-            distance="1.7 km"
-            hours="9:00 - 21:00"
-            discount={t("offer_discount20")}
-            offers={[t("offer_discount20"), t("offer_freeEntryFriend")]}
-            moreCount={2}
-            badgeRowOffset={-4}
-            address="Chrenovská 16, Nitra"
-            phone="+421 903 776 925"
-            email="info@365gym.sk"
-            website="https://365gym.sk"
-            onPress={(branch) =>
-              navigation.navigate("BusinessDetailScreen", { branch })
-            }
-          />
+        {/* UNDERLINE TABS */}
+        <View style={styles.tabBar}>
+          {TABS.map((tab) => {
+            const isActive = tab.key === activeTab;
+            return (
+              <TouchableOpacity
+                key={tab.key}
+                style={styles.tabItem}
+                activeOpacity={0.7}
+                onPress={() => setActiveTab(tab.key)}
+              >
+                <Ionicons
+                  name={tab.icon as any}
+                  size={16}
+                  color={isActive ? "#EB8100" : "#9CA3AF"}
+                />
+                <Text style={[styles.tabLabel, isActive && styles.tabLabelActive]}>
+                  {tab.label}
+                </Text>
+                <View style={[styles.tabUnderline, isActive && styles.tabUnderlineActive]} />
+              </TouchableOpacity>
+            );
+          })}
+        </View>
 
-          <BranchCard
-            title="RED ROYAL GYM"
-            image={require("../../assets/royal.jpg")}
-            rating={4.6}
-            distance="1.7 km"
-            hours="9:00 - 21:00"
-            discount={t("offer_discount15Today")}
-            offers={[t("offer_discount15Today"), t("offer_twoForOne")]}
-            moreCount={3}
-            badgeRowOffset={-4}
-            address="Trieda Andreja Hlinku 3, Nitra"
-            phone="+421 911 222 333"
-            email="info@redroyal.sk"
-            website="https://redroyal.sk"
-            onPress={(branch) =>
-              navigation.navigate("BusinessDetailScreen", { branch })
-            }
-          />
+        {/* TAB CONTENT */}
+        <View style={styles.tabContent}>
 
-          <BranchCard
-            title="GYM KLUB"
-            image={require("../../assets/klub.jpg")}
-            rating={4.6}
-            distance="1.7 km"
-            hours="9:00 - 21:00"
-            discount={t("offer_firstMonthFree")}
-            offers={[t("offer_firstMonthFree"), t("offer_personalTrainer")]}
-            moreCount={5}
-            badgeRowOffset={-4}
-            address="Mostná 42, Nitra"
-            phone="+421 904 555 666"
-            email="kontakt@gymklub.sk"
-            website="https://gymklub.sk"
-            onPress={(branch) =>
-              navigation.navigate("BusinessDetailScreen", { branch })
-            }
-          />
+          {activeTab === "favorites" && displayFavorites.map((branch, i) => (
+            <ActivityCard
+              key={branch.id ?? branch.title}
+              variant={{ type: "favorite", branch, offerLabel: branch.offers?.[0] ? t(branch.offers[0]) : undefined }}
+              isFirst={i === 0}
+              isLast={i === displayFavorites.length - 1}
+              onPress={() => navigation.navigate("BusinessDetailScreen", { branch })}
+            />
+          ))}
+
+          {activeTab === "bookings" && DUMMY_BOOKINGS.map((booking, i) => (
+            <ActivityCard
+              key={booking.id}
+              variant={{ type: "booking", booking }}
+              isFirst={i === 0}
+              isLast={i === DUMMY_BOOKINGS.length - 1}
+              onPress={() => navigation.navigate("BusinessDetailScreen", { branch: booking.branch })}
+            />
+          ))}
+
+          {activeTab === "mostVisited" && DUMMY_MOST_VISITED.map((visit, i) => (
+            <ActivityCard
+              key={visit.id}
+              variant={{ type: "mostVisited", visit }}
+              isFirst={i === 0}
+              isLast={i === DUMMY_MOST_VISITED.length - 1}
+              onPress={() => navigation.navigate("BusinessDetailScreen", { branch: visit.branch })}
+            />
+          ))}
+
+          {activeTab === "lastVisited" && DUMMY_LAST_VISITED.map((visit, i) => (
+            <ActivityCard
+              key={visit.id}
+              variant={{ type: "lastVisited", visit }}
+              isFirst={i === 0}
+              isLast={i === DUMMY_LAST_VISITED.length - 1}
+              onPress={() => navigation.navigate("BusinessDetailScreen", { branch: visit.branch })}
+            />
+          ))}
+
         </View>
       </ScrollView>
 
@@ -328,26 +511,12 @@ export default function ProfileScreen() {
 
 /* DROPDOWN ITEM */
 function DropdownItem({
-  icon,
-  label,
-  onPress,
-  danger,
-}: {
-  icon: any;
-  label: string;
-  onPress?: () => void;
-  danger?: boolean;
-}) {
+  icon, label, onPress, danger,
+}: { icon: any; label: string; onPress?: () => void; danger?: boolean }) {
   return (
     <TouchableOpacity onPress={onPress} style={styles.dropdownItem}>
-      <Ionicons
-        name={icon}
-        size={18}
-        color={danger ? "#DC2626" : "#111"}
-      />
-      <Text style={[styles.dropdownText, danger && { color: "#DC2626" }]}>
-        {label}
-      </Text>
+      <Ionicons name={icon} size={18} color={danger ? "#DC2626" : "#111"} />
+      <Text style={[styles.dropdownText, danger && { color: "#DC2626" }]}>{label}</Text>
     </TouchableOpacity>
   );
 }
@@ -355,10 +524,10 @@ function DropdownItem({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: "#FAFAFA",
   },
   content: {
-    paddingBottom: 24,
+    paddingBottom: 32,
   },
 
   header: {
@@ -367,26 +536,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 16,
   },
-
   headerLeft: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 16,
+    gap: 14,
   },
-
   avatar: {
-    width: 55,
-    height: 55,
-    borderRadius: 27.5,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: "#D9D9D9",
   },
-
   name: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: "700",
-    color: "#000",
+    color: "#111827",
   },
-
   iconButton: {
     width: 40,
     height: 40,
@@ -412,7 +577,6 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     zIndex: 90,
   },
-
   dropdownItem: {
     flexDirection: "row",
     alignItems: "center",
@@ -420,66 +584,105 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 16,
   },
-
   dropdownText: {
     fontSize: 14,
   },
-
   divider: {
     height: 1,
-    backgroundColor: "#eee",
+    backgroundColor: "#F0F0F0",
     marginVertical: 6,
   },
 
   cardsRow: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 14,
-    rowGap: 14,
-    marginBottom: 20,
+    gap: 12,
+    rowGap: 12,
+    marginBottom: 22,
   },
-
   statCard: {
     flexGrow: 1,
     flexBasis: 0,
-    minWidth: 160,
+    minWidth: 150,
     backgroundColor: "#fff",
     borderRadius: 20,
     paddingHorizontal: 14,
-    paddingVertical: 12,
-    minHeight: 101,
+    paddingVertical: 14,
+    minHeight: 96,
     borderWidth: 1,
     borderColor: "#E4E4E7",
     justifyContent: "space-between",
   },
-
   cardLabel: {
-    fontSize: 11,
+    fontSize: 10,
     lineHeight: 13,
-    color: "rgba(0, 0, 0, 0.5)",
-    fontWeight: "500",
+    color: "#9CA3AF",
+    fontWeight: "600",
     textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
-
   cardValue: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: "700",
-    color: "#000",
+    color: "#111827",
   },
 
   sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 12,
+    marginBottom: 14,
   },
-
   sectionTitle: {
     fontSize: 20,
     fontWeight: "700",
-    color: "#000",
+    color: "#111827",
   },
-  branchesList: {
-    paddingBottom: 24,
+
+  // --- Underline tab bar ---
+  tabBar: {
+    flexDirection: "row",
+    borderBottomWidth: 1,
+    borderBottomColor: "#F0F0F0",
+    marginBottom: 16,
+  },
+  tabItem: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 10,
+    gap: 4,
+  },
+  tabLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#9CA3AF",
+    textAlign: "center",
+  },
+  tabLabelActive: {
+    color: "#EB8100",
+  },
+  tabUnderline: {
+    position: "absolute",
+    bottom: 0,
+    left: 8,
+    right: 8,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: "transparent",
+  },
+  tabUnderlineActive: {
+    backgroundColor: "#EB8100",
+  },
+
+  tabContent: {
+    paddingBottom: 4,
+  },
+  emptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 40,
+    gap: 10,
+  },
+  emptyStateText: {
+    fontSize: 14,
+    color: "#9CA3AF",
+    fontWeight: "500",
   },
 });

@@ -78,6 +78,7 @@ export type BranchData = {
 export interface BranchCardProps extends BranchData {
   onPress?: (branch: BranchData) => void;
   cardPaddingBottom?: number;
+  cardMarginBottom?: number;
   badgePosition?: "bottom" | "inline";
   badgeInlineOffset?: number;
   badgeRowOffset?: number;
@@ -272,4 +273,19 @@ export interface DiscoverBranchOverlayProps {
   branches: BranchCardProps[];
   branchCardWidth: number;
   t: (key: string, options?: Record<string, unknown>) => string;
+}
+
+export interface UserBooking {
+  id: string;
+  branch: BranchData;
+  date: string;
+  time: string;
+  status: "confirmed" | "pending" | "cancelled" | "completed";
+}
+
+export interface UserVisit {
+  id: string;
+  branch: BranchData;
+  visitedAt: string;
+  visitCount?: number;
 }

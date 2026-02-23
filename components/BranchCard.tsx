@@ -32,6 +32,7 @@ function BranchCard(props: BranchCardProps) {
     offers,
     moreCount,
     cardPaddingBottom,
+    cardMarginBottom,
     badgePosition,
     badgeInlineOffset,
     badgeRowOffset,
@@ -105,9 +106,10 @@ function BranchCard(props: BranchCardProps) {
         paddingTop: cardPadding,
         paddingBottom: cardPaddingBottomScaled,
         borderRadius: cardRadius,
+        ...(cardMarginBottom !== undefined && { marginBottom: cardMarginBottom }),
       },
     ],
-    [cardHeight, cardPadding, cardPaddingBottomScaled, cardRadius, noElevation]
+    [cardHeight, cardPadding, cardPaddingBottomScaled, cardRadius, noElevation, cardMarginBottom]
   );
 
   // Jeden branch payload pre custom onPress aj default navigaciu drzi spravanie konzistentne.

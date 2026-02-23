@@ -39,6 +39,8 @@ import BusinessDetailScreen from "./screens/BusinessDetailScreen";
 
 import { AuthProvider } from "./lib/AuthContext";
 import { CardsSessionProvider } from "./lib/CardsSessionContext";
+import { FavoritesProvider } from "./lib/FavoritesContext";
+import { DUMMY_FAVORITES } from "./lib/fixtures/profileFixtures";
 
 if (typeof global.TextEncoder === "undefined") {
   // @ts-ignore
@@ -78,6 +80,7 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <AuthProvider>
+          <FavoritesProvider initialFavorites={DUMMY_FAVORITES}>
           <CardsSessionProvider>
             {Platform.OS !== "web" && (
               <StatusBar translucent backgroundColor="transparent" barStyle="dark-content" />
@@ -151,6 +154,7 @@ export default function App() {
               </Stack.Navigator>
             </NavigationContainer>
           </CardsSessionProvider>
+          </FavoritesProvider>
         </AuthProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

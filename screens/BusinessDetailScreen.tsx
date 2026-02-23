@@ -6,6 +6,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Animated,
   View,
   FlatList,
   InteractionManager,
@@ -45,6 +46,7 @@ import {
   resolveDiscoverCategory,
 } from "../lib/data/assets/categoryAssets";
 import { useAuth } from "../lib/AuthContext";
+import { useFavorites } from "../lib/FavoritesContext";
 import { AUTH_GUARD_ENABLED } from "../lib/constants/auth";
 import type { BranchData } from "../lib/interfaces";
 import { AppConfig } from "../lib/config/AppConfig";
@@ -99,7 +101,8 @@ export default function BusinessDetailScreen() {
   const [isGalleryVisible, setIsGalleryVisible] = useState(false);
   const [galleryStartIndex, setGalleryStartIndex] = useState(0);
   const [activeTab, setActiveTab] = useState<TabKey>("home");
-  const [isFavorite, setIsFavorite] = useState(false);
+  const { isFavorite: isFavoriteFn, toggleFavorite } = useFavorites();
+  const isFavorite = isFavoriteFn(branch.id);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const isBusinessDetailV2Enabled = AppConfig.businessDetailV2Enabled;
   const isReviewPhotosEnabled = AppConfig.reviewPhotosEnabled;
@@ -150,6 +153,20 @@ export default function BusinessDetailScreen() {
   const snapPoints = useMemo(() => ["15%", "35%"], []);
 
   const heroHeight = useMemo(() => Math.min(360, Math.max(240, Math.round(width * 0.7))), [width]);
+
+  const scrollYAnim = useRef(new Animated.Value(0)).current;
+  const heroParallaxScale = useMemo(() => scrollYAnim.interpolate({
+    inputRange: [-200, 0],
+    outputRange: [1.2, 1],
+    extrapolateLeft: "extend",
+    extrapolateRight: "clamp",
+  }), [scrollYAnim]);
+  const heroParallaxTranslateY = useMemo(() => scrollYAnim.interpolate({
+    inputRange: [-200, 0],
+    outputRange: [heroHeight * 0.1, 0],
+    extrapolateLeft: "extend",
+    extrapolateRight: "clamp",
+  }), [scrollYAnim, heroHeight]);
   const menuItemWidth = useMemo(() => {
     const itemsCount = Math.max(1, tabItems.length);
     const available = width - SIDE_PADDING * 2 - 8;
@@ -431,8 +448,8 @@ export default function BusinessDetailScreen() {
   }, [navigation]);
 
   const handleFavoritePress = useCallback(() => {
-    setIsFavorite((prev) => !prev);
-  }, []);
+    toggleFavorite(branch);
+  }, [branch, toggleFavorite]);
 
   const handleNotificationsPress = useCallback(() => {
     setNotificationsEnabled((prev) => !prev);
@@ -807,15 +824,21 @@ export default function BusinessDetailScreen() {
 
   const listHeader = useMemo(
     () => (
-      <View style={[heroContainerStyle, { marginBottom: MENU_GAP }]}>
-        <HeroCarousel
-          data={images}
-          height={heroHeight}
-          width={width}
-          index={carouselIndex}
-          onIndexChange={setCarouselIndex}
-          onImagePress={handleOpenGallery}
-        />
+      <View style={[heroContainerStyle, { marginBottom: MENU_GAP, overflow: "hidden" }]}>
+        <Animated.View style={{
+          width: "100%",
+          height: "100%",
+          transform: [{ scale: heroParallaxScale }, { translateY: heroParallaxTranslateY }],
+        }}>
+          <HeroCarousel
+            data={images}
+            height={heroHeight}
+            width={width}
+            index={carouselIndex}
+            onIndexChange={setCarouselIndex}
+            onImagePress={handleOpenGallery}
+          />
+        </Animated.View>
 
         <HeroActions
           topInset={insets.top}
@@ -872,9 +895,12 @@ export default function BusinessDetailScreen() {
         extraData={`${activeTab}-${isSticky}`}
         removeClippedSubviews={false}
         showsVerticalScrollIndicator={false}
-      scrollEventThrottle={16}
-      onScroll={handleScroll}
-      onScrollEndDrag={handleScrollEndDrag}
+        scrollEventThrottle={16}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollYAnim } } }],
+          { useNativeDriver: false, listener: handleScroll }
+        )}
+        onScrollEndDrag={handleScrollEndDrag}
         onMomentumScrollBegin={handleMomentumScrollBegin}
         onMomentumScrollEnd={handleMomentumScrollEnd}
         bounces={false}

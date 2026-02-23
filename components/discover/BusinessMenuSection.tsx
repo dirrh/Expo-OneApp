@@ -1,5 +1,5 @@
 import React, { memo, useMemo } from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, StyleSheet, Platform } from "react-native";
 import { useTranslation } from "react-i18next";
 
 import type { BranchMenuItem, BranchMenuLabelMode } from "../../lib/interfaces";
@@ -24,14 +24,14 @@ export const BusinessMenuSection = memo(function BusinessMenuSection({
   const { t } = useTranslation();
 
   const headingKey = labelMode === "menu" ? "businessMenuTitle" : "businessPricelistTitle";
-  const headingFallback = labelMode === "menu" ? "Menu" : "Price list";
+  const headingFallback = labelMode === "menu" ? "Menu" : "Cenník";
   const heading = useMemo(
     () => resolveLabel(t(headingKey), headingKey, headingFallback),
     [headingKey, headingFallback, t]
   );
 
   const emptyLabel = useMemo(
-    () => resolveLabel(t("businessMenuEmpty"), "businessMenuEmpty", "No menu available."),
+    () => resolveLabel(t("businessMenuEmpty"), "businessMenuEmpty", "Žiadne položky."),
     [t]
   );
 
@@ -39,34 +39,40 @@ export const BusinessMenuSection = memo(function BusinessMenuSection({
     <View style={styles.container}>
       <Text style={styles.heading}>{heading}</Text>
 
-      {!menuItems || menuItems.length === 0 ? (
-        <View style={styles.emptyCard}>
+      <View style={styles.card}>
+        {!menuItems || menuItems.length === 0 ? (
           <Text style={styles.emptyText}>{emptyLabel}</Text>
-        </View>
-      ) : (
-        <View style={styles.list}>
-          {menuItems.map((item, index) => (
-            <View key={item.id} style={[styles.row, index > 0 && styles.rowSpacing]}>
-              <View style={styles.nameWrap}>
-                <Text style={styles.name}>{resolveLabel(t(item.name), item.name, item.name)}</Text>
-                {item.details ? (
-                  <Text style={styles.details}>
-                    {resolveLabel(t(item.details), item.details, item.details)}
-                  </Text>
+        ) : (
+          menuItems.map((item, index) => {
+            const isLast = index === menuItems.length - 1;
+            const nameText = resolveLabel(t(item.name), item.name, item.name);
+            const detailsText = item.details
+              ? resolveLabel(t(item.details), item.details, item.details)
+              : null;
+
+            return (
+              <View key={item.id} style={[styles.row, !isLast && styles.rowDivider]}>
+                <View style={styles.rowLeft}>
+                  <Text style={styles.name} numberOfLines={2}>{nameText}</Text>
+                  {detailsText ? (
+                    <Text style={styles.details} numberOfLines={2}>{detailsText}</Text>
+                  ) : null}
+                </View>
+                {item.price ? (
+                  <View style={styles.priceWrap}>
+                    <Text style={styles.price} numberOfLines={1}>{item.price}</Text>
+                  </View>
                 ) : null}
               </View>
-              {item.price ? (
-                <Text style={styles.price} numberOfLines={1}>
-                  {item.price}
-                </Text>
-              ) : null}
-            </View>
-          ))}
-        </View>
-      )}
+            );
+          })
+        )}
+      </View>
     </View>
   );
 });
+
+const SEPARATOR = Platform.OS === "android" ? StyleSheet.hairlineWidth : 0.5;
 
 const styles = StyleSheet.create({
   container: {
@@ -79,59 +85,61 @@ const styles = StyleSheet.create({
     color: "#000",
     marginBottom: 12,
   },
-  list: {
-    paddingBottom: 6,
+  card: {
+    borderRadius: 16,
+    borderWidth: SEPARATOR,
+    borderColor: "#E4E4E7",
+    backgroundColor: "#FFFFFF",
+    overflow: "hidden",
   },
   row: {
-    borderWidth: 0.5,
-    borderColor: "#E4E4E7",
-    borderRadius: 20,
-    backgroundColor: "#fff",
-    paddingHorizontal: 16,
-    paddingVertical: 14,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 13,
   },
-  rowSpacing: {
-    marginTop: 10,
+  rowDivider: {
+    borderBottomWidth: SEPARATOR,
+    borderBottomColor: "#E4E4E7",
   },
-  nameWrap: {
+  rowLeft: {
     flex: 1,
     minWidth: 0,
-    gap: 4,
+    gap: 3,
   },
   name: {
     fontFamily: "Inter_600SemiBold",
-    fontSize: 15,
-    lineHeight: 19,
+    fontSize: 14,
+    lineHeight: 18,
     color: "#111827",
   },
   details: {
     fontFamily: "Inter_400Regular",
     fontSize: 12,
     lineHeight: 16,
-    color: "rgba(17, 24, 39, 0.7)",
+    color: "#71717A",
+  },
+  priceWrap: {
+    flexShrink: 0,
+    backgroundColor: "#FFF4E5",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
   },
   price: {
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 14,
-    lineHeight: 18,
-    color: "#111827",
-  },
-  emptyCard: {
-    borderWidth: 0.5,
-    borderColor: "#E4E4E7",
-    borderRadius: 20,
-    backgroundColor: "#fff",
-    paddingHorizontal: 16,
-    paddingVertical: 18,
+    fontFamily: "Inter_700Bold",
+    fontSize: 13,
+    lineHeight: 17,
+    color: "#EB8100",
   },
   emptyText: {
-    fontFamily: "Inter_500Medium",
+    fontFamily: "Inter_400Regular",
     fontSize: 13,
     lineHeight: 18,
     color: "#71717A",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
   },
 });
