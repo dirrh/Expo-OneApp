@@ -51,10 +51,12 @@ import {
   MARKER_TITLE_OFFSET_Y,
   MULTI_ICON,
   SINGLE_LAYER_ENTER_ZOOM_OFFSET,
+  IOS_SINGLE_LAYER_MAX_MARKERS,
   STACKED_CENTER_DURATION_MS,
   STACKED_OPEN_FALLBACK_MS,
   USER_MARKER_COLOR,
   USER_MARKER_ID,
+  VIEWPORT_PADDING_RATIO,
 } from "./map/constants";
 import type {
   RenderMarker,
@@ -318,7 +320,33 @@ function DiscoverMap({
     }
 
     if (showSingleLayer) {
+      let singleLayerBounds: { minLat: number; maxLat: number; minLng: number; maxLng: number } | null = null;
+      if (isIOS) {
+        const curCenter = cameraCenterRef.current;
+        const curZoom = zoomRef.current;
+        const vp = zoomToRegion(curCenter, curZoom);
+        const halfLng = Math.min(179.999, Math.max(0.0001, Math.abs(vp.longitudeDelta) / 2));
+        const halfLat = Math.min(85, Math.max(0.0001, Math.abs(vp.latitudeDelta) / 2));
+        const pHalfLng = Math.min(179.999, halfLng * (1 + VIEWPORT_PADDING_RATIO));
+        const pHalfLat = Math.min(85, halfLat * (1 + VIEWPORT_PADDING_RATIO));
+        singleLayerBounds = {
+          minLng: Math.max(-180, vp.longitude - pHalfLng),
+          maxLng: Math.min(180, vp.longitude + pHalfLng),
+          minLat: Math.max(-85, vp.latitude - pHalfLat),
+          maxLat: Math.min(85, vp.latitude + pHalfLat),
+        };
+      }
+
       singleLayerMarkers.forEach((group) => {
+        if (singleLayerBounds) {
+          const lat = group.coordinate.latitude;
+          const lng = group.coordinate.longitude;
+          if (lat < singleLayerBounds.minLat || lat > singleLayerBounds.maxLat ||
+              lng < singleLayerBounds.minLng || lng > singleLayerBounds.maxLng) {
+            return;
+          }
+        }
+
         if (group.items.length > 1) {
           const stackedItems =
             mapMarkerPipelineOptV1
@@ -367,6 +395,17 @@ function DiscoverMap({
           focusCoordinate: group.coordinate,
         });
       });
+    }
+
+    if (isIOS && markers.length > IOS_SINGLE_LAYER_MAX_MARKERS) {
+      const clat = cameraCenterRef.current[1];
+      const clng = cameraCenterRef.current[0];
+      markers.sort((a, b) => {
+        const da = (a.coordinate.latitude - clat) ** 2 + (a.coordinate.longitude - clng) ** 2;
+        const db = (b.coordinate.latitude - clat) ** 2 + (b.coordinate.longitude - clng) ** 2;
+        return da - db;
+      });
+      markers.length = IOS_SINGLE_LAYER_MAX_MARKERS;
     }
 
     const seenKeys = new Set<string>();

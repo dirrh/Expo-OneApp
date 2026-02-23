@@ -117,13 +117,38 @@ export default function CustomTabBar({ state, descriptors, navigation }: any) {
             : state.index === item.routeIndex;
 
           const onPress = () => {
-            navigation.navigate(item.route.name);
+            const event = navigation.emit({
+              type: "tabPress",
+              target: item.route.key,
+              canPreventDefault: true,
+            });
+
+            if (event.defaultPrevented) {
+              return;
+            }
+
+            if (item.tabKey === "cards") {
+              navigation.navigate(item.route.name, { screen: "CardsList" });
+              return;
+            }
+
+            if (!isFocused) {
+              navigation.navigate(item.route.name);
+            }
+          };
+
+          const onLongPress = () => {
+            navigation.emit({
+              type: "tabLongPress",
+              target: item.route.key,
+            });
           };
 
           return (
             <TouchableOpacity
               key={item.route.key}
               onPress={onPress}
+              onLongPress={onLongPress}
               style={styles.tabButton}
               activeOpacity={0.8}
             >

@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { Image, View } from "react-native";
+import { Image, Platform, View } from "react-native";
 import type { ImageURISource } from "react-native";
 import { Marker } from "react-native-maps";
 import {
@@ -30,6 +30,34 @@ type MarkerLayerProps = {
   fullSpriteTextLayersEnabled: boolean;
   failedRemoteSpriteKeySet: Set<string>;
   useOverlayFullSprites: boolean;
+};
+
+const sanitizeAnchor = (anchor?: { x: number; y: number }) => {
+  if (!anchor) {
+    return undefined;
+  }
+  const x = anchor.x;
+  const y = anchor.y;
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    return undefined;
+  }
+  return {
+    x: clampNumber(x, 0, 1),
+    y: clampNumber(y, 0, 1),
+  };
+};
+
+const canUseMarkerImagePropOnPlatform = (
+  source: number | ImageURISource | undefined
+) => {
+  if (!isValidMarkerImage(source)) {
+    return false;
+  }
+  // iOS MapKit marker image prop is safest with static assets (number require sources).
+  if (Platform.OS === "ios" && typeof source !== "number") {
+    return false;
+  }
+  return true;
 };
 
 export function MarkerLayer({
@@ -116,10 +144,10 @@ export function MarkerLayer({
         }
       }
 
-      const useCustomImage = isValidMarkerImage(markerImage);
-      const imageProp = useCustomImage ? markerImage : undefined;
-      const anchorProp = useCustomImage ? markerAnchor : undefined;
-      const markerPinColor = useCustomImage
+      const canUseCustomImage = canUseMarkerImagePropOnPlatform(markerImage);
+      const imageProp = canUseCustomImage ? markerImage : undefined;
+      const anchorProp = canUseCustomImage ? sanitizeAnchor(markerAnchor) : undefined;
+      const markerPinColor = canUseCustomImage
         ? undefined
         : getDefaultPinColor(marker, hasActiveFilter);
       const fullOpacityForMarker =
@@ -162,11 +190,13 @@ export function MarkerLayer({
               ),
             }
           : undefined;
+      const sanitizedIosStableCompactAnchor = sanitizeAnchor(iosStableCompactAnchor);
+      const sanitizedIosStableFullAnchor = sanitizeAnchor(iosStableFullAnchor);
       const iosScaledActiveAnchor =
-        iosStableCompactAnchor ?? anchorProp ?? { x: 0.5, y: 1 };
+        sanitizedIosStableCompactAnchor ?? anchorProp ?? { x: 0.5, y: 1 };
       const iosScaledWrapperAnchor =
-        shouldRenderIOSScaledStaticImage && iosStableFullAnchor
-          ? iosStableFullAnchor
+        shouldRenderIOSScaledStaticImage && sanitizedIosStableFullAnchor
+          ? sanitizedIosStableFullAnchor
           : iosScaledActiveAnchor;
       const iosScaledCompactOffset =
         shouldRenderIOSScaledStaticImage &&
@@ -188,11 +218,11 @@ export function MarkerLayer({
           ? {
               left:
                 iosScaledWrapperAnchor.x * iosScaledMarkerWrapperSize.width -
-                (iosStableFullAnchor?.x ?? iosScaledWrapperAnchor.x) *
+                (sanitizedIosStableFullAnchor?.x ?? iosScaledWrapperAnchor.x) *
                   iosScaledFullSpriteSize.width,
               top:
                 iosScaledWrapperAnchor.y * iosScaledMarkerWrapperSize.height -
-                (iosStableFullAnchor?.y ?? iosScaledWrapperAnchor.y) *
+                (sanitizedIosStableFullAnchor?.y ?? iosScaledWrapperAnchor.y) *
                   iosScaledFullSpriteSize.height,
             }
           : undefined;

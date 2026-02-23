@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 import { Marker } from "react-native-maps";
+import { Platform } from "react-native";
 import type { ImageURISource } from "react-native";
 import { clampNumber, isValidMapCoordinate, isValidMarkerImage } from "../../../../lib/maps/discoverMapUtils";
 import { resolveMarkerImage } from "../../../../lib/maps/markerImageProvider";
@@ -14,6 +15,21 @@ type FullSpriteOverlayLayerProps = {
   resolvedMarkerVisualById: Map<string, ResolvedMarkerVisual>;
   failedRemoteSpriteKeySet: Set<string>;
   handleMarkerPress: (marker: RenderMarker) => void;
+};
+
+const sanitizeAnchor = (anchor?: { x: number; y: number }) => {
+  if (!anchor) {
+    return undefined;
+  }
+  const x = anchor.x;
+  const y = anchor.y;
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    return undefined;
+  }
+  return {
+    x: clampNumber(x, 0, 1),
+    y: clampNumber(y, 0, 1),
+  };
 };
 
 export function FullSpriteOverlayLayer({
@@ -70,6 +86,16 @@ export function FullSpriteOverlayLayer({
         imageProp = resolved.image;
         anchorProp = resolved.anchor;
       }
+      if (!isValidMarkerImage(imageProp)) {
+        continue;
+      }
+
+      const canUseImageProp =
+        Platform.OS !== "ios" || typeof imageProp === "number";
+      if (!canUseImageProp) {
+        continue;
+      }
+      const safeAnchor = sanitizeAnchor(anchorProp);
 
       elements.push(
         <Marker
@@ -78,8 +104,9 @@ export function FullSpriteOverlayLayer({
           zIndex={marker.zIndex + 1000}
           opacity={opacity}
           onPress={() => handleMarkerPress(marker)}
-          {...(imageProp ? { image: imageProp, tracksViewChanges: false } : {})}
-          {...(anchorProp ? { anchor: anchorProp } : {})}
+          image={imageProp}
+          tracksViewChanges={false}
+          {...(safeAnchor ? { anchor: safeAnchor } : {})}
         />
       );
     }
