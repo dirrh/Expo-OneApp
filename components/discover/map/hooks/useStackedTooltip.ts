@@ -77,6 +77,8 @@ export const useStackedTooltip = ({
     setStackedTooltipPoint(null);
   }, [clearPendingStackedOpen]);
 
+  const projectionGenRef = useRef(0);
+
   const updateStackedTooltipPosition = useCallback(
     async (marker: RenderMarker | null) => {
       if (!marker?.isStacked) {
@@ -87,8 +89,12 @@ export const useStackedTooltip = ({
       if (!mapView) {
         return;
       }
+      const generation = ++projectionGenRef.current;
       try {
         const point = await mapView.pointForCoordinate(marker.coordinate);
+        if (projectionGenRef.current !== generation) {
+          return;
+        }
         if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) {
           return;
         }

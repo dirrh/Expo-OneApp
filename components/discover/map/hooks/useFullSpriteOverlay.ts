@@ -26,6 +26,7 @@ type UseFullSpriteOverlayParams = {
   showSingleLayer: boolean;
   isIOSStableMarkersMode: boolean;
   useOverlayFullSprites: boolean;
+  allowRemoteFullSpriteOverlay: boolean;
   fullSpriteFadeEnabled: boolean;
   filteredMarkersLength: number;
 };
@@ -48,6 +49,7 @@ export const useFullSpriteOverlay = ({
   showSingleLayer,
   isIOSStableMarkersMode,
   useOverlayFullSprites,
+  allowRemoteFullSpriteOverlay,
   fullSpriteFadeEnabled,
   filteredMarkersLength,
 }: UseFullSpriteOverlayParams): UseFullSpriteOverlayResult => {
@@ -307,6 +309,10 @@ export const useFullSpriteOverlay = ({
         immediateReadyMarkerIds.push(markerId);
       }
 
+      if (!allowRemoteFullSpriteOverlay) {
+        return;
+      }
+
       if (!remoteSpriteUrl || failedRemoteSpriteKeySet.has(spriteKey)) {
         return;
       }
@@ -384,6 +390,7 @@ export const useFullSpriteOverlay = ({
     fullSpriteTextLayersEnabled,
     inlineLabelIds,
     isIOSStableMarkersMode,
+    allowRemoteFullSpriteOverlay,
     readyFullSpriteIdSet,
     showSingleLayer,
     singleMarkerById,

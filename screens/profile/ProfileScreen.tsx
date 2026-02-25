@@ -50,10 +50,8 @@ const STATUS_CONFIG: Record<UserBooking["status"], { label: string; color: strin
 // Unified ActivityCard  –  connected-row style (like search results)
 // ---------------------------------------------------------------------------
 
-const CARD_IMG = 76;
-const CARD_PH  = 14; // paddingHorizontal
-const CARD_PV  = 13; // paddingVertical
-const CARD_GAP = 13; // gap between image and content
+const CARD_IMG = 84;
+const CARD_GAP = 14; // gap between image and content
 
 type ActivityCardVariant =
   | { type: "favorite";    branch: BranchData; offerLabel?: string }
@@ -63,9 +61,15 @@ type ActivityCardVariant =
 
 function ActivityCard({
   variant,
+  isFavorite,
+  isFirst,
+  isLast,
   onPress,
 }: {
   variant: ActivityCardVariant;
+  isFavorite?: boolean;
+  isFirst?: boolean;
+  isLast?: boolean;
   onPress?: () => void;
 }) {
   const branch =
@@ -73,21 +77,35 @@ function ActivityCard({
     : variant.type === "favorite" ? variant.branch
     : variant.visit.branch;
 
-  // Right badge — only for booking and favorite variants
   let badge: React.ReactNode = null;
-  if (variant.type === "booking") {
-    const cfg = STATUS_CONFIG[variant.booking.status];
-    badge = (
-      <View style={[acStyles.badge, { backgroundColor: cfg.bg }]}>
-        <Text style={[acStyles.badgeText, { color: cfg.color }]}>{cfg.label}</Text>
-      </View>
-    );
-  } else if (variant.type === "favorite") {
+  if (variant.type === "favorite" || isFavorite) {
     badge = (
       <View style={acStyles.favIcon}>
-        <Ionicons name="heart" size={12} color="#EB8100" />
+        <Ionicons name="heart" size={14} color="#EB8100" />
       </View>
     );
+  } else {
+    badge = (
+      <View style={acStyles.favIcon}>
+        <Ionicons name="heart-outline" size={14} color="#EB8100" />
+      </View>
+    );
+  }
+
+  // Right badge — for booking we put it here, or favorite heart
+  let topBadge: React.ReactNode = null;
+  if (variant.type === "booking") {
+    const cfg = STATUS_CONFIG[variant.booking.status];
+    topBadge = (
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+        <View style={[acStyles.badge, { backgroundColor: cfg.bg }]}>
+          <Text style={[acStyles.badgeText, { color: cfg.color }]}>{cfg.label}</Text>
+        </View>
+        {badge}
+      </View>
+    );
+  } else {
+    topBadge = badge;
   }
 
   // Bottom chip
@@ -95,7 +113,7 @@ function ActivityCard({
   if (variant.type === "booking") {
     chip = (
       <View style={acStyles.chipGray}>
-        <Ionicons name="calendar-outline" size={11} color="#71717A" />
+        <Ionicons name="calendar-outline" size={12} color="#71717A" />
         <Text style={acStyles.chipText} numberOfLines={1}>
           {variant.booking.date}  ·  {variant.booking.time}
         </Text>
@@ -104,14 +122,14 @@ function ActivityCard({
   } else if (variant.type === "mostVisited") {
     chip = (
       <View style={acStyles.chipOrange}>
-        <Ionicons name="flame-outline" size={11} color="#EB8100" />
+        <Ionicons name="flame-outline" size={12} color="#EB8100" />
         <Text style={[acStyles.chipText, { color: "#EB8100" }]}>{variant.visit.visitCount}× navštívené</Text>
       </View>
     );
   } else if (variant.type === "lastVisited") {
     chip = (
       <View style={acStyles.chipGray}>
-        <Ionicons name="time-outline" size={11} color="#71717A" />
+        <Ionicons name="time-outline" size={12} color="#71717A" />
         <Text style={acStyles.chipText} numberOfLines={1}>{variant.visit.visitedAt}</Text>
       </View>
     );
@@ -122,131 +140,130 @@ function ActivityCard({
       </View>
     ) : (
       <View style={acStyles.chipGray}>
-        <Ionicons name="heart-outline" size={11} color="#71717A" />
+        <Ionicons name="heart-outline" size={12} color="#71717A" />
         <Text style={acStyles.chipText}>Uložené miesto</Text>
       </View>
     );
   }
 
   return (
-    <TouchableOpacity
-      activeOpacity={0.85}
-      onPress={onPress}
-      style={acStyles.row}
-    >
-      <Image source={branch.image} style={acStyles.image} resizeMode="cover" />
+    <>
+      <TouchableOpacity
+        activeOpacity={0.85}
+        onPress={onPress}
+        style={acStyles.row}
+      >
+        <Image source={branch.image} style={acStyles.image} resizeMode="cover" />
 
-      <View style={acStyles.content}>
-        <View style={acStyles.topRow}>
-          <Text style={acStyles.title} numberOfLines={1}>{branch.title}</Text>
-          {badge}
+        <View style={acStyles.content}>
+          <View style={acStyles.topRow}>
+            <Text style={acStyles.title} numberOfLines={1}>{branch.title}</Text>
+            {topBadge}
+          </View>
+
+          <View style={acStyles.middleRow}>
+            <View style={acStyles.metaRow}>
+              <Ionicons name="star" size={12} color="#FFD000" />
+              <Text style={[acStyles.metaText, { color: "#6B7280" }]}>{branch.rating.toFixed(1)}</Text>
+              <View style={acStyles.dot} />
+              <Ionicons name="location-outline" size={12} color="#9CA3AF" />
+              <Text style={acStyles.metaText}>{branch.distance}</Text>
+              <View style={acStyles.dot} />
+              <Ionicons name="time-outline" size={12} color="#9CA3AF" />
+              <Text style={acStyles.metaText}>{branch.hours}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color="#D1D5DB" />
+          </View>
+
+          <View style={acStyles.chipRow}>{chip}</View>
         </View>
-
-        <View style={acStyles.metaRow}>
-          <Ionicons name="star" size={11} color="#FFD000" />
-          <Text style={acStyles.metaText}>{branch.rating.toFixed(1)}</Text>
-          <View style={acStyles.dot} />
-          <Ionicons name="location-outline" size={11} color="#9CA3AF" />
-          <Text style={acStyles.metaText}>{branch.distance}</Text>
-          <View style={acStyles.dot} />
-          <Ionicons name="time-outline" size={11} color="#9CA3AF" />
-          <Text style={acStyles.metaText}>{branch.hours}</Text>
-        </View>
-
-        <View style={acStyles.chipRow}>{chip}</View>
-      </View>
-
-      <Ionicons name="chevron-forward" size={14} color="#D1D5DB" />
-    </TouchableOpacity>
+      </TouchableOpacity>
+      {!isLast && <View style={acStyles.divider} />}
+    </>
   );
 }
 
 const acStyles = StyleSheet.create({
-  // Group container: single border + rounded corners, clips child images
-  group: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#E4E4E7",
-    overflow: "hidden",
-    marginBottom: 20,
-  },
-  // Hairline separator indented to align with text content (skips image column)
-  separator: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: "#E4E4E7",
-    marginLeft: CARD_PH + CARD_IMG + CARD_GAP,
-  },
   row: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#fff",
-    paddingHorizontal: CARD_PH,
-    paddingVertical: CARD_PV,
+    paddingVertical: 14,
     gap: CARD_GAP,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: "#F4F4F5",
+    marginLeft: CARD_IMG + CARD_GAP,
   },
   image: {
     width: CARD_IMG,
     height: CARD_IMG,
-    borderRadius: 12,
+    borderRadius: 14,
     backgroundColor: "#E4E4E7",
     flexShrink: 0,
   },
   content: {
     flex: 1,
     minWidth: 0,
-    gap: 6,
+    gap: 8,
+    justifyContent: "center",
   },
   topRow: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     gap: 8,
   },
   title: {
     flex: 1,
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: "700",
     color: "#111827",
-    lineHeight: 20,
+    lineHeight: 22,
   },
   badge: {
-    height: 22,
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    flexShrink: 0,
+    height: 28,
+    borderRadius: 14,
+    paddingHorizontal: 10,
     alignItems: "center",
     justifyContent: "center",
   },
   badgeText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
-    lineHeight: 14,
   },
   favIcon: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: "#FFF4E5",
     alignItems: "center",
     justifyContent: "center",
-    flexShrink: 0,
+  },
+  middleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   metaRow: {
     flexDirection: "row",
     alignItems: "center",
     flexWrap: "nowrap",
     gap: 4,
+    flex: 1,
+    paddingRight: 8,
   },
   metaText: {
     fontSize: 12,
-    color: "#6B7280",
-    lineHeight: 15,
+    color: "#9CA3AF",
   },
   dot: {
     width: 3,
     height: 3,
     borderRadius: 1.5,
     backgroundColor: "#D1D5DB",
+    marginHorizontal: 1,
   },
   chipRow: {
     flexDirection: "row",
@@ -260,7 +277,6 @@ const acStyles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 4,
-    maxWidth: "100%",
   },
   chipGray: {
     flexDirection: "row",
@@ -270,13 +286,11 @@ const acStyles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 4,
-    maxWidth: "100%",
   },
   chipText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     color: "#71717A",
-    lineHeight: 14,
   },
 });
 
@@ -471,6 +485,7 @@ export default function ProfileScreen() {
             <ActivityCard
               key={booking.id}
               variant={{ type: "booking", booking }}
+              isFavorite={favorites.some((f) => f.id === booking.branch.id)}
               isFirst={i === 0}
               isLast={i === DUMMY_BOOKINGS.length - 1}
               onPress={() => navigation.navigate("BusinessDetailScreen", { branch: booking.branch })}
@@ -481,6 +496,7 @@ export default function ProfileScreen() {
             <ActivityCard
               key={visit.id}
               variant={{ type: "mostVisited", visit }}
+              isFavorite={favorites.some((f) => f.id === visit.branch.id)}
               isFirst={i === 0}
               isLast={i === DUMMY_MOST_VISITED.length - 1}
               onPress={() => navigation.navigate("BusinessDetailScreen", { branch: visit.branch })}
@@ -491,6 +507,7 @@ export default function ProfileScreen() {
             <ActivityCard
               key={visit.id}
               variant={{ type: "lastVisited", visit }}
+              isFavorite={favorites.some((f) => f.id === visit.branch.id)}
               isFirst={i === 0}
               isLast={i === DUMMY_LAST_VISITED.length - 1}
               onPress={() => navigation.navigate("BusinessDetailScreen", { branch: visit.branch })}
@@ -672,7 +689,10 @@ const styles = StyleSheet.create({
   },
 
   tabContent: {
-    paddingBottom: 4,
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
   },
   emptyState: {
     alignItems: "center",

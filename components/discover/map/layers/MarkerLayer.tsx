@@ -10,6 +10,7 @@ import {
   isValidMarkerImage,
 } from "../../../../lib/maps/discoverMapUtils";
 import {
+  getMarkerCompactFallbackImage,
   hasLocalFullMarkerSprite,
   resolveMarkerImage,
 } from "../../../../lib/maps/markerImageProvider";
@@ -27,6 +28,7 @@ type MarkerLayerProps = {
   mapMarkerPipelineOptV1: boolean;
   resolvedMarkerVisualById: Map<string, ResolvedMarkerVisual>;
   isIOSStableMarkersMode: boolean;
+  isIOSStrictSafeRenderer: boolean;
   fullSpriteTextLayersEnabled: boolean;
   failedRemoteSpriteKeySet: Set<string>;
   useOverlayFullSprites: boolean;
@@ -70,6 +72,7 @@ export function MarkerLayer({
   mapMarkerPipelineOptV1,
   resolvedMarkerVisualById,
   isIOSStableMarkersMode,
+  isIOSStrictSafeRenderer,
   fullSpriteTextLayersEnabled,
   failedRemoteSpriteKeySet,
   useOverlayFullSprites,
@@ -144,12 +147,40 @@ export function MarkerLayer({
         }
       }
 
-      const canUseCustomImage = canUseMarkerImagePropOnPlatform(markerImage);
+      // iOS strict-safe must stay on local static assets only.
+      // Remote URI marker sources can flash default MapKit pins and increase churn.
+      if (
+        isIOSStrictSafeRenderer &&
+        Platform.OS === "ios" &&
+        marker.markerData &&
+        typeof markerImage !== "number"
+      ) {
+        const safeCompact = resolveMarkerImage(
+          {
+            ...marker.markerData,
+            icon: getMarkerCompactFallbackImage(marker.markerData.category),
+          },
+          {
+            preferFullSprite: false,
+            remoteSpriteFailureKeys: failedRemoteSpriteKeySet,
+          }
+        );
+        if (typeof safeCompact.image === "number") {
+          markerImage = safeCompact.image;
+          markerAnchor = safeCompact.anchor;
+        }
+      }
+
+      const isPoolPlaceholder = Boolean(marker.isPoolPlaceholder);
+      const canUseCustomImage =
+        !isPoolPlaceholder && canUseMarkerImagePropOnPlatform(markerImage);
       const imageProp = canUseCustomImage ? markerImage : undefined;
       const anchorProp = canUseCustomImage ? sanitizeAnchor(markerAnchor) : undefined;
-      const markerPinColor = canUseCustomImage
+      const markerPinColor = isPoolPlaceholder
         ? undefined
-        : getDefaultPinColor(marker, hasActiveFilter);
+        : canUseCustomImage
+          ? undefined
+          : getDefaultPinColor(marker, hasActiveFilter);
       const fullOpacityForMarker =
         !marker.isCluster && !marker.isStacked
           ? clampNumber(effectiveFullSpriteOpacityById[marker.id] ?? 0, 0, 1)
@@ -158,20 +189,28 @@ export function MarkerLayer({
         useOverlayFullSprites && fullOpacityForMarker >= 1 - FULL_SPRITE_FADE_EPSILON
           ? 0
           : 1;
-      const markerTracksViewChanges = marker.isCluster
-        ? clusterTracksViewChangesEnabled
-        : false;
+      const markerOpacity = isPoolPlaceholder ? 0 : compactMarkerOpacity;
+      const markerTracksViewChanges =
+        marker.isCluster && Platform.OS !== "ios"
+          ? clusterTracksViewChangesEnabled
+          : false;
       const numericImageProp = typeof imageProp === "number" ? imageProp : undefined;
-      const iosCompactImageSource =
-        typeof iosStableCompactImage === "number"
-          ? iosStableCompactImage
-          : numericImageProp;
+      const iosScaledCompactImageSource =
+        isIOSStrictSafeRenderer && Platform.OS === "ios"
+          ? numericImageProp
+          : typeof iosStableCompactImage === "number"
+            ? iosStableCompactImage
+            : numericImageProp;
       const shouldRenderIOSScaledStaticImage =
-        isIOSStableMarkersMode && typeof iosCompactImageSource === "number";
+        Platform.OS === "ios" &&
+        (isIOSStrictSafeRenderer || isIOSStableMarkersMode) &&
+        typeof iosScaledCompactImageSource === "number";
       const iosFullImageSource =
-        typeof iosStableFullImage === "number" ? iosStableFullImage : undefined;
+        !isIOSStrictSafeRenderer && typeof iosStableFullImage === "number"
+          ? iosStableFullImage
+          : undefined;
       const iosScaledMarkerSize = shouldRenderIOSScaledStaticImage
-        ? getIOSScaledMarkerSize(iosCompactImageSource!)
+        ? getIOSScaledMarkerSize(iosScaledCompactImageSource!)
         : undefined;
       const iosScaledFullSpriteSize =
         shouldRenderIOSScaledStaticImage && typeof iosFullImageSource === "number"
@@ -193,9 +232,13 @@ export function MarkerLayer({
       const sanitizedIosStableCompactAnchor = sanitizeAnchor(iosStableCompactAnchor);
       const sanitizedIosStableFullAnchor = sanitizeAnchor(iosStableFullAnchor);
       const iosScaledActiveAnchor =
-        sanitizedIosStableCompactAnchor ?? anchorProp ?? { x: 0.5, y: 1 };
+        isIOSStrictSafeRenderer && Platform.OS === "ios"
+          ? anchorProp ?? { x: 0.5, y: 1 }
+          : sanitizedIosStableCompactAnchor ?? anchorProp ?? { x: 0.5, y: 1 };
       const iosScaledWrapperAnchor =
-        shouldRenderIOSScaledStaticImage && sanitizedIosStableFullAnchor
+        shouldRenderIOSScaledStaticImage &&
+        !isIOSStrictSafeRenderer &&
+        sanitizedIosStableFullAnchor
           ? sanitizedIosStableFullAnchor
           : iosScaledActiveAnchor;
       const iosScaledCompactOffset =
@@ -227,6 +270,7 @@ export function MarkerLayer({
             }
           : undefined;
       const iosUseDualLayer =
+        !isIOSStrictSafeRenderer &&
         shouldRenderIOSScaledStaticImage &&
         typeof iosFullImageSource === "number" &&
         iosScaledFullSpriteSize &&
@@ -241,9 +285,9 @@ export function MarkerLayer({
           key={marker.key}
           coordinate={marker.coordinate}
           zIndex={marker.zIndex}
-          opacity={compactMarkerOpacity}
-          onPress={() => handleMarkerPress(marker)}
-          {...(!shouldRenderIOSScaledStaticImage && imageProp
+          opacity={markerOpacity}
+          onPress={isPoolPlaceholder ? undefined : () => handleMarkerPress(marker)}
+          {...(!isPoolPlaceholder && !shouldRenderIOSScaledStaticImage && imageProp
             ? { image: imageProp, tracksViewChanges: markerTracksViewChanges }
             : shouldRenderIOSScaledStaticImage
               ? { tracksViewChanges: markerTracksViewChanges }
@@ -265,7 +309,7 @@ export function MarkerLayer({
               ]}
             >
               <Image
-                source={iosCompactImageSource!}
+                source={iosScaledCompactImageSource!}
                 style={[
                   localStyles.iosMarkerImage,
                   iosScaledMarkerSize,
@@ -308,6 +352,7 @@ export function MarkerLayer({
     handleMarkerPress,
     inlineLabelIdSet,
     isIOSStableMarkersMode,
+    isIOSStrictSafeRenderer,
     mapMarkerPipelineOptV1,
     renderMarkers,
     resolvedMarkerVisualById,

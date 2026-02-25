@@ -23,6 +23,8 @@ export type RenderMarker = {
   isStacked?: boolean;
   stackedItems?: DiscoverMapMarker[];
   focusCoordinate: { latitude: number; longitude: number };
+  isPoolPlaceholder?: boolean;
+  poolSlot?: number;
 };
 
 export type ClusterPointFeature = {

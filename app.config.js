@@ -2,6 +2,8 @@ import 'dotenv/config';
 
 export default ({ config }) => ({
   ...config,
+  // SDK 54 still allows opting out of New Architecture; used as iOS crash fallback for react-native-maps.
+  newArchEnabled: false,
   runtimeVersion: {
     policy: 'appVersion',
   },

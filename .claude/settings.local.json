@@ -1,7 +1,14 @@
 {
   "permissions": {
     "allow": [
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(npx tsc --noEmit --project tsconfig.json)",
+      "Bash(npx tsc --noEmit)",
+      "Bash(python3 -c \":*)",
+      "Bash(node -e \":*)",
+      "Bash(npx tsx scripts/normalize-ios-stacked-markers.ts)",
+      "Bash(npx tsx scripts/normalize-ios-cluster-markers.ts)",
+      "Bash(npx tsc --noEmit --skipLibCheck)"
     ]
   }
 }

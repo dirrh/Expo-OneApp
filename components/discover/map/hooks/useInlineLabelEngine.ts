@@ -67,6 +67,8 @@ type UseInlineLabelEngineParams = {
   mapLabelCollisionV2Enabled: boolean;
   labelLayoutV3Enabled: boolean;
   resolvedLabelPolicy: ResolvedDiscoverMapLabelPolicy;
+  disableNativeProjection?: boolean;
+  disableGestureRecompute?: boolean;
   useInlineLabelOverlay: boolean;
   fullSpriteTextLayersEnabled: boolean;
   isIOSStableMarkersMode: boolean;
@@ -98,6 +100,8 @@ export const useInlineLabelEngine = ({
   mapLabelCollisionV2Enabled,
   labelLayoutV3Enabled,
   resolvedLabelPolicy,
+  disableNativeProjection = false,
+  disableGestureRecompute = false,
   useInlineLabelOverlay,
   fullSpriteTextLayersEnabled,
   isIOSStableMarkersMode,
@@ -194,7 +198,7 @@ export const useInlineLabelEngine = ({
         Platform.OS === "ios" ? nextZoom + IOS_ZOOM_OFFSET : nextZoom;
       const effectiveNextZoom = clampNumber(effectiveNextZoomRaw, 0, 20);
       const shouldShowSingleLayerForPass =
-        effectiveNextZoom >= singleLayerEnterZoom;
+        showSingleLayer && effectiveNextZoom >= singleLayerEnterZoom;
       if (
         mapLayoutSize.width <= 0 ||
         mapLayoutSize.height <= 0 ||
@@ -458,6 +462,7 @@ export const useInlineLabelEngine = ({
       const shouldUseNativeProjection =
         labelLayoutV3Enabled &&
         mapLabelCollisionV2Enabled &&
+        !disableNativeProjection &&
         labelCandidates.length <= MAP_LABEL_MAX_CANDIDATES_V3;
       const mapView = cameraRef.current;
       if (!shouldUseNativeProjection || !mapView) {
@@ -582,7 +587,9 @@ export const useInlineLabelEngine = ({
       mapLabelCollisionV2Enabled,
       mapLayoutSize,
       resolvedLabelPolicy,
+      disableNativeProjection,
       singleLayerEnterZoom,
+      showSingleLayer,
       useInlineLabelOverlay,
     ]
   );
@@ -615,6 +622,9 @@ export const useInlineLabelEngine = ({
 
   const scheduleGestureLabelRecompute = useCallback(
     (nextCenter: [number, number], nextZoom: number) => {
+      if (disableGestureRecompute) {
+        return;
+      }
       if (!labelLayoutV3Enabled) {
         return;
       }
@@ -659,6 +669,7 @@ export const useInlineLabelEngine = ({
       }, waitMs);
     },
     [
+      disableGestureRecompute,
       fullSpriteTextLayersEnabled,
       labelLayoutV3Enabled,
       recomputeInlineLabels,

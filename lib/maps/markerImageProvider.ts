@@ -143,6 +143,10 @@ const getFallbackCategoryIcon = (category?: DiscoverMapMarker["category"]) => {
   }
 };
 
+export const getMarkerCompactFallbackImage = (
+  category?: DiscoverMapMarker["category"]
+) => getFallbackCategoryIcon(category);
+
 const normalizeRemoteSpriteUrl = (url?: string | null) => {
   if (!url) {
     return null;
