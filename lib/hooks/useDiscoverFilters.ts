@@ -6,6 +6,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { BranchData, DiscoverMapMarker } from "../interfaces";
+import {
+  branchMatchesDiscoverQueryTokens,
+  tokenizeDiscoverSearchQuery,
+} from "../discover/discoverSearchUtils";
 
 const parseNumericRating = (value: unknown): number | null => {
   if (typeof value === "number" && Number.isFinite(value)) {
@@ -203,7 +207,7 @@ export const useDiscoverFilters = (
 
   const filterBranches = useCallback(
     (branches: BranchData[], query: string): BranchData[] => {
-      const normalizedQuery = query.trim().toLowerCase();
+      const queryTokens = tokenizeDiscoverSearchQuery(query);
 
       let filtered =
         ratingThreshold === null
@@ -220,9 +224,9 @@ export const useDiscoverFilters = (
         });
       }
 
-      if (normalizedQuery) {
+      if (queryTokens.length > 0) {
         filtered = filtered.filter((branch) =>
-          branch.title.toLowerCase().includes(normalizedQuery)
+          branchMatchesDiscoverQueryTokens(branch, queryTokens)
         );
       }
 

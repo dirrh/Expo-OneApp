@@ -43,7 +43,8 @@ import {
 } from "../lib/constants/discoverUi";
 import {
   buildDiscoverFavoritePlaces,
-  filterDiscoverBranchesByQuery,
+  buildDiscoverBranchSearchIndex,
+  filterDiscoverBranchSearchIndex,
 } from "../lib/discover/discoverSearchUtils";
 
 /**
@@ -84,8 +85,10 @@ const filterMarkersByViewport = (
   const maxLng = centerLng + deltaWithMargin;
 
   return markers.filter((m) => {
-    const { lat, lng } = m.coord;
-    return lat >= minLat && lat <= maxLat && lng >= minLng && lng <= maxLng;
+    const lat = m.coord?.lat;
+    const lng = m.coord?.lng;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
+    return (lat as number) >= minLat && (lat as number) <= maxLat && (lng as number) >= minLng && (lng as number) <= maxLng;
   });
 };
 const FILTER_ICONS: Record<DiscoverCategory, ImageSourcePropType> = {
@@ -217,9 +220,13 @@ export default function DiscoverScreen() {
     () => appendDerivedBranchesFromMarkers(branches, markers, buildBranchFromMarker),
     [branches, markers, buildBranchFromMarker]
   );
+  const searchBranchIndex = useMemo(
+    () => buildDiscoverBranchSearchIndex(searchBranchCandidates),
+    [searchBranchCandidates]
+  );
   const searchBranches = useMemo(() => {
-    return filterDiscoverBranchesByQuery(searchBranchCandidates, text);
-  }, [searchBranchCandidates, text]);
+    return filterDiscoverBranchSearchIndex(searchBranchIndex, text);
+  }, [searchBranchIndex, text]);
   const markerLookup = useMemo(() => {
     const lookup = new Map<string, DiscoverMapMarker>();
     markers.forEach((marker) => {
@@ -254,8 +261,15 @@ export default function DiscoverScreen() {
   );
 
   // Filtrujeme markery podľa viditeľnej oblasti mapy, aby sme znížili počet markerov počas pohybu.
+  // POZOR: prah je SINGLE_MODE_ZOOM + 0.5 (= 14.5), nie presne 14.
+  // Dôvod: pri zoomovaní v cluster mode (napr. zoom 13→14.1→13) camera.mapZoom dočasne
+  // prekročí SINGLE_MODE_ZOOM počas aktívnej animácie, kým displayMode je stále "cluster"
+  // (kvôli hysteréznej zóne 14.0–14.18). Keby sme filtrovali pri 14.0, zmenila by sa
+  // sada filteredMarkers počas animácie → clustre sa prepočítajú → 40+ annotation images
+  // sa zmení naraz → native MapKit crash. Threshold 14.5 zaručuje, že filter beží len
+  // keď sme spoľahlivo v single mode, nie v prechodovej zóne.
   const shouldFilterByViewport =
-    allMapMarkers.length > 250 && camera.mapZoom >= SINGLE_MODE_ZOOM;
+    allMapMarkers.length > 250 && camera.mapZoom >= SINGLE_MODE_ZOOM + 0.5;
   const mapMarkers = useMemo(() => {
     if (shouldFilterByViewport) {
       return filterMarkersByViewport(allMapMarkers, camera.mapCenter, camera.mapZoom);

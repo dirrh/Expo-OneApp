@@ -13,6 +13,7 @@
     "normalize:ios-full-markers": "tsx scripts/normalize-ios-full-markers.ts",
     "normalize:ios-stacked-markers": "tsx scripts/normalize-ios-stacked-markers.ts",
     "normalize:ios-cluster-markers": "tsx scripts/normalize-ios-cluster-markers.ts",
+    "generate:ios-compact-pins": "tsx scripts/generate-ios-compact-pins.ts",
     "test:contracts": "tsx scripts/contract-check-datasource.ts",
     "test:ios-marker-sim": "tsx scripts/verify-ios-marker-render-simulation.ts",
     "build:apk:preview": "eas build -p android --profile preview",

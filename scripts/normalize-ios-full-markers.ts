@@ -25,19 +25,19 @@ const CATEGORY_DIR_MAP: Record<string, string> = {
 
 const RATING_VALUES = [4.1, 4.3, 4.4, 4.5, 4.6, 4.7, 4.8, 4.9, 5.0];
 
-// Locked uniform iOS full-sprite canvas.
-const CANVAS_WIDTH = 322;
-const CANVAS_HEIGHT = 138;
-const BADGED_ICON_WIDTH = 83;
-const BADGED_ICON_HEIGHT = 113;
-const TITLE_TOP = 116;
-const TITLE_HEIGHT = 18;
-const TITLE_BADGE_WIDTH = 236;
-const TITLE_PADDING_X = 12;
-const TITLE_FONT = "600 12px Arial";
+// Locked uniform iOS full-sprite canvas. (+25% vs original 322×138)
+const CANVAS_WIDTH = 402;
+const CANVAS_HEIGHT = 172;
+const BADGED_ICON_WIDTH = 104;
+const BADGED_ICON_HEIGHT = 141;
+const TITLE_TOP = 145;
+const TITLE_HEIGHT = 22;
+const TITLE_BADGE_WIDTH = 295;
+const TITLE_PADDING_X = 15;
+const TITLE_FONT = "600 15px Arial";
 const TITLE_TEXT_COLOR = "#FFFFFF";
-const TITLE_SHADOW_COLOR = "rgba(0,0,0,0.45)";
-const TITLE_SHADOW_BLUR = 2;
+const TITLE_STROKE_COLOR = "rgba(0,0,0,0.88)";
+const TITLE_STROKE_WIDTH = 5; // canvas px – creates ~1.7pt outline on 3x screen
 
 type FullSpriteEntry = {
   key: string;
@@ -172,17 +172,18 @@ const run = async () => {
     ctx.font = TITLE_FONT;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.shadowColor = TITLE_SHADOW_COLOR;
-    ctx.shadowBlur = TITLE_SHADOW_BLUR;
+    ctx.lineJoin = "round";
+    ctx.lineWidth = TITLE_STROKE_WIDTH;
+    ctx.strokeStyle = TITLE_STROKE_COLOR;
     const titleText = fitTextWithEllipsis(
       ctx,
       normalizeTitleFromId(marker!.id),
       TITLE_BADGE_WIDTH - TITLE_PADDING_X * 2
     );
     const titleCenterY = TITLE_TOP + TITLE_HEIGHT / 2;
+    ctx.strokeText(titleText, CANVAS_WIDTH / 2, titleCenterY);
     ctx.fillStyle = TITLE_TEXT_COLOR;
     ctx.fillText(titleText, CANVAS_WIDTH / 2, titleCenterY);
-    ctx.shadowBlur = 0;
 
     fs.writeFileSync(path.join(IOS_FULL_MARKERS_DIR, entry.fileName), canvas.toBuffer("image/png"));
   }
@@ -206,11 +207,12 @@ const run = async () => {
     ctx.font = TITLE_FONT;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.shadowColor = TITLE_SHADOW_COLOR;
-    ctx.shadowBlur = TITLE_SHADOW_BLUR;
+    ctx.lineJoin = "round";
+    ctx.lineWidth = TITLE_STROKE_WIDTH;
+    ctx.strokeStyle = TITLE_STROKE_COLOR;
+    ctx.strokeText(text, CANVAS_WIDTH / 2, TITLE_TOP + TITLE_HEIGHT / 2);
     ctx.fillStyle = TITLE_TEXT_COLOR;
     ctx.fillText(text, CANVAS_WIDTH / 2, TITLE_TOP + TITLE_HEIGHT / 2);
-    ctx.shadowBlur = 0;
     fs.writeFileSync(
       path.join(IOS_FULL_FALLBACK_DIR, `${categoryDir}.png`),
       canvas.toBuffer("image/png")

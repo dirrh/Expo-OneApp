@@ -4,7 +4,6 @@
  * Prečo: Centralizované hodnoty v discover bránia rozchodu čísel a názvov medzi obrazovkami.
  */
 
-import { ImageSourcePropType } from "react-native";
 import type { BranchData } from "../../lib/interfaces";
 
 // Offer keys pre preklady
@@ -192,6 +191,33 @@ const MAP_LABEL_COLLISION_WIDTH_SCALE_V3 = 0.82;
 const MAP_LABEL_COLLISION_HEIGHT_SCALE_V3 = 0.78;
 const MAP_LABEL_MAX_CANDIDATES_V3 = 560;
 
+// === iOS sprite collision filter (text overlap prevention) ===
+// Thresholds are in UIKit points (center-to-center distance that triggers compact mode).
+// Only the TEXT area of the sprite matters – not the full 402×172 canvas (+25% from 322×138).
+// Text label ≈ 250px wide × 60px tall in source → at 3x retina ≈ 83pt × 20pt.
+// Defaults add a small gap on top of the text size:
+//   W = 112pt ≈ 83pt (text) + 29pt gap   (90 × 1.25)
+//   H =  44pt ≈ 20pt (text) + 24pt gap   (35 × 1.25)
+// Lower values → fewer labels hidden. Tunable via .env.
+const IOS_SPRITE_COLLISION_ENABLED_ENV =
+  process.env.EXPO_PUBLIC_MAP_IOS_SPRITE_COLLISION_ENABLED?.trim().toLowerCase();
+const MAP_IOS_SPRITE_COLLISION_ENABLED =
+  IOS_SPRITE_COLLISION_ENABLED_ENV === "false" ||
+  IOS_SPRITE_COLLISION_ENABLED_ENV === "0" ||
+  IOS_SPRITE_COLLISION_ENABLED_ENV === "off"
+    ? false
+    : true;
+const IOS_SPRITE_COLLISION_W_ENV = process.env.EXPO_PUBLIC_MAP_IOS_SPRITE_COLLISION_W?.trim();
+const MAP_IOS_SPRITE_COLLISION_W = (() => {
+  const parsed = Number.parseFloat(IOS_SPRITE_COLLISION_W_ENV ?? "");
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 75;
+})();
+const IOS_SPRITE_COLLISION_H_ENV = process.env.EXPO_PUBLIC_MAP_IOS_SPRITE_COLLISION_H?.trim();
+const MAP_IOS_SPRITE_COLLISION_H = (() => {
+  const parsed = Number.parseFloat(IOS_SPRITE_COLLISION_H_ENV ?? "");
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 28;
+})();
+
 export {
   DUMMY_BRANCH,
   translateBranchOffers,
@@ -246,5 +272,8 @@ export {
   MAP_LABEL_COLLISION_WIDTH_SCALE_V3,
   MAP_LABEL_COLLISION_HEIGHT_SCALE_V3,
   MAP_LABEL_MAX_CANDIDATES_V3,
+  MAP_IOS_SPRITE_COLLISION_ENABLED,
+  MAP_IOS_SPRITE_COLLISION_W,
+  MAP_IOS_SPRITE_COLLISION_H,
 };
 

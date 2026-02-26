@@ -28,6 +28,9 @@ import {
   MAP_IOS_POOL_SIZE,
   MAP_IOS_LOCAL_ONLY_SPRITES_ENABLED,
   MAP_IOS_EMERGENCY_CLUSTER_ONLY_ENABLED,
+  MAP_IOS_SPRITE_COLLISION_ENABLED,
+  MAP_IOS_SPRITE_COLLISION_W,
+  MAP_IOS_SPRITE_COLLISION_H,
 } from "../../lib/constants/discover";
 import {
   CLUSTER_PRESS_TARGET_MARGIN_ZOOM,
@@ -47,6 +50,7 @@ import { useStackedTooltip } from "./map/hooks/useStackedTooltip";
 import { useIOSMapModeController } from "./map/ios/hooks/useIOSMapModeController";
 import { useIOSAnnotationDataset } from "./map/ios/hooks/useIOSAnnotationDataset";
 import { useIOSAnnotationPool } from "./map/ios/hooks/useIOSAnnotationPool";
+import { useIOSSpriteCollision } from "./map/ios/hooks/useIOSSpriteCollision";
 import { IOSMarkerLayer } from "./map/ios/layers/IOSMarkerLayer";
 import { resolveIOSPoolPlaceholderSprite } from "./map/ios/pipelines/iosSpriteRegistry";
 import type { IOSRenderItem } from "./map/ios/types";
@@ -231,9 +235,18 @@ function DiscoverMapIOS({
     itemCap: poolSize,
     localOnlySprites,
   });
+  const collisionFiltered = useIOSSpriteCollision({
+    items: rawMarkers,
+    zoom,
+    cameraCenter,
+    mapWidth: mapLayoutSize.width > 0 ? mapLayoutSize.width : 390,
+    collisionW: MAP_IOS_SPRITE_COLLISION_W,
+    collisionH: MAP_IOS_SPRITE_COLLISION_H,
+    enabled: MAP_IOS_SPRITE_COLLISION_ENABLED,
+  });
   const placeholderSprite = useMemo(() => resolveIOSPoolPlaceholderSprite(), []);
   const { pooledItems, visibleCount } = useIOSAnnotationPool({
-    items: rawMarkers,
+    items: collisionFiltered,
     poolSize,
     placeholderImage: placeholderSprite.image,
     placeholderAnchor: placeholderSprite.anchor,

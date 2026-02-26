@@ -7,11 +7,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, "..");
 
-// Locked uniform iOS full-sprite canvas – must match normalize-ios-full-markers.ts
-const CANVAS_WIDTH = 322;
-const CANVAS_HEIGHT = 138;
-const PIN_ICON_WIDTH = 83;
-const PIN_ICON_HEIGHT = 113;
+// Locked uniform iOS full-sprite canvas – must match normalize-ios-full-markers.ts (+25%)
+const CANVAS_WIDTH = 402;
+const CANVAS_HEIGHT = 172;
+const PIN_ICON_WIDTH = 104;
+const PIN_ICON_HEIGHT = 141;
 const PIN_OFFSET_X = Math.round((CANVAS_WIDTH - PIN_ICON_WIDTH) / 2);
 const PIN_OFFSET_Y = 0;
 

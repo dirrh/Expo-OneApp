@@ -8,7 +8,9 @@
       "Bash(node -e \":*)",
       "Bash(npx tsx scripts/normalize-ios-stacked-markers.ts)",
       "Bash(npx tsx scripts/normalize-ios-cluster-markers.ts)",
-      "Bash(npx tsc --noEmit --skipLibCheck)"
+      "Bash(npx tsc --noEmit --skipLibCheck)",
+      "Bash(npx tsx scripts/generate-ios-compact-pins.ts)",
+      "Bash(npx tsx scripts/normalize-ios-full-markers.ts)"
     ]
   }
 }

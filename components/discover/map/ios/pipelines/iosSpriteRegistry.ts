@@ -12,6 +12,10 @@ import {
   IOS_SCALED_CLUSTER_BY_COUNT,
   IOS_SCALED_FILTER_CLUSTER_BY_COUNT,
 } from "../../../../../lib/maps/generatedIOSScaledClusterByCount";
+import {
+  IOS_COMPACT_PIN_BY_CATEGORY,
+  IOS_COMPACT_PIN_ANCHOR,
+} from "../../../../../lib/maps/generatedIOSCompactPins";
 import { FULL_MARKER_SPRITES } from "../../../../../lib/maps/generatedFullMarkerSprites";
 import { normalizeId } from "../../../../../lib/data/utils/id";
 import { STACKED_ICON_SOURCES } from "../../../../../lib/maps/stackedIcons";
@@ -23,8 +27,8 @@ type IOSSpriteResult = {
 };
 
 const BASE_ANCHOR = { x: BASE_ANCHOR_X, y: BASE_ANCHOR_Y } as const;
-const IOS_SCALED_FULL_MARKER_CANVAS_WIDTH = 322;
-const IOS_SCALED_FULL_MARKER_PIN_CENTER_OFFSET_PX = 3;
+const IOS_SCALED_FULL_MARKER_CANVAS_WIDTH = 402; // 322 × 1.25
+const IOS_SCALED_FULL_MARKER_PIN_CENTER_OFFSET_PX = 4; // 3 × 1.25 ≈ 4
 const IOS_SCALED_FULL_MARKER_ANCHOR = {
   x:
     (IOS_SCALED_FULL_MARKER_CANVAS_WIDTH / 2 -
@@ -32,8 +36,8 @@ const IOS_SCALED_FULL_MARKER_ANCHOR = {
     IOS_SCALED_FULL_MARKER_CANVAS_WIDTH,
   y: 0.7862318840579711,
 } as const;
-// Anchor for cluster icons drawn at 83×113 on the 322×138 normalized canvas.
-// Source 165×186, pin tip at BASE_ANCHOR → scaled position: x≈158.5, y≈107.5 → anchor≈(0.492, 0.779)
+// Anchor for cluster icons drawn at 104×141 on the 402×172 normalized canvas.
+// Ratios unchanged from 322×138 canvas: pin tip x≈0.492, y≈0.779
 const IOS_SCALED_CLUSTER_ANCHOR = {
   x: 0.492,
   y: 0.779,
@@ -170,3 +174,13 @@ export const resolveIOSPoolPlaceholderSprite = (): IOSSpriteResult => ({
   image: IOS_FULL_FALLBACK_BY_CATEGORY.Multi,
   anchor: IOS_SCALED_FULL_MARKER_ANCHOR,
 });
+
+// Returns the compact (pin-only, no text) version of a single marker sprite.
+// Uses badged pin images (no category label) normalized to the 322×138 canvas.
+export const resolveIOSCompactSprite = (category: string): IOSSpriteResult => {
+  const image = IOS_COMPACT_PIN_BY_CATEGORY[category] ?? IOS_COMPACT_PIN_BY_CATEGORY.Multi;
+  return {
+    image: image ?? IOS_FULL_FALLBACK_BY_CATEGORY.Multi,
+    anchor: IOS_COMPACT_PIN_ANCHOR,
+  };
+};
