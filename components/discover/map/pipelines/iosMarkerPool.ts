@@ -18,7 +18,10 @@ export type IOSMarkerPoolResult = {
   visibleCount: number;
 };
 
-const PLACEHOLDER_COORDINATE = { latitude: 0, longitude: 0 } as const;
+const placeholderCoordinate = (slot: number) => ({
+  latitude: -85 + slot * 0.0001,
+  longitude: -180 + slot * 0.0001,
+});
 
 const sanitizePoolSize = (poolSize: number) =>
   Number.isFinite(poolSize) ? Math.max(1, Math.floor(poolSize)) : 1;
@@ -111,8 +114,8 @@ export const buildIOSMarkerPool = ({
     pooledMarkers.push({
       key: `${IOS_MARKER_POOL_KEY_PREFIX}:${slot}`,
       id: `${IOS_MARKER_POOL_KEY_PREFIX}:placeholder:${slot}`,
-      coordinate: PLACEHOLDER_COORDINATE,
-      focusCoordinate: PLACEHOLDER_COORDINATE,
+      coordinate: placeholderCoordinate(slot),
+      focusCoordinate: placeholderCoordinate(slot),
       zIndex: -1000,
       isCluster: false,
       isStacked: false,

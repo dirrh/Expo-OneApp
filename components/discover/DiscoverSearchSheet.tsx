@@ -45,14 +45,26 @@ function DiscoverSearchSheet({
   onSelectFavorite,
   autoFocus = false,
   showFavorites = true,
+  resultTabs,
+  activeResultTabKey,
+  onChangeResultTab,
   t,
 }: DiscoverSearchSheetProps) {
   const insets = useSafeAreaInsets();
-  const { height: windowHeight } = useWindowDimensions();
+  const { height: windowHeight, width: windowWidth } = useWindowDimensions();
   const inputRef = useRef<TextInput>(null);
   const [listHeight, setListHeight] = useState(0);
   const [headerHeight, setHeaderHeight] = useState(0);
   const [rowHeight, setRowHeight] = useState(0);
+  const rowScale = useMemo(() => Math.min(1, Math.max(0.84, windowWidth / 393)), [windowWidth]);
+  const rowImageSize = useMemo(() => Math.round(72 * rowScale), [rowScale]);
+  const rowImageRadius = useMemo(() => Math.round(10 * rowScale), [rowScale]);
+  const rowGap = useMemo(() => Math.round(12 * rowScale), [rowScale]);
+  const rowPaddingH = useMemo(() => Math.round(12 * rowScale), [rowScale]);
+  const rowPaddingV = useMemo(() => Math.round(10 * rowScale), [rowScale]);
+  const rowTitleSize = useMemo(() => Math.max(15, Math.round(16 * rowScale)), [rowScale]);
+  const rowMetaSize = useMemo(() => Math.max(12, Math.round(13 * rowScale)), [rowScale]);
+  const rowMoreSize = useMemo(() => Math.max(13, Math.round(14 * rowScale)), [rowScale]);
 
   useEffect(() => {
     if (sheetIndex === -1 || !autoFocus) {
@@ -127,17 +139,39 @@ function DiscoverSearchSheet({
       return (
         <TouchableOpacity
           activeOpacity={0.88}
-          style={[localStyles.resultRow, isLast && localStyles.resultRowLast]}
+          style={[
+            localStyles.resultRow,
+            isLast && localStyles.resultRowLast,
+            { paddingHorizontal: rowPaddingH, paddingVertical: rowPaddingV },
+          ]}
           onPress={() => onSelectBranch(item)}
           accessibilityRole="button"
           accessibilityLabel={item.title}
           onLayout={index === 0 ? handleRowLayout : undefined}
         >
-          <Image source={item.image} style={localStyles.resultImage} resizeMode="cover" />
+          <Image
+            source={item.image}
+            style={[
+              localStyles.resultImage,
+              {
+                width: rowImageSize,
+                height: rowImageSize,
+                borderRadius: rowImageRadius,
+                marginRight: rowGap,
+              },
+            ]}
+            resizeMode="cover"
+          />
 
           <View style={localStyles.resultContent}>
             <View style={localStyles.resultTopRow}>
-              <Text style={localStyles.resultTitle} numberOfLines={1}>
+              <Text
+                style={[
+                  localStyles.resultTitle,
+                  { fontSize: rowTitleSize, lineHeight: Math.round(rowTitleSize * 1.25) },
+                ]}
+                numberOfLines={1}
+              >
                 {item.title}
               </Text>
               <Ionicons name="chevron-forward" size={16} color="#A1A1AA" />
@@ -146,15 +180,36 @@ function DiscoverSearchSheet({
             <View style={localStyles.resultMetaRow}>
               <View style={localStyles.resultMetaItem}>
                 <Ionicons name="star" size={12} color="#FFD000" />
-                <Text style={localStyles.resultMetaText}>{ratingText}</Text>
+                <Text
+                  style={[
+                    localStyles.resultMetaText,
+                    { fontSize: rowMetaSize, lineHeight: Math.round(rowMetaSize * 1.3) },
+                  ]}
+                >
+                  {ratingText}
+                </Text>
               </View>
               <View style={localStyles.resultMetaItem}>
                 <Ionicons name="location-outline" size={12} color="#7C7C7C" />
-                <Text style={localStyles.resultMetaText}>{item.distance}</Text>
+                <Text
+                  style={[
+                    localStyles.resultMetaText,
+                    { fontSize: rowMetaSize, lineHeight: Math.round(rowMetaSize * 1.3) },
+                  ]}
+                >
+                  {item.distance}
+                </Text>
               </View>
               <View style={localStyles.resultMetaItem}>
                 <Ionicons name="time-outline" size={12} color="#7C7C7C" />
-                <Text style={localStyles.resultMetaText}>{item.hours}</Text>
+                <Text
+                  style={[
+                    localStyles.resultMetaText,
+                    { fontSize: rowMetaSize, lineHeight: Math.round(rowMetaSize * 1.3) },
+                  ]}
+                >
+                  {item.hours}
+                </Text>
               </View>
             </View>
 
@@ -168,7 +223,13 @@ function DiscoverSearchSheet({
                   </View>
                 ) : null}
                 {resolvedMoreCount > 0 ? (
-                  <Text style={localStyles.resultMoreText} numberOfLines={1}>
+                  <Text
+                    style={[
+                      localStyles.resultMoreText,
+                      { fontSize: rowMoreSize, lineHeight: Math.round(rowMoreSize * 1.25) },
+                    ]}
+                    numberOfLines={1}
+                  >
                     + {resolvedMoreCount} {t("more")}
                   </Text>
                 ) : null}
@@ -178,7 +239,20 @@ function DiscoverSearchSheet({
         </TouchableOpacity>
       );
     },
-    [displayedResults.length, handleRowLayout, onSelectBranch, t]
+    [
+      displayedResults.length,
+      handleRowLayout,
+      onSelectBranch,
+      rowGap,
+      rowImageRadius,
+      rowImageSize,
+      rowMetaSize,
+      rowMoreSize,
+      rowPaddingH,
+      rowPaddingV,
+      rowTitleSize,
+      t,
+    ]
   );
 
   const handleClose = useCallback(() => {
@@ -211,7 +285,9 @@ function DiscoverSearchSheet({
 
   const listHeader = useMemo(() => {
     const hasResults = filtered.length > 0;
-    if (!showFavorites && !hasResults) {
+    const hasResultTabs = Array.isArray(resultTabs) && resultTabs.length > 0;
+
+    if (!showFavorites && !hasResults && !hasResultTabs) {
       return null;
     }
 
@@ -237,14 +313,54 @@ function DiscoverSearchSheet({
           </View>
         ) : null}
 
-        {hasResults ? (
+        {hasResultTabs ? (
           <View style={localStyles.resultsBlockHeader}>
+            <View style={localStyles.resultsTabsRow}>
+              {resultTabs.map((tab) => {
+                const isActive = tab.key === activeResultTabKey;
+                return (
+                  <TouchableOpacity
+                    key={tab.key}
+                    style={[
+                      localStyles.resultTabButton,
+                      isActive && localStyles.resultTabButtonActive,
+                    ]}
+                    activeOpacity={0.75}
+                    onPress={() => onChangeResultTab?.(tab.key)}
+                  >
+                    <Text
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
+                      style={[
+                        localStyles.resultTabText,
+                        isActive && localStyles.resultTabTextActive,
+                      ]}
+                    >
+                      {tab.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        ) : hasResults ? (
+          <View style={[localStyles.resultsBlockHeader, localStyles.resultsBlockHeaderWithTitle]}>
             <Text style={localStyles.resultsSectionTitle}>{t("discoverSearchNearestTitle")}</Text>
           </View>
         ) : null}
       </View>
     );
-  }, [favoritePlaces, filtered.length, handleHeaderLayout, renderFavoriteChip, showFavorites, t]);
+  }, [
+    activeResultTabKey,
+    favoritePlaces,
+    filtered.length,
+    handleHeaderLayout,
+    onChangeResultTab,
+    renderFavoriteChip,
+    resultTabs,
+    showFavorites,
+    t,
+  ]);
 
   const listEmptyComponent = useMemo(() => {
     if (!text.trim()) {
@@ -332,7 +448,8 @@ export default memo(DiscoverSearchSheet);
 const localStyles = StyleSheet.create({
   container: {
     ...StyleSheet.absoluteFillObject,
-    zIndex: 35,
+    zIndex: 6000,
+    elevation: 6000,
     backgroundColor: "#FAFAFA",
   },
   searchTopRow: {
@@ -489,6 +606,7 @@ const localStyles = StyleSheet.create({
     lineHeight: 18,
     fontWeight: "700",
     color: "#111111",
+    flexShrink: 1,
   },
   resultsBlockHeader: {
     flexDirection: "row",
@@ -498,10 +616,47 @@ const localStyles = StyleSheet.create({
     borderColor: "#E4E4E7",
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+    paddingHorizontal: 0,
+    paddingTop: 0,
+    paddingBottom: 0,
     marginTop: 0,
     marginBottom: 0,
+    width: "100%",
+    overflow: "hidden",
+  },
+  resultsBlockHeaderWithTitle: {
+    minHeight: 40,
+    paddingHorizontal: 12,
+  },
+  resultsTabsRow: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "stretch",
+  },
+  resultTabButton: {
+    flex: 1,
+    flexBasis: 0,
+    minWidth: 0,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 4,
+    borderBottomWidth: 2,
+    borderBottomColor: "transparent",
+  },
+  resultTabButtonActive: {
+    borderBottomColor: "#EB8100",
+  },
+  resultTabText: {
+    fontSize: 13,
+    lineHeight: 16,
+    fontWeight: "500",
+    color: "#A1A1AA",
+    textAlign: "center",
+  },
+  resultTabTextActive: {
+    color: "#18181B",
+    fontWeight: "600",
   },
   emptyResults: {
     paddingVertical: 20,
@@ -524,6 +679,7 @@ const localStyles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     marginBottom: 0,
+    width: "100%",
   },
   resultRowLast: {
     borderBottomLeftRadius: 16,
@@ -562,17 +718,20 @@ const localStyles = StyleSheet.create({
     columnGap: 8,
     rowGap: 2,
     marginTop: 4,
+    minWidth: 0,
   },
   resultMetaItem: {
     flexDirection: "row",
     alignItems: "center",
     gap: 3,
+    minWidth: 0,
   },
   resultMetaText: {
     fontSize: 13,
     lineHeight: 17,
     fontWeight: "500",
     color: "#7C7C7C",
+    flexShrink: 1,
   },
   resultOfferRow: {
     flexDirection: "row",
@@ -580,6 +739,7 @@ const localStyles = StyleSheet.create({
     gap: 8,
     marginTop: 9,
     minWidth: 0,
+    flexWrap: "nowrap",
   },
   resultOfferBadge: {
     borderRadius: 999,
@@ -587,12 +747,15 @@ const localStyles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     maxWidth: "80%",
+    minWidth: 0,
+    flexShrink: 1,
   },
   resultOfferText: {
     fontSize: 11,
     lineHeight: 14,
     fontWeight: "600",
     color: "#FFFFFF",
+    flexShrink: 1,
   },
   resultMoreText: {
     fontSize: 14,
@@ -600,5 +763,6 @@ const localStyles = StyleSheet.create({
     fontWeight: "500",
     color: "#111111",
     flexShrink: 1,
+    minWidth: 0,
   },
 });

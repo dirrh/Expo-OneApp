@@ -30,12 +30,18 @@ import {
   type DiscoverListSortOption,
 } from "../lib/data/selectors";
 import DiscoverSideFilterPanel from "../components/discover/DiscoverSideFilterPanel";
+import DiscoverSearchSheet from "../components/discover/DiscoverSearchSheet";
 import { TAB_BAR_BASE_HEIGHT } from "../lib/constants/layout";
+import {
+  buildDiscoverBranchSearchIndex,
+  filterDiscoverBranchSearchIndex,
+} from "../lib/discover/discoverSearchUtils";
 import {
   DISCOVER_FILTER_OPTIONS,
   DISCOVER_SUBCATEGORIES,
   NITRA_CENTER,
 } from "../lib/constants/discoverUi";
+import type { BranchData } from "../lib/interfaces";
 
 function SkeletonBranchCard({ scale, cardPadding }: { scale: number; cardPadding: number }) {
   const imageSize = Math.round(80 * scale);
@@ -90,6 +96,7 @@ const SORT_OPTIONS: DiscoverListSortOption[] = ["trending", "topRated", "openNea
 const SORT_MENU_MIN_WIDTH = 180;
 const SORT_MENU_HORIZONTAL_MARGIN = 16;
 const SORT_MENU_OFFSET = 8;
+const LIST_SORT_TOP_SHIFT = 16;
 
 export default function DiscoverListScreen() {
   const insets = useSafeAreaInsets();
@@ -112,11 +119,15 @@ export default function DiscoverListScreen() {
     y: 0,
     height: 0,
   });
+  const [searchText, setSearchText] = useState("");
+  const [searchSheetIndex, setSearchSheetIndex] = useState(-1);
+  const [searchSortOption, setSearchSortOption] = useState<DiscoverListSortOption>("openNearYou");
   const [sideFilterOpen, setSideFilterOpen] = useState(false);
+  const isSearchOpen = searchSheetIndex !== -1;
 
   useFocusEffect(
     useCallback(() => {
-      const shouldHideTabBar = sideFilterOpen;
+      const shouldHideTabBar = sideFilterOpen || isSearchOpen;
       navigation.setOptions({
         tabBarStyle: { display: shouldHideTabBar ? "none" : "flex" },
       });
@@ -125,15 +136,15 @@ export default function DiscoverListScreen() {
           tabBarStyle: { display: "flex" },
         });
       };
-    }, [navigation, sideFilterOpen])
+    }, [navigation, sideFilterOpen, isSearchOpen])
   );
 
   useEffect(() => {
-    if (!sideFilterOpen || !sortDropdownOpen) {
+    if ((!sideFilterOpen && !isSearchOpen) || !sortDropdownOpen) {
       return;
     }
     setSortDropdownOpen(false);
-  }, [sideFilterOpen, sortDropdownOpen]);
+  }, [isSearchOpen, sideFilterOpen, sortDropdownOpen]);
 
   const scale = useMemo(() => Math.min(1, Math.max(0.82, screenWidth / 393)), [screenWidth]);
   const homeCategoriesTopSpacing = useMemo(
@@ -141,7 +152,7 @@ export default function DiscoverListScreen() {
     [scale]
   );
   const sortTopSpacing = useMemo(
-    () => Math.max(0, homeCategoriesTopSpacing - 16),
+    () => Math.max(0, homeCategoriesTopSpacing - 16 - LIST_SORT_TOP_SHIFT),
     [homeCategoriesTopSpacing]
   );
   const sortMenuFallbackTop = useMemo(
@@ -186,37 +197,63 @@ export default function DiscoverListScreen() {
   }, [screenHeight, insets.top, cardHeightWithMargin]);
 
   const userLocation: [number, number] = route.params?.userCoord ?? NITRA_CENTER;
-  const discoverRouteName = useMemo(() => {
-    const rawRouteName = route.params?.originRouteName;
-    if (typeof rawRouteName === "string" && rawRouteName.length > 0 && rawRouteName !== "DiscoverList") {
-      return rawRouteName;
-    }
-    return t("Discover");
-  }, [route.params?.originRouteName, t]);
-
   const allBranches = useMemo(
     () =>
       buildDiscoverListItems({
         markers,
         userLocation,
         buildBranchFromMarker,
-      }),
+    }),
     [buildBranchFromMarker, markers, userLocation]
   );
 
-  const visibleBranches = useMemo<DiscoverListItem[]>(() => {
+  const baseFilteredBranches = useMemo<DiscoverListItem[]>(() => {
     if (allBranches.length === 0) {
       return [];
     }
 
-    const filtered = filterDiscoverListItems({
+    return filterDiscoverListItems({
       items: allBranches,
       appliedCategories: filters.appliedFilters,
       ratingThreshold: filters.ratingThreshold,
     });
+  }, [allBranches, filters.appliedFilters, filters.ratingThreshold]);
 
-    return sortDiscoverListItems(filtered, sortOption);
-  }, [allBranches, filters.appliedFilters, filters.ratingThreshold, sortOption]);
+  const visibleBranches = useMemo<DiscoverListItem[]>(() => {
+    if (baseFilteredBranches.length === 0) {
+      return [];
+    }
+
+    return sortDiscoverListItems(baseFilteredBranches, sortOption);
+  }, [baseFilteredBranches, sortOption]);
+  const searchBranchIndex = useMemo(
+    () => buildDiscoverBranchSearchIndex(baseFilteredBranches),
+    [baseFilteredBranches]
+  );
+  const searchBranchById = useMemo(() => {
+    const map = new Map<string, DiscoverListItem>();
+    baseFilteredBranches.forEach((branch) => {
+      const key = branch.id ?? branch.title;
+      map.set(key, branch);
+    });
+    return map;
+  }, [baseFilteredBranches]);
+  const searchResultTabs = useMemo(
+    () => [
+      { key: "trending", label: t("discoverSearchTabTrending") },
+      { key: "topRated", label: t("discoverSearchTabTopRated") },
+      { key: "openNearYou", label: t("discoverSearchTabNearby") },
+    ],
+    [t]
+  );
+  const searchBranches = useMemo(() => {
+    const matched = filterDiscoverBranchSearchIndex(searchBranchIndex, searchText);
+    const resolved = matched
+      .map((branch) => searchBranchById.get(branch.id ?? branch.title))
+      .filter((item): item is DiscoverListItem => Boolean(item));
+
+    return sortDiscoverListItems(resolved, searchSortOption);
+  }, [searchBranchById, searchBranchIndex, searchSortOption, searchText]);
 
   const getItemLayout = useCallback(
     (_: unknown, index: number) => ({
@@ -252,8 +289,31 @@ export default function DiscoverListScreen() {
   );
 
   const handleBackToMap = useCallback(() => {
-    navigation.navigate(discoverRouteName);
-  }, [discoverRouteName, navigation]);
+    navigation.navigate("Discover");
+  }, [navigation]);
+  const handleSearchSheetChange = useCallback((index: number) => {
+    setSearchSheetIndex(index);
+  }, []);
+  const handleChangeSearchResultTab = useCallback((key: string) => {
+    if (key === "trending" || key === "topRated" || key === "openNearYou") {
+      setSearchSortOption(key);
+    }
+  }, []);
+  const handleOpenSearch = useCallback(() => {
+    setSearchSortOption(sortOption);
+    setSearchSheetIndex(0);
+  }, [sortOption]);
+  const handleCloseSearch = useCallback(() => {
+    setSearchSheetIndex(-1);
+    setSearchText("");
+  }, []);
+  const handleSelectSearchBranch = useCallback((branch: BranchData) => {
+    handleCloseSearch();
+    navigation.navigate("BusinessDetailScreen", { branch });
+  }, [handleCloseSearch, navigation]);
+  const handleSelectFavorite = useCallback(() => {
+    // DiscoverSearchSheet vyžaduje callback, v list view favorites nepoužívame.
+  }, []);
 
   return (
     <View style={styles.container}>
@@ -282,7 +342,11 @@ export default function DiscoverListScreen() {
         </TouchableOpacity>
 
         <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.headerIconButton} activeOpacity={0.85} onPress={() => {}}>
+          <TouchableOpacity
+            style={styles.headerIconButton}
+            activeOpacity={0.85}
+            onPress={handleOpenSearch}
+          >
             <Ionicons name="search-outline" size={18} color="#000" />
           </TouchableOpacity>
           <TouchableOpacity
@@ -366,6 +430,24 @@ export default function DiscoverListScreen() {
           removeClippedSubviews={false}
         />
       )}
+
+      <DiscoverSearchSheet
+        onSheetChange={handleSearchSheetChange}
+        onClose={handleCloseSearch}
+        sheetIndex={searchSheetIndex}
+        text={searchText}
+        setText={setSearchText}
+        filtered={searchBranches}
+        onSelectBranch={handleSelectSearchBranch}
+        favoritePlaces={[]}
+        onSelectFavorite={handleSelectFavorite}
+        autoFocus
+        showFavorites={false}
+        resultTabs={searchResultTabs}
+        activeResultTabKey={searchSortOption}
+        onChangeResultTab={handleChangeSearchResultTab}
+        t={t}
+      />
 
       {sortDropdownOpen ? (
         <View style={styles.sortOverlay} pointerEvents="box-none">

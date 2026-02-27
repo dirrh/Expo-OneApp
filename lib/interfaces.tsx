@@ -235,6 +235,9 @@ export interface DiscoverSearchSheetProps {
   onSelectFavorite: (place: DiscoverFavoritePlace) => void;
   autoFocus?: boolean;
   showFavorites?: boolean;
+  resultTabs?: Array<{ key: string; label: string }>;
+  activeResultTabKey?: string;
+  onChangeResultTab?: (key: string) => void;
   t: (key: string, options?: Record<string, unknown>) => string;
 }
 

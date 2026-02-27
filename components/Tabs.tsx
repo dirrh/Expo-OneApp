@@ -26,7 +26,7 @@ export default function Tabs() {
       screenOptions={{ headerShown: false }}
     >
       
-      <Tab.Screen name={t("Cards")}>
+      <Tab.Screen name="Cards" options={{ tabBarLabel: t("Cards") }}>
         {() => (
           <ProtectedRoute>
             <CardsStack />
@@ -35,9 +35,9 @@ export default function Tabs() {
       </Tab.Screen>
 
       
-      <Tab.Screen name={t("Feed")} component={FeedScreen} />
-      <Tab.Screen name={t("Home")} component={HomeScreen} />
-      <Tab.Screen name={t("Discover")} component={DiscoverScreen} />
+      <Tab.Screen name="Feed" component={FeedScreen} options={{ tabBarLabel: t("Feed") }} />
+      <Tab.Screen name="Home" component={HomeScreen} options={{ tabBarLabel: t("Home") }} />
+      <Tab.Screen name="Discover" component={DiscoverScreen} options={{ tabBarLabel: t("Discover") }} />
       <Tab.Screen
         name="DiscoverList"
         component={DiscoverListScreen}
@@ -45,7 +45,7 @@ export default function Tabs() {
       />
 
       
-      <Tab.Screen name={t("Profile")}>
+      <Tab.Screen name="Profile" options={{ tabBarLabel: t("Profile") }}>
         {() => (
           <ProtectedRoute>
             <ProfileScreen />

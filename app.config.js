@@ -46,6 +46,8 @@ export default ({ config }) => ({
   ],
   android: {
     ...config.android,
+    // Reanimated + Worklets in SDK 54 require New Architecture on Android builds.
+    newArchEnabled: true,
     config: {
       ...config.android?.config,
       googleMaps: {

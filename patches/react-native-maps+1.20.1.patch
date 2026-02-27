@@ -1,0 +1,54 @@
+diff --git a/node_modules/react-native-maps/ios/AirGoogleMaps/AIRGoogleMap.m b/node_modules/react-native-maps/ios/AirGoogleMaps/AIRGoogleMap.m
+index a1ffe69..ede6bd1 100644
+--- a/node_modules/react-native-maps/ios/AirGoogleMaps/AIRGoogleMap.m
++++ b/node_modules/react-native-maps/ios/AirGoogleMaps/AIRGoogleMap.m
+@@ -188,7 +188,10 @@ id regionAsJSON(MKCoordinateRegion region) {
+       [self insertReactSubview:(UIView *)childSubviews[i] atIndex:atIndex];
+     }
+   }
+-  [_reactSubviews insertObject:(UIView *)subview atIndex:(NSUInteger) atIndex];
++  if (subview != nil) {
++    NSUInteger safeIndex = MIN((NSUInteger)atIndex, _reactSubviews.count);
++    [_reactSubviews insertObject:(UIView *)subview atIndex:safeIndex];
++  }
+ }
+ #pragma clang diagnostic pop
+ 
+@@ -236,7 +239,9 @@ id regionAsJSON(MKCoordinateRegion region) {
+       [self removeReactSubview:(UIView *)childSubviews[i]];
+     }
+   }
+-  [_reactSubviews removeObject:(UIView *)subview];
++  if (subview != nil) {
++    [_reactSubviews removeObject:(UIView *)subview];
++  }
+ }
+ #pragma clang diagnostic pop
+ 
+diff --git a/node_modules/react-native-maps/ios/AirMaps/AIRMap.m b/node_modules/react-native-maps/ios/AirMaps/AIRMap.m
+index 07a4638..be3728b 100644
+--- a/node_modules/react-native-maps/ios/AirMaps/AIRMap.m
++++ b/node_modules/react-native-maps/ios/AirMaps/AIRMap.m
+@@ -135,7 +135,10 @@ const NSInteger AIRMapMaxZoomLevel = 20;
+             [self insertReactSubview:(UIView *)childSubviews[i] atIndex:atIndex];
+         }
+     }
+-    [_reactSubviews insertObject:(UIView *)subview atIndex:(NSUInteger) atIndex];
++    if (subview != nil) {
++        NSUInteger safeIndex = MIN((NSUInteger)atIndex, _reactSubviews.count);
++        [_reactSubviews insertObject:(UIView *)subview atIndex:safeIndex];
++    }
+ }
+ #pragma clang diagnostic pop
+ 
+@@ -166,7 +169,9 @@ const NSInteger AIRMapMaxZoomLevel = 20;
+             [self removeReactSubview:(UIView *)childSubviews[i]];
+         }
+     }
+-    [_reactSubviews removeObject:(UIView *)subview];
++    if (subview != nil) {
++        [_reactSubviews removeObject:(UIView *)subview];
++    }
+ }
+ #pragma clang diagnostic pop
+ 

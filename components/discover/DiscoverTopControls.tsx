@@ -122,13 +122,8 @@ export default function DiscoverTopControls({
   }, [isSearchOpen, open, setOpen]);
 
   const navigateToDiscoverList = useCallback(() => {
-    const state = navigation.getState?.();
-    const activeRouteName =
-      state?.routes?.[typeof state?.index === "number" ? state.index : 0]?.name;
-
     navigation.navigate("DiscoverList", {
       userCoord,
-      originRouteName: activeRouteName,
     });
   }, [navigation, userCoord]);
 

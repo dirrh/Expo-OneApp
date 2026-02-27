@@ -5,8 +5,13 @@ export const MULTI_ICON = require("../../../images/icons/multi/multi.png");
 export const CLUSTER_ID_PREFIX = "cluster:";
 export const USER_MARKER_ID = "user-location";
 export const USER_MARKER_COLOR = "#2563EB";
-export const CLUSTER_ZOOM_BUCKET_SIZE = 2;
-export const VIEWPORT_PADDING_RATIO = 0.35;
+// Bucket=1: stableClusterZoom = Math.floor(effectiveZoom), teda Supercluster
+// vždy zodpovedá reálnemu zoom levelu → clustre sa rozdelia presnejšie a plynulejšie.
+// Pôvodne 2 – pri zoom 9.5 dával bucket 2 stableClusterZoom=8 (príliš hrubé zoskupenie).
+export const CLUSTER_ZOOM_BUCKET_SIZE = 1;
+// 0.5 = viewport + 50% padding na každej strane. Zaisťuje, že clustre
+// blízko okraja viewportu sa stále zobrazia (pri viewport culling).
+export const VIEWPORT_PADDING_RATIO = 0.5;
 export const TOOLTIP_WIDTH = 183;
 export const TOOLTIP_ROW_HEIGHT = 33;
 export const STACKED_CENTER_DURATION_MS = 280;

@@ -35,14 +35,14 @@ export const useClusteredFeatures = ({
   isIOS,
 }: UseClusteredFeaturesParams): RenderFeature[] => {
   const clusterPointFeatures = useMemo(() => {
-    if (!mapMarkerPipelineOptV1) {
+    if (!showClusterLayer || !mapMarkerPipelineOptV1) {
       return [];
     }
     return buildClusterPointFeatures(filteredMarkers);
-  }, [filteredMarkers, mapMarkerPipelineOptV1]);
+  }, [filteredMarkers, mapMarkerPipelineOptV1, showClusterLayer]);
 
   const clusterIndex = useMemo(() => {
-    if (!mapMarkerPipelineOptV1 || clusterPointFeatures.length === 0) {
+    if (!showClusterLayer || !mapMarkerPipelineOptV1 || clusterPointFeatures.length === 0) {
       return null;
     }
     const index = new Supercluster({
@@ -70,6 +70,7 @@ export const useClusteredFeatures = ({
     clusterRadiusPx,
     forceClusterZoom,
     mapMarkerPipelineOptV1,
+    showClusterLayer,
   ]);
 
   const paddedViewport = useMemo<ClusterViewportBounds | null>(

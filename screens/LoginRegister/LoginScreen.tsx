@@ -148,7 +148,7 @@ export default function LoginScreen() {
                     <View style={styles.form}>
                         <TouchableOpacity
                             style={styles.backButton}
-                            onPress={() => navigation.navigate("Tabs", { screen: t("Discover") })}
+                            onPress={() => navigation.navigate("Tabs", { screen: "Discover" })}
                         >
                             <Ionicons name="arrow-back" size={22} color="#000" />
                         </TouchableOpacity>

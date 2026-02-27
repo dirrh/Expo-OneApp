@@ -57,7 +57,9 @@ const IOS_ZOOM_OFFSET = 0;             // doladiĹĄ podÄľa potreby (+/- 0.25)
 const IOS_FORCE_CLUSTER_ZOOM = FORCE_CLUSTER_ZOOM;
 const IOS_SINGLE_MODE_ZOOM = SINGLE_MODE_ZOOM;
 const ANDROID_CLUSTER_CELL_PX = 90;
-const IOS_CLUSTER_CELL_PX = 80;        // ~Android - 10px
+// 60px → radius ≈ 35px (≈Android * 0.39). Menší polomer dáva viac, presnejších
+// clusterov pri vysokom zoome. Pôvodne 80px (r=46) – príliš hrubé zoskupovanie.
+const IOS_CLUSTER_CELL_PX = 60;
 
 // Static map zoom (LocationSheet + InfoSection)
 const STATIC_MAP_ZOOM = 14;
@@ -98,13 +100,6 @@ const MAP_IOS_STRICT_SAFE_RENDERER_ENABLED =
   IOS_STRICT_SAFE_RENDERER_ENV === "off"
     ? false
     : true;
-const IOS_REWRITE_V2_ENV = process.env.EXPO_PUBLIC_MAP_IOS_REWRITE_V2
-  ?.trim()
-  .toLowerCase();
-const MAP_IOS_REWRITE_V2_ENABLED =
-  IOS_REWRITE_V2_ENV === "true" ||
-  IOS_REWRITE_V2_ENV === "1" ||
-  IOS_REWRITE_V2_ENV === "on";
 const IOS_POOL_RENDERER_ENV = process.env.EXPO_PUBLIC_MAP_IOS_POOL_RENDERER
   ?.trim()
   .toLowerCase();
@@ -120,23 +115,6 @@ const MAP_IOS_EMERGENCY_CLUSTER_ONLY_ENABLED =
   IOS_EMERGENCY_CLUSTER_ONLY_ENV === "true" ||
   IOS_EMERGENCY_CLUSTER_ONLY_ENV === "1" ||
   IOS_EMERGENCY_CLUSTER_ONLY_ENV === "on";
-const IOS_LOCAL_ONLY_SPRITES_ENV = process.env.EXPO_PUBLIC_MAP_IOS_LOCAL_ONLY_SPRITES
-  ?.trim()
-  .toLowerCase();
-const MAP_IOS_LOCAL_ONLY_SPRITES_ENABLED =
-  IOS_LOCAL_ONLY_SPRITES_ENV === "false" ||
-  IOS_LOCAL_ONLY_SPRITES_ENV === "0" ||
-  IOS_LOCAL_ONLY_SPRITES_ENV === "off"
-    ? false
-    : true;
-const IOS_POOL_SIZE_ENV = process.env.EXPO_PUBLIC_MAP_IOS_POOL_SIZE?.trim();
-const MAP_IOS_POOL_SIZE = (() => {
-  const parsed = Number.parseInt(IOS_POOL_SIZE_ENV ?? "", 10);
-  if (!Number.isFinite(parsed)) {
-    return 48;
-  }
-  return Math.max(16, Math.min(96, parsed));
-})();
 const IOS_CRASH_HARDENING_LOGS_ENV = process.env.EXPO_PUBLIC_MAP_IOS_CRASH_HARDENING_LOGS
   ?.trim()
   .toLowerCase();
@@ -237,11 +215,8 @@ export {
   MAP_MARKER_PIPELINE_OPT_V1,
   MAP_IOS_STABLE_MARKERS_V1,
   MAP_IOS_STABLE_MARKERS_LOGS_ENABLED,
-  MAP_IOS_REWRITE_V2_ENABLED,
   MAP_IOS_STRICT_SAFE_RENDERER_ENABLED,
   MAP_IOS_POOL_RENDERER_ENABLED,
-  MAP_IOS_POOL_SIZE,
-  MAP_IOS_LOCAL_ONLY_SPRITES_ENABLED,
   MAP_IOS_EMERGENCY_CLUSTER_ONLY_ENABLED,
   MAP_IOS_CRASH_HARDENING_LOGS_ENABLED,
   MAP_LABEL_COLLISION_V2,

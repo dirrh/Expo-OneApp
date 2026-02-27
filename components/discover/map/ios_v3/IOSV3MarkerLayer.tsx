@@ -1,13 +1,13 @@
 import React, { useMemo } from "react";
 import { Marker } from "react-native-maps";
-import type { IOSRenderItem } from "../types";
+import type { IOSV3RenderItem } from "./types";
 
-type IOSMarkerLayerProps = {
-  markers: IOSRenderItem[];
-  onPressMarker: (marker: IOSRenderItem) => void;
+type IOSV3MarkerLayerProps = {
+  markers: IOSV3RenderItem[];
+  onPressMarker: (marker: IOSV3RenderItem) => void;
 };
 
-export function IOSMarkerLayer({ markers, onPressMarker }: IOSMarkerLayerProps) {
+export function IOSV3MarkerLayer({ markers, onPressMarker }: IOSV3MarkerLayerProps) {
   const elements = useMemo(
     () =>
       markers.map((marker) => (
@@ -27,3 +27,4 @@ export function IOSMarkerLayer({ markers, onPressMarker }: IOSMarkerLayerProps) 
 
   return <>{elements}</>;
 }
+

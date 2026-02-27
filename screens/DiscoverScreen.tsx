@@ -5,7 +5,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ImageSourcePropType, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from "react-native";
+import { ImageSourcePropType, Platform, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useTranslation } from "react-i18next";
@@ -260,16 +260,22 @@ export default function DiscoverScreen() {
     [filters.hasActiveFilter, filteredMarkers, savedLocationMarkers]
   );
 
-  // Filtrujeme markery podľa viditeľnej oblasti mapy, aby sme znížili počet markerov počas pohybu.
-  // POZOR: prah je SINGLE_MODE_ZOOM + 0.5 (= 14.5), nie presne 14.
-  // Dôvod: pri zoomovaní v cluster mode (napr. zoom 13→14.1→13) camera.mapZoom dočasne
-  // prekročí SINGLE_MODE_ZOOM počas aktívnej animácie, kým displayMode je stále "cluster"
-  // (kvôli hysteréznej zóne 14.0–14.18). Keby sme filtrovali pri 14.0, zmenila by sa
-  // sada filteredMarkers počas animácie → clustre sa prepočítajú → 40+ annotation images
-  // sa zmení naraz → native MapKit crash. Threshold 14.5 zaručuje, že filter beží len
-  // keď sme spoľahlivo v single mode, nie v prechodovej zóne.
+  // Filtrujeme markery podľa viditeľnej oblasti mapy, aby sme znížili počet markerov v single mode.
+  // POZOR: prah je SINGLE_MODE_ZOOM + 1.5 (= 15.5).
+  //
+  // Dôvod: iOS prechádza do single mode pri zoom ≈ 15.38
+  //   (singleLayerEnterZoom = 14 + 1.2 = 15.2, + hysteréza 0.18).
+  //   Keby sme filtrovali pri nižšom zoome (napr. 14.5), filteredMarkers by sa zmenilo
+  //   POČAS cluster mode animácie → clustre prepočítané → pool update počas MapKit animácie
+  //   → native crash. 15.5 zaručuje, že filter sa aktivuje len keď je displayMode spoľahlivo
+  //   "single" a cluster vrstva je neaktívna.
+  //
+  //   Vedľajší efekt: pri cluster mode (zoom < 15.38) sú vždy k dispozícii VŠETKY markery
+  //   pre Supercluster → clustre sa nikdy nestratia kvôli prázdnemu viewportu.
   const shouldFilterByViewport =
-    allMapMarkers.length > 250 && camera.mapZoom >= SINGLE_MODE_ZOOM + 0.5;
+    Platform.OS !== "ios" &&
+    allMapMarkers.length > 250 &&
+    camera.mapZoom >= SINGLE_MODE_ZOOM + 1.5;
   const mapMarkers = useMemo(() => {
     if (shouldFilterByViewport) {
       return filterMarkersByViewport(allMapMarkers, camera.mapCenter, camera.mapZoom);

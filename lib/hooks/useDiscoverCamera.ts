@@ -6,6 +6,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as Location from "expo-location";
+import { InteractionManager } from "react-native";
 import type { MapViewRef } from "../interfaces";
 import type MapView from "react-native-maps";
 import { normalizeCenter, regionToZoom, setMapCamera } from "../maps/camera";
@@ -89,6 +90,7 @@ export const useDiscoverCamera = ({
   const restoreRetryRef = useRef(0);
   const panTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isUserPanningRef = useRef(false);
+  const restoreInteractionRef = useRef<{ cancel?: () => void } | null>(null);
 
   // === STAVOVÉ PREMENNÉ ===
   const initialCameraState = lastDiscoverCameraState
@@ -277,6 +279,10 @@ export const useDiscoverCamera = ({
       if (panTimeoutRef.current) {
         clearTimeout(panTimeoutRef.current);
       }
+      if (restoreInteractionRef.current?.cancel) {
+        restoreInteractionRef.current.cancel();
+        restoreInteractionRef.current = null;
+      }
     };
   }, []);
 
@@ -446,6 +452,7 @@ export const useDiscoverCamera = ({
       preserveDiscoverCamera = false;
       return;
     }
+    const restoreCameraState = lastDiscoverCameraState;
 
     if (!cameraRef.current) {
       if (restoreRetryRef.current < 20) {
@@ -459,29 +466,36 @@ export const useDiscoverCamera = ({
     }
 
     restoreRetryRef.current = 0;
-    const normalizedLastCenter = normalizeCenter(lastDiscoverCameraState.center);
-    applyCameraState(normalizedLastCenter, lastDiscoverCameraState.zoom);
+    const normalizedLastCenter = normalizeCenter(restoreCameraState.center);
+    applyCameraState(normalizedLastCenter, restoreCameraState.zoom);
     suppressProgrammaticEventsUntil = Date.now() + 400;
-    if (lastDiscoverRegionState) {
-      const normalizedRegionCenter = normalizeCenter(lastDiscoverRegionState.center);
-      cameraRef.current?.animateToRegion(
-        {
-          latitude: normalizedRegionCenter[1],
-          longitude: normalizedRegionCenter[0],
-          latitudeDelta: Math.max(0.00001, Math.abs(lastDiscoverRegionState.latitudeDelta)),
-          longitudeDelta: Math.max(0.00001, Math.abs(lastDiscoverRegionState.longitudeDelta)),
-        },
-        0
-      );
-    } else {
-      setMapCamera(cameraRef, {
-        center: normalizedLastCenter,
-        zoom: lastDiscoverCameraState.zoom,
-        durationMs: 0,
-      });
+    if (restoreInteractionRef.current?.cancel) {
+      restoreInteractionRef.current.cancel();
+      restoreInteractionRef.current = null;
     }
-    setDidInitialCenter(true);
-    preserveDiscoverCamera = false;
+    restoreInteractionRef.current = InteractionManager.runAfterInteractions(() => {
+      restoreInteractionRef.current = null;
+      if (lastDiscoverRegionState) {
+        const normalizedRegionCenter = normalizeCenter(lastDiscoverRegionState.center);
+        cameraRef.current?.animateToRegion(
+          {
+            latitude: normalizedRegionCenter[1],
+            longitude: normalizedRegionCenter[0],
+            latitudeDelta: Math.max(0.00001, Math.abs(lastDiscoverRegionState.latitudeDelta)),
+            longitudeDelta: Math.max(0.00001, Math.abs(lastDiscoverRegionState.longitudeDelta)),
+          },
+          0
+        );
+      } else {
+        setMapCamera(cameraRef, {
+          center: normalizedLastCenter,
+          zoom: restoreCameraState.zoom,
+          durationMs: 0,
+        });
+      }
+      setDidInitialCenter(true);
+      preserveDiscoverCamera = false;
+    });
   }, []);
 
   // Vrátime všetky hodnoty a funkcie
