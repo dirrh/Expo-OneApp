@@ -23,13 +23,11 @@ import {
 import { useIOSV3CameraGate } from "./map/ios_v3/useIOSV3CameraGate";
 import { IOSV3MarkerLayer } from "./map/ios_v3/IOSV3MarkerLayer";
 import type { IOSV3RenderItem } from "./map/ios_v3/types";
-import {
-  IOS_V3_MODE_SWITCH_COOLDOWN_MS,
-  IOS_V3_SINGLE_ENTER_ZOOM,
-  IOS_V3_SINGLE_EXIT_ZOOM,
-  useIOSV3Mode,
-} from "./map/ios_v3/useIOSV3Mode";
 import { IOS_V3_POOL_SIZE, useIOSV3Pool } from "./map/ios_v3/useIOSV3Pool";
+import {
+  IOS_V3_SINGLE_ENTER_ZOOM,
+  useIOSV3ZoneMode,
+} from "./map/ios_v3/useIOSV3ZoneMode";
 
 const IOS_V3_CAMERA_DEBOUNCE_MS = 220;
 const IOS_V3_GESTURE_RELEASE_DELAY_MS = 160;
@@ -105,9 +103,12 @@ function DiscoverMapIOS({
   const {
     renderCamera,
     modeSourceZoom,
-    isGestureActive,
+    completedZoom,
+    gesturePhase,
+    isInteractionBlocked,
     markGestureStart,
     markGestureEnd,
+    refreshGestureEndTimer,
     handleRegionChange,
     handleRegionChangeComplete,
     commitCameraNow,
@@ -119,40 +120,43 @@ function DiscoverMapIOS({
     gestureReleaseDelayMs: IOS_V3_GESTURE_RELEASE_DELAY_MS,
   });
 
+  const commitCameraNowRef = useRef(commitCameraNow);
+  commitCameraNowRef.current = commitCameraNow;
+
   useEffect(() => {
-    commitCameraNow(initialCenter, initialZoom, false);
-  }, [commitCameraNow, initialCenter, initialZoom]);
+    commitCameraNowRef.current(initialCenter, initialZoom, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialCenter, initialZoom]);
+
+  const isGestureInProgress = gesturePhase !== "idle";
 
   const [stableFilteredMarkers, setStableFilteredMarkers] = useState(() => filteredMarkers);
   const latestFilteredMarkersRef = useRef(filteredMarkers);
   useEffect(() => {
     latestFilteredMarkersRef.current = filteredMarkers;
-    if (!isGestureActive) {
+    if (!isGestureInProgress) {
       setStableFilteredMarkers(filteredMarkers);
     }
-  }, [filteredMarkers, isGestureActive]);
+  }, [filteredMarkers, isGestureInProgress]);
 
   useEffect(() => {
-    if (!isGestureActive) {
+    if (!isGestureInProgress) {
       setStableFilteredMarkers(latestFilteredMarkersRef.current);
     }
-  }, [isGestureActive]);
+  }, [isGestureInProgress]);
 
   const cameraCenter = renderCamera.center;
   const zoom = renderCamera.zoom;
-  const modeEffectiveZoom = Math.max(0, Math.min(20, modeSourceZoom + IOS_ZOOM_OFFSET));
-  const effectiveZoom = Math.max(0, Math.min(20, zoom + IOS_ZOOM_OFFSET));
-  const initialMode = effectiveZoom >= IOS_V3_SINGLE_ENTER_ZOOM ? "single" : "cluster";
-  const { mode, commitModeForZoom } = useIOSV3Mode({
-    initialMode,
-    singleEnterZoom: IOS_V3_SINGLE_ENTER_ZOOM,
-    singleExitZoom: IOS_V3_SINGLE_EXIT_ZOOM,
-    cooldownMs: IOS_V3_MODE_SWITCH_COOLDOWN_MS,
-  });
+  const liveEffectiveZoom = Math.max(0, Math.min(20, modeSourceZoom + IOS_ZOOM_OFFSET));
+  const settledEffectiveZoom = Math.max(0, Math.min(20, completedZoom + IOS_ZOOM_OFFSET));
+  const renderEffectiveZoom = Math.max(0, Math.min(20, zoom + IOS_ZOOM_OFFSET));
 
-  useEffect(() => {
-    commitModeForZoom(modeEffectiveZoom);
-  }, [commitModeForZoom, modeEffectiveZoom]);
+  const { visibleMode } = useIOSV3ZoneMode({
+    initialZoom: renderEffectiveZoom,
+    liveEffectiveZoom,
+    settledEffectiveZoom,
+    gesturePhase,
+  });
 
   const groups = useMemo(
     () => groupIOSV3MarkersByLocation(stableFilteredMarkers),
@@ -166,11 +170,11 @@ function DiscoverMapIOS({
   const clusterRadiusPx = Math.max(28, Math.round(IOS_CLUSTER_CELL_PX * 0.58));
   const stableClusterZoom = Math.max(
     0,
-    Math.min(IOS_FORCE_CLUSTER_ZOOM, Math.floor(effectiveZoom))
+    Math.min(IOS_FORCE_CLUSTER_ZOOM, Math.floor(liveEffectiveZoom))
   );
 
   const clusteredFeatures = useClusteredFeatures({
-    showClusterLayer: mode === "cluster",
+    showClusterLayer: visibleMode === "cluster",
     filteredMarkers: clusterSourceMarkers,
     cameraCenter,
     zoom,
@@ -185,14 +189,14 @@ function DiscoverMapIOS({
   const datasetItems = useMemo(
     () =>
       buildIOSV3Dataset({
-        mode,
+        mode: visibleMode,
         groups,
         clusteredFeatures,
         hasActiveFilter: Boolean(hasActiveFilter),
         cameraCenter,
         poolSize: IOS_V3_POOL_SIZE,
       }),
-    [cameraCenter, clusteredFeatures, groups, hasActiveFilter, mode]
+    [cameraCenter, clusteredFeatures, groups, hasActiveFilter, visibleMode]
   );
 
   const placeholderSprite = useMemo(() => resolveIOSV3PoolPlaceholderSprite(), []);
@@ -204,52 +208,33 @@ function DiscoverMapIOS({
   });
 
   const [frozenPooledItems, setFrozenPooledItems] = useState<IOSV3RenderItem[]>(() => pooledItems);
-  const latestPooledItemsRef = useRef<IOSV3RenderItem[]>(pooledItems);
-  const previousModeRef = useRef(mode);
 
   useEffect(() => {
-    latestPooledItemsRef.current = pooledItems;
-    const modeChanged = previousModeRef.current !== mode;
-    const shouldHoldClusterFrame =
-      mode === "cluster" &&
-      previousModeRef.current === "cluster" &&
-      visibleCount === 0 &&
-      stableFilteredMarkers.length > 0;
-    if (
-      shouldHoldClusterFrame
-    ) {
+    // Only update markers when MapKit is fully idle: 220ms after the last
+    // onRegionChangeComplete, with no active gesture. This prevents native
+    // crashes from changing marker images/coordinates during any MapKit animation.
+    if (isInteractionBlocked) {
       return;
     }
-    if (!isGestureActive || modeChanged) {
+
+    // Don't flash an empty cluster view if clustering hasn't computed yet.
+    const shouldHoldClusterFrame =
+      visibleMode === "cluster" &&
+      visibleCount === 0 &&
+      stableFilteredMarkers.length > 0;
+
+    if (!shouldHoldClusterFrame) {
       setFrozenPooledItems((previous) =>
         shouldKeepFrozenItems(previous, pooledItems) ? previous : pooledItems
       );
     }
-  }, [isGestureActive, mode, pooledItems, stableFilteredMarkers.length, visibleCount]);
-
-  useEffect(() => {
-    const modeChanged = previousModeRef.current !== mode;
-    if (!isGestureActive || modeChanged) {
-      const shouldHoldClusterFrame =
-        mode === "cluster" &&
-        previousModeRef.current === "cluster" &&
-        visibleCount === 0 &&
-        stableFilteredMarkers.length > 0;
-      if (
-        shouldHoldClusterFrame
-      ) {
-        return;
-      }
-      const nextItems = latestPooledItemsRef.current;
-      setFrozenPooledItems((previous) =>
-        shouldKeepFrozenItems(previous, nextItems) ? previous : nextItems
-      );
-    }
-  }, [isGestureActive, mode, stableFilteredMarkers.length, visibleCount]);
-
-  useEffect(() => {
-    previousModeRef.current = mode;
-  }, [mode]);
+  }, [
+    isInteractionBlocked,
+    pooledItems,
+    stableFilteredMarkers.length,
+    visibleCount,
+    visibleMode,
+  ]);
 
   const handleMapReady = useCallback(() => {
     const mapView = cameraRef.current;
@@ -320,9 +305,9 @@ function DiscoverMapIOS({
     markGestureEnd();
   }, [markGestureEnd]);
 
-  const handlePanDrag = useCallback(() => {
-    markGestureStart();
-  }, [markGestureStart]);
+  const handleMapPanDrag = useCallback(() => {
+    refreshGestureEndTimer();
+  }, [refreshGestureEndTimer]);
 
   if (Platform.OS === "web") {
     return (
@@ -341,7 +326,7 @@ function DiscoverMapIOS({
         style={StyleSheet.absoluteFill}
         initialRegion={initialRegion}
         onMapReady={handleMapReady}
-        onPanDrag={handlePanDrag}
+        onPanDrag={handleMapPanDrag}
         onTouchStart={handleMapTouchStart}
         onTouchEnd={handleMapTouchEnd}
         onTouchCancel={handleMapTouchCancel}

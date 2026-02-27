@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Region } from "react-native-maps";
 import { normalizeCenter, regionToZoom } from "../../../../lib/maps/camera";
 import { isFiniteCoordinate, isValidRegion } from "../../../../lib/maps/discoverMapUtils";
+import { hasIOSV3MeaningfulCameraMotion } from "./cameraMotion";
+import type { IOSV3GesturePhase } from "./useIOSV3ZoneMode";
 
 type UseIOSV3CameraGateParams = {
   initialCenter: [number, number];
@@ -35,13 +37,20 @@ export const useIOSV3CameraGate = ({
     zoom: number;
   }>({
     center: normalizedInitialCenter,
-    zoom: initialZoom,
+    zoom: clampZoom(initialZoom),
   });
-  const [modeSourceZoom, setModeSourceZoom] = useState(initialZoom);
-  const [isGestureActive, setIsGestureActive] = useState(false);
-
+  const [modeSourceZoom, setModeSourceZoom] = useState(clampZoom(initialZoom));
+  // completedZoom is updated only from settled camera events.
+  // Mid-gesture region changes must not mutate it.
+  const [completedZoom, setCompletedZoom] = useState(clampZoom(initialZoom));
+  const [gesturePhase, setGesturePhase] = useState<IOSV3GesturePhase>("idle");
   const [isInteractionBlocked, setIsInteractionBlocked] = useState(false);
+
   const gestureActiveRef = useRef(false);
+  const liveCameraRef = useRef<{ center: [number, number]; zoom: number }>({
+    center: normalizedInitialCenter,
+    zoom: clampZoom(initialZoom),
+  });
   const debounceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const gestureReleaseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -53,15 +62,16 @@ export const useIOSV3CameraGate = ({
 
   const applyRenderCamera = useCallback((center: [number, number], zoom: number) => {
     const normalizedCenter = normalizeCenter(center);
+    const safeZoom = clampZoom(zoom);
     setRenderCamera((previous) => {
       const delta = Math.hypot(
         normalizedCenter[0] - previous.center[0],
         normalizedCenter[1] - previous.center[1]
       );
-      if (delta < CENTER_EPSILON && Math.abs(zoom - previous.zoom) < ZOOM_EPSILON) {
+      if (delta < CENTER_EPSILON && Math.abs(safeZoom - previous.zoom) < ZOOM_EPSILON) {
         return previous;
       }
-      return { center: normalizedCenter, zoom };
+      return { center: normalizedCenter, zoom: safeZoom };
     });
   }, []);
 
@@ -82,7 +92,7 @@ export const useIOSV3CameraGate = ({
 
   const markGestureStart = useCallback(() => {
     gestureActiveRef.current = true;
-    setIsGestureActive(true);
+    setGesturePhase("active");
     setIsInteractionBlocked(true);
     if (gestureReleaseTimeoutRef.current) {
       clearTimeout(gestureReleaseTimeoutRef.current);
@@ -90,17 +100,29 @@ export const useIOSV3CameraGate = ({
     }
   }, []);
 
-  const markGestureEnd = useCallback(() => {
+  const scheduleGestureReleaseTimer = useCallback(() => {
     if (gestureReleaseTimeoutRef.current) {
       clearTimeout(gestureReleaseTimeoutRef.current);
     }
+    setGesturePhase("releasing");
     gestureReleaseTimeoutRef.current = setTimeout(() => {
       gestureReleaseTimeoutRef.current = null;
       gestureActiveRef.current = false;
-      setIsGestureActive(false);
+      setGesturePhase("idle");
       settleInteractionBlock();
     }, gestureReleaseDelayMs);
   }, [gestureReleaseDelayMs, settleInteractionBlock]);
+
+  const markGestureEnd = useCallback(() => {
+    scheduleGestureReleaseTimer();
+  }, [scheduleGestureReleaseTimer]);
+
+  const refreshGestureEndTimer = useCallback(() => {
+    if (!gestureReleaseTimeoutRef.current) {
+      return;
+    }
+    scheduleGestureReleaseTimer();
+  }, [scheduleGestureReleaseTimer]);
 
   const handleRegionChange = useCallback(
     (region: Region) => {
@@ -112,35 +134,54 @@ export const useIOSV3CameraGate = ({
       if (!isFiniteCoordinate(nextCenter[1], nextCenter[0]) || !Number.isFinite(nextZoom)) {
         return;
       }
+
       const safeZoom = clampZoom(nextZoom);
+      const previousLiveCamera = liveCameraRef.current;
+      const hasCameraMotion = hasIOSV3MeaningfulCameraMotion({
+        previousCenter: previousLiveCamera.center,
+        previousZoom: previousLiveCamera.zoom,
+        nextCenter,
+        nextZoom: safeZoom,
+      });
+
+      liveCameraRef.current = { center: nextCenter, zoom: safeZoom };
+
+      if (gestureReleaseTimeoutRef.current && hasCameraMotion) {
+        scheduleGestureReleaseTimer();
+      }
+
       if (gestureActiveRef.current) {
         setModeSourceZoom(safeZoom);
         onCameraChanged(nextCenter, safeZoom, true);
       }
     },
-    [onCameraChanged]
+    [onCameraChanged, scheduleGestureReleaseTimer]
   );
 
   const handleRegionChangeComplete = useCallback(
     (region: Region, details?: { isGesture?: boolean }) => {
+      // Intentionally do not call markGestureEnd() here.
+      // onRegionChangeComplete may fire during deceleration from a previous gesture.
+      // Gesture shutdown is owned only by onTouchEnd / onTouchCancel.
       if (!isValidRegion(region)) {
-        markGestureEnd();
         return;
       }
+
       const nextCenter = normalizeCenter([region.longitude, region.latitude]);
       const nextZoom = regionToZoom(region);
       if (!isFiniteCoordinate(nextCenter[1], nextCenter[0]) || !Number.isFinite(nextZoom)) {
-        markGestureEnd();
         return;
       }
+
       const safeZoom = clampZoom(nextZoom);
       const isUserGesture = Boolean(details?.isGesture ?? gestureActiveRef.current);
       onCameraChanged(nextCenter, safeZoom, isUserGesture);
       setModeSourceZoom(safeZoom);
+      setCompletedZoom(safeZoom);
+      liveCameraRef.current = { center: nextCenter, zoom: safeZoom };
       scheduleDebouncedCommit(nextCenter, safeZoom);
-      markGestureEnd();
     },
-    [markGestureEnd, onCameraChanged, scheduleDebouncedCommit]
+    [onCameraChanged, scheduleDebouncedCommit]
   );
 
   const commitCameraNow = useCallback(
@@ -148,13 +189,20 @@ export const useIOSV3CameraGate = ({
       if (!Number.isFinite(center[0]) || !Number.isFinite(center[1]) || !Number.isFinite(zoom)) {
         return;
       }
+
       if (debounceTimeoutRef.current) {
         clearTimeout(debounceTimeoutRef.current);
         debounceTimeoutRef.current = null;
       }
+
       const safeZoom = clampZoom(zoom);
       applyRenderCamera(center, safeZoom);
       setModeSourceZoom(safeZoom);
+      setCompletedZoom(safeZoom);
+      liveCameraRef.current = {
+        center: normalizeCenter(center),
+        zoom: safeZoom,
+      };
       onCameraChanged(normalizeCenter(center), safeZoom, isUserGesture);
       settleInteractionBlock();
     },
@@ -175,10 +223,13 @@ export const useIOSV3CameraGate = ({
   return {
     renderCamera,
     modeSourceZoom,
-    isGestureActive,
+    completedZoom,
+    gesturePhase,
+    gestureActiveRef,
     isInteractionBlocked,
     markGestureStart,
     markGestureEnd,
+    refreshGestureEndTimer,
     handleRegionChange,
     handleRegionChangeComplete,
     commitCameraNow,
