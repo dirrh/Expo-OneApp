@@ -24,12 +24,13 @@ import { useIOSV3CameraGate } from "./map/ios_v3/useIOSV3CameraGate";
 import { IOSV3MarkerLayer } from "./map/ios_v3/IOSV3MarkerLayer";
 import type { IOSV3RenderItem } from "./map/ios_v3/types";
 import { IOS_V3_POOL_SIZE, useIOSV3Pool } from "./map/ios_v3/useIOSV3Pool";
+import { isIOSV3MapFullyIdle } from "./map/ios_v3/updatePolicy";
 import {
   IOS_V3_SINGLE_ENTER_ZOOM,
   useIOSV3ZoneMode,
 } from "./map/ios_v3/useIOSV3ZoneMode";
 
-const IOS_V3_CAMERA_DEBOUNCE_MS = 220;
+const IOS_V3_CAMERA_DEBOUNCE_MS = 350;
 const IOS_V3_GESTURE_RELEASE_DELAY_MS = 160;
 const IOS_V3_CLUSTER_PRESS_MARGIN_ZOOM = 0.5;
 
@@ -122,28 +123,30 @@ function DiscoverMapIOS({
 
   const commitCameraNowRef = useRef(commitCameraNow);
   commitCameraNowRef.current = commitCameraNow;
+  const isMapFullyIdle = isIOSV3MapFullyIdle({
+    gesturePhase,
+    isInteractionBlocked,
+  });
 
   useEffect(() => {
     commitCameraNowRef.current(initialCenter, initialZoom, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialCenter, initialZoom]);
 
-  const isGestureInProgress = gesturePhase !== "idle";
-
   const [stableFilteredMarkers, setStableFilteredMarkers] = useState(() => filteredMarkers);
   const latestFilteredMarkersRef = useRef(filteredMarkers);
   useEffect(() => {
     latestFilteredMarkersRef.current = filteredMarkers;
-    if (!isGestureInProgress) {
+    if (isMapFullyIdle) {
       setStableFilteredMarkers(filteredMarkers);
     }
-  }, [filteredMarkers, isGestureInProgress]);
+  }, [filteredMarkers, isMapFullyIdle]);
 
   useEffect(() => {
-    if (!isGestureInProgress) {
+    if (isMapFullyIdle) {
       setStableFilteredMarkers(latestFilteredMarkersRef.current);
     }
-  }, [isGestureInProgress]);
+  }, [isMapFullyIdle]);
 
   const cameraCenter = renderCamera.center;
   const zoom = renderCamera.zoom;
@@ -198,10 +201,20 @@ function DiscoverMapIOS({
       }),
     [cameraCenter, clusteredFeatures, groups, hasActiveFilter, visibleMode]
   );
+  const [settledDatasetItems, setSettledDatasetItems] = useState<IOSV3RenderItem[]>(() => datasetItems);
+
+  useEffect(() => {
+    if (!isMapFullyIdle) {
+      return;
+    }
+    setSettledDatasetItems((previous) =>
+      shouldKeepFrozenItems(previous, datasetItems) ? previous : datasetItems
+    );
+  }, [datasetItems, isMapFullyIdle]);
 
   const placeholderSprite = useMemo(() => resolveIOSV3PoolPlaceholderSprite(), []);
-  const { pooledItems, visibleCount } = useIOSV3Pool({
-    items: datasetItems,
+  const { pooledItems } = useIOSV3Pool({
+    items: settledDatasetItems,
     poolSize: IOS_V3_POOL_SIZE,
     placeholderImage: placeholderSprite.image,
     placeholderAnchor: placeholderSprite.anchor,
@@ -210,31 +223,13 @@ function DiscoverMapIOS({
   const [frozenPooledItems, setFrozenPooledItems] = useState<IOSV3RenderItem[]>(() => pooledItems);
 
   useEffect(() => {
-    // Only update markers when MapKit is fully idle: 220ms after the last
-    // onRegionChangeComplete, with no active gesture. This prevents native
-    // crashes from changing marker images/coordinates during any MapKit animation.
-    if (isInteractionBlocked) {
+    if (!isMapFullyIdle) {
       return;
     }
-
-    // Don't flash an empty cluster view if clustering hasn't computed yet.
-    const shouldHoldClusterFrame =
-      visibleMode === "cluster" &&
-      visibleCount === 0 &&
-      stableFilteredMarkers.length > 0;
-
-    if (!shouldHoldClusterFrame) {
-      setFrozenPooledItems((previous) =>
-        shouldKeepFrozenItems(previous, pooledItems) ? previous : pooledItems
-      );
-    }
-  }, [
-    isInteractionBlocked,
-    pooledItems,
-    stableFilteredMarkers.length,
-    visibleCount,
-    visibleMode,
-  ]);
+    setFrozenPooledItems((previous) =>
+      shouldKeepFrozenItems(previous, pooledItems) ? previous : pooledItems
+    );
+  }, [isMapFullyIdle, pooledItems]);
 
   const handleMapReady = useCallback(() => {
     const mapView = cameraRef.current;
@@ -340,7 +335,10 @@ function DiscoverMapIOS({
         customMapStyle={Platform.OS === "android" ? GOOGLE_MAP_STYLE : undefined}
         showsPointsOfInterest={false}
       >
-        <IOSV3MarkerLayer markers={frozenPooledItems} onPressMarker={handleMarkerPress} />
+        <IOSV3MarkerLayer
+          markers={frozenPooledItems}
+          onPressMarker={handleMarkerPress}
+        />
 
         {userCoord && isValidMapCoordinate(userCoord[1], userCoord[0]) && (
           <Marker

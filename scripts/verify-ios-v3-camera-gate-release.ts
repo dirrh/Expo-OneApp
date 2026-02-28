@@ -1,5 +1,8 @@
 import { hasIOSV3MeaningfulCameraMotion } from "../components/discover/map/ios_v3/cameraMotion";
-import type { IOSV3GesturePhase } from "../components/discover/map/ios_v3/useIOSV3ZoneMode";
+import {
+  isIOSV3MapFullyIdle,
+  type IOSV3GesturePhase,
+} from "../components/discover/map/ios_v3/updatePolicy";
 
 const assert = (condition: boolean, message: string) => {
   if (!condition) {
@@ -63,12 +66,26 @@ const run = () => {
 
   state = onTouchStart(state);
   assert(state.gesturePhase === "active", "touch start should move gesture phase to active");
+  assert(
+    !isIOSV3MapFullyIdle({
+      gesturePhase: state.gesturePhase,
+      isInteractionBlocked: true,
+    }),
+    "map must not be considered fully idle during an active gesture"
+  );
 
   // Simulate one-finger-lift during a two-finger pinch.
   state = onTouchEnd(state);
   assert(
     state.gesturePhase === "releasing",
     "touch end should move gesture phase into the release-pending state"
+  );
+  assert(
+    !isIOSV3MapFullyIdle({
+      gesturePhase: state.gesturePhase,
+      isInteractionBlocked: true,
+    }),
+    "map must not be considered fully idle during the release-pending window"
   );
 
   state = onRegionChange(state, [18.0912, 48.3069], 15.47);
@@ -94,6 +111,20 @@ const run = () => {
   assert(
     state.gesturePhase === "idle",
     "gesture phase should return to idle after the release timer elapses"
+  );
+  assert(
+    isIOSV3MapFullyIdle({
+      gesturePhase: state.gesturePhase,
+      isInteractionBlocked: false,
+    }),
+    "map should be considered fully idle only when idle and not interaction-blocked"
+  );
+  assert(
+    !isIOSV3MapFullyIdle({
+      gesturePhase: state.gesturePhase,
+      isInteractionBlocked: true,
+    }),
+    "debounce blocking must still prevent fully-idle updates even after gesture phase returns to idle"
   );
 
   console.log("[verify-ios-v3-camera-gate-release] all checks passed");

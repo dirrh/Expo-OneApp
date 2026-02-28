@@ -1,8 +1,6 @@
 import {
-  IOS_V3_SETTLED_EXIT_CONFIRMATIONS,
   IOS_V3_SINGLE_ENTER_ZOOM,
   IOS_V3_SINGLE_EXIT_ZOOM,
-  IOS_V3_SINGLE_HARD_EXIT_ZOOM,
   resolveInitialIOSV3VisibleMode,
   resolveIOSV3ZoneModeStep,
   type IOSV3GesturePhase,
@@ -17,7 +15,6 @@ const assert = (condition: boolean, message: string) => {
 
 type ZoneModeState = {
   visibleMode: IOSV3VisibleMode;
-  settledBelowExitCount: number;
 };
 
 const applyStep = (
@@ -26,12 +23,10 @@ const applyStep = (
     liveEffectiveZoom,
     settledEffectiveZoom,
     gesturePhase,
-    settledSampleAdvanced,
   }: {
     liveEffectiveZoom: number;
     settledEffectiveZoom: number;
     gesturePhase: IOSV3GesturePhase;
-    settledSampleAdvanced: boolean;
   }
 ): ZoneModeState => {
   const next = resolveIOSV3ZoneModeStep({
@@ -39,17 +34,12 @@ const applyStep = (
     liveEffectiveZoom,
     settledEffectiveZoom,
     gesturePhase,
-    settledBelowExitCount: state.settledBelowExitCount,
     singleEnterZoom: IOS_V3_SINGLE_ENTER_ZOOM,
     singleExitZoom: IOS_V3_SINGLE_EXIT_ZOOM,
-    hardExitZoom: IOS_V3_SINGLE_HARD_EXIT_ZOOM,
-    exitConfirmationsRequired: IOS_V3_SETTLED_EXIT_CONFIRMATIONS,
-    settledSampleAdvanced,
   });
 
   return {
     visibleMode: next.nextVisibleMode,
-    settledBelowExitCount: next.nextSettledBelowExitCount,
   };
 };
 
@@ -65,14 +55,12 @@ const run = () => {
 
   let state: ZoneModeState = {
     visibleMode: "cluster",
-    settledBelowExitCount: 0,
   };
 
   state = applyStep(state, {
     liveEffectiveZoom: IOS_V3_SINGLE_ENTER_ZOOM + 0.05,
     settledEffectiveZoom: IOS_V3_SINGLE_EXIT_ZOOM + 0.2,
     gesturePhase: "active",
-    settledSampleAdvanced: false,
   });
   assert(
     state.visibleMode === "single",
@@ -83,7 +71,6 @@ const run = () => {
     liveEffectiveZoom: IOS_V3_SINGLE_ENTER_ZOOM + 0.15,
     settledEffectiveZoom: IOS_V3_SINGLE_EXIT_ZOOM - 0.05,
     gesturePhase: "active",
-    settledSampleAdvanced: true,
   });
   assert(
     state.visibleMode === "single",
@@ -94,7 +81,6 @@ const run = () => {
     liveEffectiveZoom: IOS_V3_SINGLE_ENTER_ZOOM + 0.02,
     settledEffectiveZoom: IOS_V3_SINGLE_EXIT_ZOOM + 0.01,
     gesturePhase: "releasing",
-    settledSampleAdvanced: true,
   });
   assert(
     state.visibleMode === "single",
@@ -105,7 +91,6 @@ const run = () => {
     liveEffectiveZoom: IOS_V3_SINGLE_ENTER_ZOOM - 0.05,
     settledEffectiveZoom: IOS_V3_SINGLE_EXIT_ZOOM + 0.01,
     gesturePhase: "idle",
-    settledSampleAdvanced: true,
   });
   assert(
     state.visibleMode === "single",
@@ -116,10 +101,9 @@ const run = () => {
     liveEffectiveZoom: IOS_V3_SINGLE_EXIT_ZOOM + 0.2,
     settledEffectiveZoom: IOS_V3_SINGLE_EXIT_ZOOM - 0.02,
     gesturePhase: "idle",
-    settledSampleAdvanced: true,
   });
   assert(
-    state.visibleMode === "single" && state.settledBelowExitCount === 0,
+    state.visibleMode === "single",
     "single must stay locked when live zoom is still above exit even if settled zoom dips below exit"
   );
 
@@ -127,60 +111,29 @@ const run = () => {
     liveEffectiveZoom: IOS_V3_SINGLE_EXIT_ZOOM - 0.05,
     settledEffectiveZoom: IOS_V3_SINGLE_EXIT_ZOOM,
     gesturePhase: "idle",
-    settledSampleAdvanced: true,
-  });
-  assert(
-    state.visibleMode === "single" && state.settledBelowExitCount === 1,
-    "first settled sample at/below exit should start confirmation but keep single visible"
-  );
-
-  state = applyStep(state, {
-    liveEffectiveZoom: IOS_V3_SINGLE_EXIT_ZOOM - 0.08,
-    settledEffectiveZoom: IOS_V3_SINGLE_EXIT_ZOOM - 0.02,
-    gesturePhase: "idle",
-    settledSampleAdvanced: true,
   });
   assert(
     state.visibleMode === "cluster",
-    "second consecutive settled sample at/below exit should switch to cluster"
+    "single should switch to cluster once both live and settled zoom are at/below exit"
   );
 
   state = {
     visibleMode: "single",
-    settledBelowExitCount: 0,
-  };
-  state = applyStep(state, {
-    liveEffectiveZoom: IOS_V3_SINGLE_EXIT_ZOOM - 0.2,
-    settledEffectiveZoom: IOS_V3_SINGLE_HARD_EXIT_ZOOM,
-    gesturePhase: "idle",
-    settledSampleAdvanced: true,
-  });
-  assert(
-    state.visibleMode === "cluster",
-    "hard-exit zoom should immediately switch single back to cluster"
-  );
-
-  state = {
-    visibleMode: "single",
-    settledBelowExitCount: 0,
   };
   state = applyStep(state, {
     liveEffectiveZoom: IOS_V3_SINGLE_ENTER_ZOOM + 0.3,
     settledEffectiveZoom: IOS_V3_SINGLE_EXIT_ZOOM + 0.4,
     gesturePhase: "active",
-    settledSampleAdvanced: false,
   });
   state = applyStep(state, {
     liveEffectiveZoom: IOS_V3_SINGLE_ENTER_ZOOM + 0.1,
     settledEffectiveZoom: IOS_V3_SINGLE_EXIT_ZOOM + 0.2,
     gesturePhase: "releasing",
-    settledSampleAdvanced: true,
   });
   state = applyStep(state, {
     liveEffectiveZoom: IOS_V3_SINGLE_ENTER_ZOOM - 0.02,
     settledEffectiveZoom: IOS_V3_SINGLE_EXIT_ZOOM + 0.1,
     gesturePhase: "idle",
-    settledSampleAdvanced: true,
   });
   assert(
     state.visibleMode === "single",
