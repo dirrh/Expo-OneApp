@@ -45,6 +45,14 @@ const applyStep = (
 
 const run = () => {
   assert(
+    IOS_V3_SINGLE_ENTER_ZOOM === 17.0,
+    "iOS V3 single-enter zoom should stay locked at 17.0 for earlier clustering"
+  );
+  assert(
+    IOS_V3_SINGLE_EXIT_ZOOM === 16.5,
+    "iOS V3 single-exit zoom should stay locked at 16.5 for earlier clustering"
+  );
+  assert(
     resolveInitialIOSV3VisibleMode(IOS_V3_SINGLE_ENTER_ZOOM - 0.01) === "cluster",
     "initial mode should start in cluster below single-enter threshold"
   );
@@ -63,8 +71,18 @@ const run = () => {
     gesturePhase: "active",
   });
   assert(
+    state.visibleMode === "cluster",
+    "cluster should stay cluster during an active gesture even when live zoom crosses the single-enter threshold"
+  );
+
+  state = applyStep(state, {
+    liveEffectiveZoom: IOS_V3_SINGLE_ENTER_ZOOM + 0.05,
+    settledEffectiveZoom: IOS_V3_SINGLE_ENTER_ZOOM + 0.02,
+    gesturePhase: "idle",
+  });
+  assert(
     state.visibleMode === "single",
-    "cluster should switch to single immediately when live zoom crosses the single-enter threshold"
+    "cluster should switch to single once the camera settles above the single-enter threshold"
   );
 
   state = applyStep(state, {

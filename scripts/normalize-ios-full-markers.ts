@@ -137,7 +137,7 @@ const fitTextWithEllipsis = (
   return best;
 };
 
-const run = async () => {
+export const normalizeIOSFullMarkers = async () => {
   assert(fs.existsSync(IOS_FULL_MARKERS_DIR), `missing directory: ${IOS_FULL_MARKERS_DIR}`);
   fs.mkdirSync(IOS_FULL_FALLBACK_DIR, { recursive: true });
 
@@ -224,4 +224,10 @@ const run = async () => {
   );
 };
 
-void run();
+const isDirectRun =
+  typeof process.argv[1] === "string" &&
+  path.resolve(process.argv[1]) === path.resolve(__filename);
+
+if (isDirectRun) {
+  void normalizeIOSFullMarkers();
+}

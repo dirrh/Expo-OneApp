@@ -2,6 +2,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createCanvas, loadImage } from "canvas";
+import { generateIOSCompactPins } from "./generate-ios-compact-pins";
+import { generateIOSLabeledPins } from "./generate-ios-labeled-pins";
+import { normalizeIOSFullMarkers } from "./normalize-ios-full-markers";
+import { normalizeIOSClusterMarkers } from "./normalize-ios-cluster-markers";
+import { normalizeIOSStackedMarkers } from "./normalize-ios-stacked-markers";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -111,20 +116,22 @@ const main = async () => {
   if (sourcePaths.length === 0) {
     throw new Error("No source assets selected for iOS scaled map assets.");
   }
-  if (fs.existsSync(TARGET_DIR)) {
-    fs.rmSync(TARGET_DIR, { recursive: true, force: true });
-  }
   for (const sourcePath of sourcePaths) {
     const relativePath = path.relative(SOURCE_DIR, sourcePath);
     const targetPath = path.join(TARGET_DIR, relativePath);
     await scaleAsset(sourcePath, targetPath);
   }
   writeGeneratedMap(sourcePaths);
+  await normalizeIOSFullMarkers();
+  await normalizeIOSStackedMarkers();
+  await normalizeIOSClusterMarkers();
+  await generateIOSCompactPins();
+  await generateIOSLabeledPins();
   console.log(
     `[build-ios-scaled-map-assets] done, scaled=${sourcePaths.length}, map=${path.relative(
       ROOT_DIR,
       GENERATED_MAP_FILE
-    )}`
+    )}, compact-and-labeled-pins=generated`
   );
 };
 

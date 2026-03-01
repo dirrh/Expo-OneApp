@@ -98,6 +98,13 @@ export const useIOSV3CameraGate = ({
       clearTimeout(gestureReleaseTimeoutRef.current);
       gestureReleaseTimeoutRef.current = null;
     }
+    // Cancel any pending debounce so its settleInteractionBlock() call cannot
+    // race with this gesture's setIsInteractionBlocked(true) and produce a
+    // spurious isMapFullyIdle=true window during the new MapKit animation.
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current);
+      debounceTimeoutRef.current = null;
+    }
   }, []);
 
   const scheduleGestureReleaseTimer = useCallback(() => {

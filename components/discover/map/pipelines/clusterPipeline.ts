@@ -252,9 +252,12 @@ export const buildClusteredFeaturesFromRaw = ({
   );
   const overlapMergeThresholdSq = overlapMergeThresholdPx * overlapMergeThresholdPx;
 
+  const MAX_MERGE_ROUNDS = 5;
   let mergedAny = true;
-  while (mergedAny && buckets.length > 1) {
+  let mergeRound = 0;
+  while (mergedAny && buckets.length > 1 && mergeRound < MAX_MERGE_ROUNDS) {
     mergedAny = false;
+    mergeRound += 1;
 
     for (let i = 0; i < buckets.length; i += 1) {
       for (let j = i + 1; j < buckets.length; j += 1) {

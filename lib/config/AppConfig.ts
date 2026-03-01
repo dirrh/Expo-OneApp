@@ -18,6 +18,8 @@ import {
 import type { DataSourceMode } from "../data/models";
 
 // Centralny wrapper pre env konfiguraciu aplikacie.
+export type AppConfigMapIOSTextMode = "dynamic" | "always" | "off";
+
 export interface AppConfigValue {
   dataSource: DataSourceMode;
   apiBaseUrl?: string;
@@ -28,6 +30,8 @@ export interface AppConfigValue {
   showMoreV2Enabled: boolean;
   businessDetailV2Enabled: boolean;
   reviewPhotosEnabled: boolean;
+  mapIOSTextMode: AppConfigMapIOSTextMode;
+  mapIOSPoolSize?: number;
 }
 
 const getTrimmedValue = (value?: string | null) => {
@@ -82,6 +86,41 @@ const parseBooleanFlag = (value?: string, defaultValue = false): boolean => {
   return defaultValue;
 };
 
+const parseMapIOSTextMode = (value?: string): AppConfigMapIOSTextMode => {
+  const normalized = value?.trim().toLowerCase();
+  if (normalized === "off") {
+    return "off";
+  }
+  if (normalized === "always") {
+    return "always";
+  }
+  return "dynamic";
+};
+
+const parseOptionalInteger = (
+  value?: string,
+  minimum?: number,
+  maximum?: number
+) => {
+  if (!value) {
+    return undefined;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed)) {
+    return undefined;
+  }
+
+  let normalized = Math.floor(parsed);
+  if (typeof minimum === "number") {
+    normalized = Math.max(minimum, normalized);
+  }
+  if (typeof maximum === "number") {
+    normalized = Math.min(maximum, normalized);
+  }
+  return normalized;
+};
+
 const appConfig: AppConfigValue = Object.freeze({
   dataSource: parseDataSource(getEnvValue("DATA_SOURCE", DATA_SOURCE)),
   apiBaseUrl: getEnvValue("API_BASE_URL", API_BASE_URL),
@@ -106,6 +145,12 @@ const appConfig: AppConfigValue = Object.freeze({
   reviewPhotosEnabled: parseBooleanFlag(
     getEnvValue("EXPO_PUBLIC_REVIEW_PHOTOS", EXPO_PUBLIC_REVIEW_PHOTOS),
     true
+  ),
+  mapIOSTextMode: parseMapIOSTextMode(getEnvValue("EXPO_PUBLIC_MAP_IOS_TEXT_MODE")),
+  mapIOSPoolSize: parseOptionalInteger(
+    getEnvValue("EXPO_PUBLIC_MAP_IOS_POOL_SIZE"),
+    16,
+    96
   ),
 });
 

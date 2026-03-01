@@ -518,6 +518,40 @@ export const styles = StyleSheet.create({
           elevation: 6,
         }),
   },
+  locationMapSelectionCard: {
+    position: "absolute",
+    left: 12,
+    right: 12,
+    bottom: 12,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    backgroundColor: "rgba(17, 17, 17, 0.92)",
+    ...(Platform.OS === "web"
+      ? { boxShadow: "0 8px 24px rgba(0, 0, 0, 0.22)" }
+      : {
+          shadowColor: "#000",
+          shadowOpacity: 0.22,
+          shadowRadius: 16,
+          shadowOffset: { width: 0, height: 6 },
+          elevation: 10,
+        }),
+  },
+  locationMapSelectionTitle: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "700",
+    lineHeight: 20,
+    includeFontPadding: false,
+    marginBottom: 2,
+  },
+  locationMapSelectionSubtitle: {
+    color: "rgba(255, 255, 255, 0.82)",
+    fontSize: 13,
+    fontWeight: "500",
+    lineHeight: 18,
+    includeFontPadding: false,
+  },
   locationMapHint: {
     backgroundColor: "#111",
     borderRadius: 18,
@@ -530,6 +564,24 @@ export const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 12,
     fontWeight: "600",
+  },
+  locationMapHeartButton: {
+    alignSelf: "center",
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#E11D48",
+    ...(Platform.OS === "web"
+      ? { boxShadow: "0 10px 24px rgba(225, 29, 72, 0.28)" }
+      : {
+          shadowColor: "#000",
+          shadowOpacity: 0.22,
+          shadowRadius: 14,
+          shadowOffset: { width: 0, height: 6 },
+          elevation: 10,
+        }),
   },
   container_2: {
     flex: 1,

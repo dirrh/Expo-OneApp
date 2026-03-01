@@ -155,6 +155,7 @@ export const useDiscoverData = ({
 
 export const useSavedLocationMarkers = (
   locations: Array<{
+    label: string;
     coord?: [number, number];
     isSaved?: boolean;
     image: ImageSourcePropType;
@@ -179,8 +180,10 @@ export const useSavedLocationMarkers = (
 
           return {
             id,
+            title: item.label,
             coord: { lng, lat },
             icon: item.markerImage ?? item.image,
+            useNativePin: true,
             rating,
             category: "Multi" as const,
             ratingFormatted: rating.toFixed(1),

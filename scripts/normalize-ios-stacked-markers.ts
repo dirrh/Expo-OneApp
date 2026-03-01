@@ -23,7 +23,7 @@ const STACKED_COUNTS = [2, 3, 4, 5, 6] as const;
 
 const normalizeToPosix = (value: string) => value.replace(/\\/g, "/");
 
-const run = async () => {
+export const normalizeIOSStackedMarkers = async () => {
   fs.mkdirSync(TARGET_DIR, { recursive: true });
 
   const entries: Array<{ count: number; targetRelative: string }> = [];
@@ -76,4 +76,10 @@ ${entryLines.join("\n")}
   );
 };
 
-void run();
+const isDirectRun =
+  typeof process.argv[1] === "string" &&
+  path.resolve(process.argv[1]) === __filename;
+
+if (isDirectRun) {
+  void normalizeIOSStackedMarkers();
+}

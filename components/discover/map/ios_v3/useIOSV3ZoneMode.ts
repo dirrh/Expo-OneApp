@@ -4,8 +4,8 @@ import type { IOSV3Mode } from "./types";
 export type IOSV3VisibleMode = IOSV3Mode;
 export type IOSV3GesturePhase = "idle" | "active" | "releasing";
 
-export const IOS_V3_SINGLE_ENTER_ZOOM = 15.4;
-export const IOS_V3_SINGLE_EXIT_ZOOM = 15.0;
+export const IOS_V3_SINGLE_ENTER_ZOOM = 17.0;
+export const IOS_V3_SINGLE_EXIT_ZOOM = 16.5;
 
 type ResolveInitialIOSV3VisibleModeParams = {
   initialZoom: number;
@@ -49,24 +49,23 @@ export const resolveIOSV3ZoneModeStep = ({
   const safeLiveZoom = Number.isFinite(liveEffectiveZoom) ? liveEffectiveZoom : 0;
   const safeSettledZoom = Number.isFinite(settledEffectiveZoom) ? settledEffectiveZoom : 0;
 
-  // Vstup do single: kedykoľvek live zoom dosiahne enter threshold.
-  if (safeLiveZoom >= singleEnterZoom) {
-    return { nextVisibleMode: "single", nextSettledBelowExitCount: 0 };
-  }
-
-  // Počas gestu: single mód sa NIKDY neprepína na cluster (žiadny flash).
+  // Once we are already in single, keep it locked through the gesture.
   if (currentVisibleMode === "single" && gesturePhase !== "idle") {
     return { nextVisibleMode: "single", nextSettledBelowExitCount: 0 };
   }
 
-  // Cluster mód: zostáva cluster kým live zoom nedosiahne enter threshold (pravidlo 1).
+  // Enter single only after the camera settles. This avoids switching the
+  // renderer exactly at the most expensive point of the pinch gesture.
+  if (safeLiveZoom >= singleEnterZoom && gesturePhase === "idle") {
+    return { nextVisibleMode: "single", nextSettledBelowExitCount: 0 };
+  }
+
+  // While in cluster mode, stay there until the settled post-gesture check above.
   if (currentVisibleMode === "cluster") {
     return { nextVisibleMode: "cluster", nextSettledBelowExitCount: 0 };
   }
 
-  // currentVisibleMode === "single", gesturePhase === "idle":
-  // Výstup z single len keď OBIDVA (live aj settled) zoom sú pod exit threshold.
-  // max() chráni pred pádom do clustrov keď jedna z hodnôt je stale/neaktuálna.
+  // Exit single only when both zoom values are at/below the exit threshold.
   if (Math.max(safeLiveZoom, safeSettledZoom) > singleExitZoom) {
     return { nextVisibleMode: "single", nextSettledBelowExitCount: 0 };
   }

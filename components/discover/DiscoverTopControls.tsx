@@ -27,11 +27,16 @@ export default function DiscoverTopControls({
   setLocation,
   option,
   setOption,
+  searchText = "",
+  onApplySearchText,
   o,
   filterRef,
   onOpenSearch,
   userCoord,
   mainMapCenter,
+  mainMapZoom,
+  pendingMapSelection,
+  onPendingMapSelectionHandled,
   cameraRef,
   t,
   onLocationSheetChange,
@@ -69,14 +74,47 @@ export default function DiscoverTopControls({
     () => getLocationIcon(option, selectedOption?.isSaved),
     [option, selectedOption]
   );
+  const resolveSearchTextForLocation = useCallback(
+    (label: string) => {
+      const saved = location.find((item) => item.isSaved && item.label === label);
+      if (saved) {
+        return saved.label;
+      }
+
+      const translated = t(label);
+      return typeof translated === "string" && translated.trim().length > 0 ? translated : label;
+    },
+    [location, t]
+  );
+  const applyLocationSearchText = useCallback(
+    (label: string) => {
+      onApplySearchText?.(resolveSearchTextForLocation(label));
+    },
+    [onApplySearchText, resolveSearchTextForLocation]
+  );
+  const searchDisplayText = useMemo(() => searchText.trim(), [searchText]);
+  const targetZoom = useMemo(
+    () => (typeof mainMapZoom === "number" && Number.isFinite(mainMapZoom) ? mainMapZoom : 14),
+    [mainMapZoom]
+  );
   const centerYourLocation = useCallback(() => {
     const target = userCoord ?? fallbackCityCoord ?? mainMapCenter ?? null;
     setOption("yourLocation");
+    applyLocationSearchText("yourLocation");
     setOpen(false);
     if (target) {
-      setMapCamera(cameraRef, { center: target, zoom: 14, durationMs: 800 });
+      setMapCamera(cameraRef, { center: target, zoom: targetZoom, durationMs: 800 });
     }
-  }, [cameraRef, fallbackCityCoord, mainMapCenter, setOpen, setOption, userCoord]);
+  }, [
+    applyLocationSearchText,
+    cameraRef,
+    fallbackCityCoord,
+    mainMapCenter,
+    targetZoom,
+    setOpen,
+    setOption,
+    userCoord,
+  ]);
   const focusLocation = useCallback(
     (label: string, coord?: [number, number]) => {
       if (label === "yourLocation") {
@@ -86,13 +124,14 @@ export default function DiscoverTopControls({
       const target = coord ?? null;
 
       setOption(label);
+      applyLocationSearchText(label);
       setOpen(false);
 
       if (target) {
-        setMapCamera(cameraRef, { center: target, zoom: 14, durationMs: 800 });
+        setMapCamera(cameraRef, { center: target, zoom: targetZoom, durationMs: 800 });
       }
     },
-    [cameraRef, centerYourLocation, setOpen, setOption]
+    [applyLocationSearchText, cameraRef, centerYourLocation, setOpen, setOption, targetZoom]
   );
   const topBarWidth = useMemo(
     () => Math.max(0, screenWidth - DISCOVER_TOP_HORIZONTAL_PADDING * 2),
@@ -149,7 +188,12 @@ export default function DiscoverTopControls({
                   activeOpacity={0.9}
                   onPress={isSearchOpen ? onCloseSearch ?? onOpenSearch : onOpenSearch}
                 >
-                  <Text style={localStyles.searchPlaceholder}>{t("searchbranches")}</Text>
+                  <Text
+                    style={searchDisplayText ? localStyles.searchValue : localStyles.searchPlaceholder}
+                    numberOfLines={1}
+                  >
+                    {searchDisplayText || t("searchbranches")}
+                  </Text>
                 </TouchableOpacity>
               </View>
 
@@ -253,6 +297,8 @@ export default function DiscoverTopControls({
         setLocation={setLocation}
         userCoord={userCoord}
         mainMapCenter={mainMapCenter}
+        pendingMapSelection={pendingMapSelection}
+        onPendingMapSelectionHandled={onPendingMapSelectionHandled}
         onLocationSheetChange={onLocationSheetChange}
       />
       </>
@@ -349,6 +395,14 @@ const localStyles = StyleSheet.create({
     includeFontPadding: false,
     textAlignVertical: "center",
     color: "#71717A",
+  },
+  searchValue: {
+    fontSize: 14,
+    fontWeight: "500",
+    lineHeight: 20,
+    includeFontPadding: false,
+    textAlignVertical: "center",
+    color: "#111111",
   },
   openActions: {
     position: "absolute",

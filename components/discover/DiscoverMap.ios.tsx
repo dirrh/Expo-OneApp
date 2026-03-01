@@ -1,10 +1,17 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Platform, StyleSheet, Text, View } from "react-native";
+import { AppState, Platform, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import MapView, { Marker, type Region } from "react-native-maps";
 import type { DiscoverMapProps } from "../../lib/interfaces";
+import {
+  AppConfig,
+  type AppConfigMapIOSTextMode,
+} from "../../lib/config/AppConfig";
 import { styles } from "./discoverStyles";
 import { normalizeCenter, regionToZoom, setMapCamera, zoomToRegion } from "../../lib/maps/camera";
-import { isFiniteCoordinate, isValidMapCoordinate } from "../../lib/maps/discoverMapUtils";
+import {
+  isFiniteCoordinate,
+  isValidMapCoordinate,
+} from "../../lib/maps/discoverMapUtils";
 import {
   DEFAULT_CAMERA_ZOOM,
   DEFAULT_CITY_CENTER,
@@ -22,8 +29,8 @@ import {
 } from "./map/ios_v3/buildIOSV3Dataset";
 import { useIOSV3CameraGate } from "./map/ios_v3/useIOSV3CameraGate";
 import { IOSV3MarkerLayer } from "./map/ios_v3/IOSV3MarkerLayer";
-import type { IOSV3RenderItem } from "./map/ios_v3/types";
-import { IOS_V3_POOL_SIZE, useIOSV3Pool } from "./map/ios_v3/useIOSV3Pool";
+import type { IOSV3RenderItem, IOSV3TextBudget } from "./map/ios_v3/types";
+import { normalizeIOSV3PoolSize, useIOSV3Pool } from "./map/ios_v3/useIOSV3Pool";
 import { isIOSV3MapFullyIdle } from "./map/ios_v3/updatePolicy";
 import {
   IOS_V3_SINGLE_ENTER_ZOOM,
@@ -33,6 +40,47 @@ import {
 const IOS_V3_CAMERA_DEBOUNCE_MS = 350;
 const IOS_V3_GESTURE_RELEASE_DELAY_MS = 160;
 const IOS_V3_CLUSTER_PRESS_MARGIN_ZOOM = 0.5;
+const IOS_V3_ALWAYS_TEXT_BUDGET: IOSV3TextBudget = {
+  maxTextMarkers: 8,
+  maxFullMarkers: 8,
+};
+const IOS_V3_DISABLED_TEXT_BUDGET: IOSV3TextBudget = {
+  maxTextMarkers: 0,
+  maxFullMarkers: 0,
+};
+
+const createDynamicIOSV3TextBudget = (
+  singleOnlyGroupCount: number,
+  _isMapFullyIdle: boolean
+): IOSV3TextBudget => {
+  if (singleOnlyGroupCount <= 5) {
+    return {
+      maxTextMarkers: singleOnlyGroupCount,
+      maxFullMarkers: singleOnlyGroupCount,
+    };
+  }
+  if (singleOnlyGroupCount <= 15) {
+    return IOS_V3_ALWAYS_TEXT_BUDGET;
+  }
+  if (singleOnlyGroupCount <= 30) {
+    return { maxTextMarkers: 6, maxFullMarkers: 6 };
+  }
+  return { maxTextMarkers: 4, maxFullMarkers: 4 };
+};
+
+const resolveIOSV3TextBudget = (
+  textMode: AppConfigMapIOSTextMode,
+  singleOnlyGroupCount: number,
+  isMapFullyIdle: boolean
+): IOSV3TextBudget => {
+  if (textMode === "off") {
+    return IOS_V3_DISABLED_TEXT_BUDGET;
+  }
+  if (textMode === "always") {
+    return IOS_V3_ALWAYS_TEXT_BUDGET;
+  }
+  return createDynamicIOSV3TextBudget(singleOnlyGroupCount, isMapFullyIdle);
+};
 
 const areAnchorsEqual = (
   left: { x: number; y: number } | undefined,
@@ -43,14 +91,25 @@ const areAnchorsEqual = (
   return left.x === right.x && left.y === right.y;
 };
 
+const areImagesEqual = (
+  left: number | { uri: string },
+  right: number | { uri: string }
+) => {
+  if (left === right) return true;
+  if (typeof left === "object" && typeof right === "object") {
+    return left.uri === right.uri;
+  }
+  return false;
+};
+
 const areRenderItemsEquivalent = (left: IOSV3RenderItem, right: IOSV3RenderItem) =>
   left.id === right.id &&
   left.kind === right.kind &&
-  left.image === right.image &&
+  areImagesEqual(left.image, right.image) &&
   left.coordinate.latitude === right.coordinate.latitude &&
   left.coordinate.longitude === right.coordinate.longitude &&
   left.zIndex === right.zIndex &&
-  left.isPoolPlaceholder === right.isPoolPlaceholder &&
+  Boolean(left.isPoolPlaceholder) === Boolean(right.isPoolPlaceholder) &&
   areAnchorsEqual(left.anchor, right.anchor);
 
 const shouldKeepFrozenItems = (previous: IOSV3RenderItem[], next: IOSV3RenderItem[]) => {
@@ -68,6 +127,7 @@ const shouldKeepFrozenItems = (previous: IOSV3RenderItem[], next: IOSV3RenderIte
   return true;
 };
 
+
 function DiscoverMapIOS({
   cameraRef,
   filteredMarkers,
@@ -80,8 +140,10 @@ function DiscoverMapIOS({
   onMarkerPress,
   initialCamera,
 }: DiscoverMapProps) {
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const fallbackCenter = mapCenter ?? cityCenter ?? DEFAULT_CITY_CENTER;
   const fallbackZoom = mapZoom ?? DEFAULT_CAMERA_ZOOM;
+  const poolSize = normalizeIOSV3PoolSize(AppConfig.mapIOSPoolSize);
 
   const initialRegionRef = useRef<Region | null>(null);
   if (!initialRegionRef.current) {
@@ -123,6 +185,7 @@ function DiscoverMapIOS({
 
   const commitCameraNowRef = useRef(commitCameraNow);
   commitCameraNowRef.current = commitCameraNow;
+
   const isMapFullyIdle = isIOSV3MapFullyIdle({
     gesturePhase,
     isInteractionBlocked,
@@ -132,6 +195,23 @@ function DiscoverMapIOS({
     commitCameraNowRef.current(initialCenter, initialZoom, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialCenter, initialZoom]);
+
+  // Guard: reset stuck gesture state when returning from background.
+  // Without this, backgrounding mid-gesture leaves gesturePhase="active" forever.
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "active") {
+        markGestureEnd();
+      }
+    });
+    return () => subscription.remove();
+  }, [markGestureEnd]);
+
+  // Guard: track mount status to prevent setState on unmounted component.
+  const mountedRef = useRef(true);
+  useEffect(() => () => {
+    mountedRef.current = false;
+  }, []);
 
   const [stableFilteredMarkers, setStableFilteredMarkers] = useState(() => filteredMarkers);
   const latestFilteredMarkersRef = useRef(filteredMarkers);
@@ -153,6 +233,25 @@ function DiscoverMapIOS({
   const liveEffectiveZoom = Math.max(0, Math.min(20, modeSourceZoom + IOS_ZOOM_OFFSET));
   const settledEffectiveZoom = Math.max(0, Math.min(20, completedZoom + IOS_ZOOM_OFFSET));
   const renderEffectiveZoom = Math.max(0, Math.min(20, zoom + IOS_ZOOM_OFFSET));
+  const liveCameraCenter = mapCenter ?? cameraCenter;
+  const liveRenderZoom =
+    typeof mapZoom === "number" && Number.isFinite(mapZoom) ? mapZoom : renderEffectiveZoom;
+  const viewportSize = useMemo(
+    () => ({
+      width: Number.isFinite(windowWidth) ? windowWidth : 0,
+      height: Number.isFinite(windowHeight) ? windowHeight : 0,
+    }),
+    [windowHeight, windowWidth]
+  );
+  const datasetUserCoordinate = useMemo(
+    () =>
+      userCoord && isValidMapCoordinate(userCoord[1], userCoord[0])
+        ? { latitude: userCoord[1], longitude: userCoord[0] }
+        : undefined,
+    [userCoord]
+  );
+  const currentZoomRef = useRef(fallbackZoom);
+  currentZoomRef.current = zoom;
 
   const { visibleMode } = useIOSV3ZoneMode({
     initialZoom: renderEffectiveZoom,
@@ -160,11 +259,25 @@ function DiscoverMapIOS({
     settledEffectiveZoom,
     gesturePhase,
   });
-
+  // Always use stableFilteredMarkers for grouping in both modes.
+  // In cluster mode: required so Supercluster totals are correct.
+  // In single mode: buildIOSV3Dataset sorts by distance from cameraCenter and
+  // caps at poolSize (48), which naturally selects exactly the on-screen singles
+  // without any explicit viewport filter that can go stale and cause disappearing.
+  const markersForGrouping = stableFilteredMarkers;
   const groups = useMemo(
-    () => groupIOSV3MarkersByLocation(stableFilteredMarkers),
-    [stableFilteredMarkers]
+    () => groupIOSV3MarkersByLocation(markersForGrouping),
+    [markersForGrouping]
   );
+  const singleOnlyGroupCount = useMemo(
+    () => groups.filter((group) => group.items.length === 1).length,
+    [groups]
+  );
+  const textBudget = useMemo(
+    () => resolveIOSV3TextBudget(AppConfig.mapIOSTextMode, singleOnlyGroupCount, isMapFullyIdle),
+    [isMapFullyIdle, singleOnlyGroupCount]
+  );
+  const effectiveTextBudget = textBudget;
   const clusterSourceMarkers = useMemo(
     () => buildIOSV3ClusterSourceMarkers(groups),
     [groups]
@@ -196,10 +309,25 @@ function DiscoverMapIOS({
         groups,
         clusteredFeatures,
         hasActiveFilter: Boolean(hasActiveFilter),
-        cameraCenter,
-        poolSize: IOS_V3_POOL_SIZE,
+        cameraCenter: liveCameraCenter,
+        renderZoom: liveRenderZoom,
+        viewportSize,
+        poolSize,
+        textBudget: effectiveTextBudget,
+        userCoordinate: datasetUserCoordinate,
       }),
-    [cameraCenter, clusteredFeatures, groups, hasActiveFilter, visibleMode]
+    [
+      clusteredFeatures,
+      datasetUserCoordinate,
+      effectiveTextBudget,
+      groups,
+      hasActiveFilter,
+      liveCameraCenter,
+      liveRenderZoom,
+      poolSize,
+      viewportSize,
+      visibleMode,
+    ]
   );
   const [settledDatasetItems, setSettledDatasetItems] = useState<IOSV3RenderItem[]>(() => datasetItems);
 
@@ -211,11 +339,12 @@ function DiscoverMapIOS({
       shouldKeepFrozenItems(previous, datasetItems) ? previous : datasetItems
     );
   }, [datasetItems, isMapFullyIdle]);
+  const displayedDatasetItems = isMapFullyIdle ? datasetItems : settledDatasetItems;
 
   const placeholderSprite = useMemo(() => resolveIOSV3PoolPlaceholderSprite(), []);
   const { pooledItems } = useIOSV3Pool({
-    items: settledDatasetItems,
-    poolSize: IOS_V3_POOL_SIZE,
+    items: displayedDatasetItems,
+    poolSize,
     placeholderImage: placeholderSprite.image,
     placeholderAnchor: placeholderSprite.anchor,
   });
@@ -230,6 +359,7 @@ function DiscoverMapIOS({
       shouldKeepFrozenItems(previous, pooledItems) ? previous : pooledItems
     );
   }, [isMapFullyIdle, pooledItems]);
+  const displayedPooledItems = isMapFullyIdle ? pooledItems : frozenPooledItems;
 
   const handleMapReady = useCallback(() => {
     const mapView = cameraRef.current;
@@ -239,6 +369,7 @@ function DiscoverMapIOS({
     void mapView
       .getCamera()
       .then((nativeCamera) => {
+        if (!mountedRef.current) return;
         const lat = nativeCamera?.center?.latitude;
         const lng = nativeCamera?.center?.longitude;
         const nativeZoom =
@@ -259,6 +390,7 @@ function DiscoverMapIOS({
         return;
       }
       if (
+        !marker.focusCoordinate ||
         !isFiniteCoordinate(
           marker.focusCoordinate.latitude,
           marker.focusCoordinate.longitude
@@ -271,7 +403,7 @@ function DiscoverMapIOS({
         const targetZoom = Math.min(
           20,
           Math.max(
-            zoom + CLUSTER_PRESS_ZOOM_STEP,
+            currentZoomRef.current + CLUSTER_PRESS_ZOOM_STEP,
             IOS_V3_SINGLE_ENTER_ZOOM + IOS_V3_CLUSTER_PRESS_MARGIN_ZOOM
           )
         );
@@ -285,7 +417,7 @@ function DiscoverMapIOS({
 
       onMarkerPress?.(marker.id);
     },
-    [cameraRef, onMarkerPress, zoom]
+    [cameraRef, onMarkerPress]
   );
 
   const handleMapTouchStart = useCallback(() => {
@@ -303,6 +435,7 @@ function DiscoverMapIOS({
   const handleMapPanDrag = useCallback(() => {
     refreshGestureEndTimer();
   }, [refreshGestureEndTimer]);
+
 
   if (Platform.OS === "web") {
     return (
@@ -336,7 +469,7 @@ function DiscoverMapIOS({
         showsPointsOfInterest={false}
       >
         <IOSV3MarkerLayer
-          markers={frozenPooledItems}
+          markers={displayedPooledItems}
           onPressMarker={handleMarkerPress}
         />
 
@@ -348,6 +481,7 @@ function DiscoverMapIOS({
             tracksViewChanges={false}
           />
         )}
+
       </MapView>
     </View>
   );

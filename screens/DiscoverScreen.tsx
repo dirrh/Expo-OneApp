@@ -18,6 +18,7 @@ import type {
   Location,
 } from "../lib/interfaces";
 import DiscoverMap from "../components/discover/DiscoverMap";
+import { MapErrorBoundary } from "../components/discover/MapErrorBoundary";
 import DiscoverTopControls from "../components/discover/DiscoverTopControls";
 import DiscoverSearchSheet from "../components/discover/DiscoverSearchSheet";
 import DiscoverFilterSheet from "../components/discover/DiscoverFilterSheet";
@@ -33,6 +34,7 @@ import DiscoverSideFilterPanel from "../components/discover/DiscoverSideFilterPa
 import DiscoverGroupSheet from "../components/discover/DiscoverGroupSheet";
 import { setMapCamera } from "../lib/maps/camera";
 import { SINGLE_MODE_ZOOM } from "../lib/constants/discover";
+import { filterMarkersByViewport } from "../lib/maps/viewportFilter";
 import { AppConfig } from "../lib/config/AppConfig";
 import { appendDerivedBranchesFromMarkers } from "../lib/data/mappers";
 import { normalizeId } from "../lib/data/utils/id";
@@ -47,57 +49,12 @@ import {
   filterDiscoverBranchSearchIndex,
 } from "../lib/discover/discoverSearchUtils";
 
-/**
- * Vypočíta približnú veľkosť viditeľnej oblasti mapy v stupňoch
- * Na základe zoom levelu (vyšší zoom = menšia oblasť)
- * 
- * Vzorec: Pri zoom 14 je vidno cca 0.02° lat/lng
- * Každý zoom level zdvojnásobuje/polovičí oblasť
- */
-const getViewportDelta = (zoom: number): number => {
-  // Pri zoom 14 je delta cca 0.03 (s rezervou)
-  // Zoom 15 = 0.015, Zoom 13 = 0.06, atď.
-  return 0.03 * Math.pow(2, 14 - zoom);
-};
-
-/**
- * Filtruje markery podľa viditeľnej oblasti mapy
- * Zobrazuje len tie markery, ktoré sú aktuálne viditeľné na obrazovke
- */
-const filterMarkersByViewport = (
-  markers: DiscoverMapMarker[],
-  center: [number, number],
-  zoom: number
-): DiscoverMapMarker[] => {
-  // Pri nízkom zoome (clustre) vrátime všetky markery
-  if (zoom < 11) return markers;
-
-  const [centerLng, centerLat] = center;
-  const delta = getViewportDelta(zoom);
-  
-  // Pridáme 50% margin pre plynulé načítanie pri posune
-  const margin = delta * 0.5;
-  const deltaWithMargin = delta + margin;
-
-  const minLat = centerLat - deltaWithMargin;
-  const maxLat = centerLat + deltaWithMargin;
-  const minLng = centerLng - deltaWithMargin;
-  const maxLng = centerLng + deltaWithMargin;
-
-  return markers.filter((m) => {
-    const lat = m.coord?.lat;
-    const lng = m.coord?.lng;
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
-    return (lat as number) >= minLat && (lat as number) <= maxLat && (lng as number) >= minLng && (lng as number) <= maxLng;
-  });
-};
 const FILTER_ICONS: Record<DiscoverCategory, ImageSourcePropType> = {
   Fitness: require("../images/icons/fitness/Fitness.png"),
   Gastro: require("../images/icons/gastro/Gastro.png"),
   Relax: require("../images/icons/relax/Relax.png"),
   Beauty: require("../images/icons/beauty/Beauty.png"),
 };
-
 // Camera state is preserved via useDiscoverCamera hook (module-level state).
 
 export default function DiscoverScreen() {
@@ -108,6 +65,8 @@ export default function DiscoverScreen() {
   const [sideFilterOpen, setSideFilterOpen] = useState(false);
 
   // Refs
+  const mountedRef = useRef(true);
+  useEffect(() => () => { mountedRef.current = false; }, []);
   const filterRef = useRef<BottomSheet>(null);
   const groupSheetRef = useRef<BottomSheet>(null);
   const snapPoints = useMemo(() => ["25%", "85%"], []);
@@ -145,6 +104,7 @@ export default function DiscoverScreen() {
   const camera = useDiscoverCamera({
     cityCenter: NITRA_CENTER,
     selectedOptionCoord,
+    shouldResetOptionOnUserGesture: option !== "yourLocation",
     onOptionReset: () => setOption("yourLocation"),
   });
   const [cameraSnapshot, setCameraSnapshot] = useState(() => camera.getLastCameraState());
@@ -370,8 +330,10 @@ export default function DiscoverScreen() {
 
       try {
         const fullBranch = await fetchBranchForMarker(marker);
+        if (!mountedRef.current) return;
         void navigateToBranchDetail(fullBranch);
       } catch {
+        if (!mountedRef.current) return;
         void navigateToBranchDetail(branch);
       }
     },
@@ -393,7 +355,7 @@ export default function DiscoverScreen() {
         if (!marker) return;
         setSelectedGroup(null);
         void fetchBranchForMarker(marker)
-          .then((branch) => navigateToBranchDetail(branch))
+          .then((branch) => { if (mountedRef.current) navigateToBranchDetail(branch); })
           .catch(() => undefined);
         return;
       }
@@ -411,7 +373,7 @@ export default function DiscoverScreen() {
       setSelectedGroup(null);
       const marker = group.items[0];
       void fetchBranchForMarker(marker)
-        .then((branch) => navigateToBranchDetail(branch))
+        .then((branch) => { if (mountedRef.current) navigateToBranchDetail(branch); })
         .catch(() => undefined);
     },
     [loading, error, groupedMarkers, markers, fetchBranchForMarker, navigateToBranchDetail]
@@ -434,16 +396,18 @@ export default function DiscoverScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={["left", "right"]}>
-      <DiscoverMap
-        cameraRef={camera.cameraRef}
-        filteredMarkers={stableMapMarkers}
-        userCoord={camera.userCoord}
-        hasActiveFilter={filters.hasActiveFilter}
-        onMarkerPress={handleMarkerPress}
-        onCameraChanged={handleCameraChanged}
-        cityCenter={NITRA_CENTER}
-        initialCamera={cameraSnapshot}
-      />
+      <MapErrorBoundary>
+        <DiscoverMap
+          cameraRef={camera.cameraRef}
+          filteredMarkers={stableMapMarkers}
+          userCoord={camera.userCoord}
+          hasActiveFilter={filters.hasActiveFilter}
+          onMarkerPress={handleMarkerPress}
+          onCameraChanged={handleCameraChanged}
+          cityCenter={NITRA_CENTER}
+          initialCamera={cameraSnapshot}
+        />
+      </MapErrorBoundary>
 
 
 
@@ -455,11 +419,14 @@ export default function DiscoverScreen() {
         setLocation={setLocation}
         option={option}
         setOption={setOption}
+        searchText={text}
+        onApplySearchText={setText}
         o={!isSheetOpen}
         filterRef={filterRef}
         onOpenSearch={handleOpenSearch}
         userCoord={camera.userCoord}
         mainMapCenter={camera.mapCenter}
+        mainMapZoom={camera.mapZoom}
         cameraRef={camera.cameraRef}
         t={t}
         onLocationSheetChange={handleLocationSheetChange}
@@ -546,11 +513,11 @@ export default function DiscoverScreen() {
         onClose={() => setSelectedGroup(null)}
       />
 
+
     </SafeAreaView>
   );
 }
 
-// Error state styles
 const errorStyles = StyleSheet.create({
   container: {
     flex: 1,

@@ -31,7 +31,7 @@ const CATEGORIES = [
 
 const normalizeToPosix = (value: string) => value.replace(/\\/g, "/");
 
-const run = async () => {
+export const generateIOSCompactPins = async () => {
   fs.mkdirSync(TARGET_DIR, { recursive: true });
 
   const entries: Array<{ category: string; targetRelative: string }> = [];
@@ -88,4 +88,10 @@ const run = async () => {
   );
 };
 
-void run();
+const isDirectRun =
+  typeof process.argv[1] === "string" &&
+  path.resolve(process.argv[1]) === __filename;
+
+if (isDirectRun) {
+  void generateIOSCompactPins();
+}

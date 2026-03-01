@@ -36,7 +36,7 @@ const CLUSTER_COUNTS = Array.from({ length: 100 }, (_, i) => i) as number[];
 
 const normalizeToPosix = (value: string) => value.replace(/\\/g, "/");
 
-const run = async () => {
+export const normalizeIOSClusterMarkers = async () => {
   const exportBlocks: string[] = [];
 
   for (const { sourceDir, targetDir, exportName, targetRelPrefix } of SOURCES) {
@@ -89,4 +89,10 @@ const run = async () => {
   );
 };
 
-void run();
+const isDirectRun =
+  typeof process.argv[1] === "string" &&
+  path.resolve(process.argv[1]) === __filename;
+
+if (isDirectRun) {
+  void normalizeIOSClusterMarkers();
+}

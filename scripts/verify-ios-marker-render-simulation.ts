@@ -1,8 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
+import { createRequire } from "node:module";
 import { loadImage } from "canvas";
-import { coords } from "../lib/data/coords";
-import { normalizeId } from "../lib/data/utils/id";
+import type { DiscoverMapMarker } from "../lib/interfaces";
+import type * as IOSV3DatasetModule from "../components/discover/map/ios_v3/buildIOSV3Dataset";
 
 type MarkerCategory = "Fitness" | "Gastro" | "Relax" | "Beauty" | "Multi";
 
@@ -25,45 +26,34 @@ type SimulatedSingleMarker = {
   groupKey: string;
   size: ImageSize;
   sourcePath: string;
-  sourceKind: "full" | "full-fallback" | "compact";
+  sourceKind: "full" | "labeled" | "compact";
 };
 
+type TextMode = "dynamic" | "always" | "off";
+
 const ROOT_DIR = path.resolve(__dirname, "..");
-const IOS_SCALED_FULL_BY_KEY_FILE = path.join(
-  ROOT_DIR,
-  "lib/maps/generatedIOSScaledFullMarkerByKey.ts"
-);
-const FULL_SPRITES_FILE = path.join(
-  ROOT_DIR,
-  "lib/maps/generatedFullMarkerSprites.ts"
-);
-const IOS_FULL_FALLBACK_DIR = path.join(
-  ROOT_DIR,
-  "images/icons/ios-scaled/full-markers-fallback"
-);
 
 const DEFAULT_POOL_SIZE = 48;
 const MIN_POOL_SIZE = 16;
 const MAX_POOL_SIZE = 96;
-const EXPECTED_IOS_FULL_MARKER_CANVAS_SIZE = "402x172";
-
-const FITNESS_FALLBACK = path.join(
-  ROOT_DIR,
-  "images/icons/fitness/fitness_without_review.png"
-);
-const GASTRO_FALLBACK = path.join(
-  ROOT_DIR,
-  "images/icons/gastro/gastro_without_rating.png"
-);
-const RELAX_FALLBACK = path.join(
-  ROOT_DIR,
-  "images/icons/relax/relax_without_rating.png"
-);
-const BEAUTY_FALLBACK = path.join(
-  ROOT_DIR,
-  "images/icons/beauty/beauty_without_rating.png"
-);
-const MULTI_FALLBACK = path.join(ROOT_DIR, "images/icons/multi/multi.png");
+const EXPECTED_IOS_SINGLE_MARKER_CANVAS_SIZE = "402x172";
+const VIEWPORT_SIZE = { width: 390, height: 844 } as const;
+const RENDER_ZOOM = 18;
+const FULL_PATH_SEGMENT = "/full-markers/";
+const LABELED_PATH_SEGMENT = "/labeled-pins/";
+const COMPACT_PATH_SEGMENT = "/compact-pins/";
+const KNOWN_TEXT_CAPABLE_IDS = [
+  "gym_365",
+  "diamond_gym",
+  "bodyworld_fitness",
+  "fit_bar_nitra",
+  "kelo_gym",
+  "fit_club_olympia",
+  "for_sport_nitra",
+  "intersport_mlyny_nitra",
+  "intersport_promenada_nitra",
+  "top_sport_gym",
+] as const;
 
 const resolvePoolSize = () => {
   const raw = process.env.EXPO_PUBLIC_MAP_IOS_POOL_SIZE;
@@ -74,127 +64,38 @@ const resolvePoolSize = () => {
   return Math.max(MIN_POOL_SIZE, Math.min(MAX_POOL_SIZE, parsed));
 };
 
+const resolveTextMode = (): TextMode => {
+  const normalized = process.env.EXPO_PUBLIC_MAP_IOS_TEXT_MODE?.trim().toLowerCase();
+  if (normalized === "off") {
+    return "off";
+  }
+  if (normalized === "always") {
+    return "always";
+  }
+  return "dynamic";
+};
+
 const assert = (condition: boolean, message: string) => {
   if (!condition) {
     throw new Error(message);
   }
 };
 
-const parseScaledFullMarkerByKey = () => {
-  const source = fs.readFileSync(IOS_SCALED_FULL_BY_KEY_FILE, "utf8");
-  const matcher =
-    /"([^"]+)":\s*require\("\.\.\/\.\.\/images\/icons\/ios-scaled\/full-markers\/([^"]+)"\),/g;
-  const entries = new Map<string, string>();
-
-  let match: RegExpExecArray | null = matcher.exec(source);
-  while (match) {
-    const key = match[1];
-    const fileName = match[2];
-    entries.set(key, path.join(ROOT_DIR, "images/icons/ios-scaled/full-markers", fileName));
-    match = matcher.exec(source);
-  }
-
-  return entries;
-};
-
-const parseFullSpriteKeySet = () => {
-  const source = fs.readFileSync(FULL_SPRITES_FILE, "utf8");
-  const matcher = /^\s*"([^"]+)":\s*\{/gm;
-  const keySet = new Set<string>();
-
-  let match: RegExpExecArray | null = matcher.exec(source);
-  while (match) {
-    keySet.add(match[1]);
-    match = matcher.exec(source);
-  }
-
-  return keySet;
-};
-
-const resolveCompactFallbackPath = (category: MarkerCategory) => {
-  switch (category) {
-    case "Fitness":
-      return FITNESS_FALLBACK;
-    case "Gastro":
-      return GASTRO_FALLBACK;
-    case "Relax":
-      return RELAX_FALLBACK;
-    case "Beauty":
-      return BEAUTY_FALLBACK;
-    default:
-      return MULTI_FALLBACK;
-  }
-};
-
-const resolveSingleMarkerPath = (
-  marker: MarkerLike,
-  scaledFullByKey: Map<string, string>,
-  fullSpriteKeySet: Set<string>
-): { sourcePath: string; sourceKind: "full" | "full-fallback" | "compact" } => {
-  const markerSpriteKey = marker.markerSpriteKey?.trim();
-  const spriteKey = normalizeId(markerSpriteKey || marker.id);
-  const candidates = [
-    markerSpriteKey ?? "",
-    marker.id,
-    spriteKey,
-    markerSpriteKey ? normalizeId(markerSpriteKey) : "",
-    normalizeId(marker.id),
-    normalizeId(spriteKey),
-  ].filter((candidate) => Boolean(candidate && candidate.trim()));
-
-  for (const candidate of candidates) {
-    const sourcePath = scaledFullByKey.get(candidate);
-    if (!sourcePath) {
-      continue;
-    }
-    if (!fullSpriteKeySet.has(candidate)) {
-      continue;
-    }
-    return { sourcePath, sourceKind: "full" };
-  }
-
-  const fallbackByCategory: Record<MarkerCategory, string> = {
-    Fitness: "fitness.png",
-    Gastro: "gastro.png",
-    Relax: "relax.png",
-    Beauty: "beauty.png",
-    Multi: "gastro.png",
+const loadDatasetModule = async (): Promise<typeof IOSV3DatasetModule> => {
+  const nodeRequire = createRequire(import.meta.url) as NodeJS.Require & {
+    extensions?: Record<
+      string,
+      (module: { exports: unknown }, filename: string) => void
+    >;
   };
-  const fallbackFullPath = path.join(
-    IOS_FULL_FALLBACK_DIR,
-    fallbackByCategory[marker.category]
-  );
-  if (fs.existsSync(fallbackFullPath)) {
-    return {
-      sourcePath: fallbackFullPath,
-      sourceKind: "full-fallback",
+
+  if (nodeRequire.extensions && !nodeRequire.extensions[".png"]) {
+    nodeRequire.extensions[".png"] = (module, filename) => {
+      module.exports = filename;
     };
   }
 
-  return {
-    sourcePath: resolveCompactFallbackPath(marker.category),
-    sourceKind: "compact",
-  };
-};
-
-const groupMarkers = (markers: MarkerLike[]) => {
-  const grouped = new Map<string, MarkerLike[]>();
-  markers.forEach((marker) => {
-    const key = marker.groupId ?? `${marker.lat.toFixed(6)}:${marker.lng.toFixed(6)}`;
-    const bucket = grouped.get(key);
-    if (bucket) {
-      bucket.push(marker);
-      return;
-    }
-    grouped.set(key, [marker]);
-  });
-  return grouped;
-};
-
-const distanceSq = (marker: MarkerLike, center: [number, number]) => {
-  const latDelta = marker.lat - center[1];
-  const lngDelta = marker.lng - center[0];
-  return latDelta * latDelta + lngDelta * lngDelta;
+  return import("../components/discover/map/ios_v3/buildIOSV3Dataset");
 };
 
 const getImageSizeCached = (() => {
@@ -253,62 +154,145 @@ const verifyUniformAssetDirectory = async (
   );
 };
 
+const toDiscoverMapMarker = (marker: MarkerLike): DiscoverMapMarker => ({
+  id: marker.id,
+  title: marker.id,
+  markerSpriteKey: marker.markerSpriteKey ?? marker.id,
+  coord: { lng: marker.lng, lat: marker.lat },
+  icon: 1,
+  rating: 4.2,
+  ratingFormatted: "4.2",
+  category: marker.category,
+});
+
+const createSimulationMarkers = (): DiscoverMapMarker[] => {
+  const knownMarkers = KNOWN_TEXT_CAPABLE_IDS.map((id, index) =>
+    toDiscoverMapMarker({
+      id,
+      markerSpriteKey: id,
+      lat: 48.3069 + index * 0.00015,
+      lng: 18.091 + index * 0.00015,
+      category: "Fitness",
+    })
+  );
+  const compactOnlyMarkers = Array.from({ length: 20 }, (_, index) =>
+    toDiscoverMapMarker({
+      id: `compact-only-${index}`,
+      markerSpriteKey: `compact-only-${index}`,
+      lat: 48.31 + index * 0.0002,
+      lng: 18.095 + index * 0.0002,
+      category: "Fitness",
+    })
+  );
+  return [...knownMarkers, ...compactOnlyMarkers];
+};
+
+const resolveDynamicTextBudget = (
+  _singleOnlyGroupCount: number,
+  _isMapFullyIdle: boolean
+) => {
+  return { maxTextMarkers: 8, maxFullMarkers: 8 };
+};
+
+const createTextBudget = (
+  textMode: TextMode,
+  singleOnlyGroupCount: number,
+  isMapFullyIdle: boolean
+) => {
+  if (textMode === "off") {
+    return { maxTextMarkers: 0, maxFullMarkers: 0 };
+  }
+  if (textMode === "always") {
+    return { maxTextMarkers: 8, maxFullMarkers: 8 };
+  }
+  return resolveDynamicTextBudget(singleOnlyGroupCount, isMapFullyIdle);
+};
+
+const isSourceKind = (sourcePath: string, segment: string) =>
+  sourcePath.replace(/\\/g, "/").includes(segment);
+
+const summarizeKinds = (markers: SimulatedSingleMarker[]) => ({
+  fullCount: markers.filter((item) => isSourceKind(item.sourcePath, FULL_PATH_SEGMENT)).length,
+  labeledCount: markers.filter((item) => isSourceKind(item.sourcePath, LABELED_PATH_SEGMENT)).length,
+  compactCount: markers.filter((item) => isSourceKind(item.sourcePath, COMPACT_PATH_SEGMENT)).length,
+});
+
 const run = async () => {
   const poolSize = resolvePoolSize();
-  const scaledFullByKey = parseScaledFullMarkerByKey();
-  const fullSpriteKeySet = parseFullSpriteKeySet();
-  assert(scaledFullByKey.size > 0, "scaled full-marker map must not be empty");
-  assert(fullSpriteKeySet.size > 0, "full-marker sprite set must not be empty");
+  const textMode = resolveTextMode();
+  const { buildIOSV3Dataset, groupIOSV3MarkersByLocation } = await loadDatasetModule();
 
   await verifyUniformAssetDirectory("images/icons/cluster", "cluster");
   await verifyUniformAssetDirectory("images/icons/cluster_orange", "cluster_orange");
   await verifyUniformAssetDirectory("images/icons/stacked", "stacked");
-
-  const grouped = groupMarkers(coords as MarkerLike[]);
-  const singleMarkers = Array.from(grouped.entries())
-    .filter(([, items]) => items.length === 1)
-    .map(([groupKey, items]) => ({ groupKey, marker: items[0] }));
-
-  const simulatedSingles: SimulatedSingleMarker[] = [];
-  for (const entry of singleMarkers) {
-    const resolved = resolveSingleMarkerPath(
-      entry.marker,
-      scaledFullByKey,
-      fullSpriteKeySet
-    );
-    const size = await getImageSizeCached(resolved.sourcePath);
-    simulatedSingles.push({
-      id: entry.marker.id,
-      groupKey: entry.groupKey,
-      size,
-      sourcePath: resolved.sourcePath,
-      sourceKind: resolved.sourceKind,
-    });
-  }
-
-  const center: [number, number] = [18.091, 48.3069];
-  const markerById = new Map(
-    (coords as MarkerLike[]).map((marker) => [marker.id, marker] as const)
+  await verifyUniformAssetDirectory(
+    "images/icons/ios-scaled/full-markers",
+    "full-markers"
   );
-  const getMarkerOrThrow = (id: string) => {
-    const marker = markerById.get(id);
-    assert(Boolean(marker), `marker not found for id=${id}`);
-    return marker as MarkerLike;
-  };
-  const pooledSingles = [...simulatedSingles]
-    .sort(
-      (left, right) =>
-        distanceSq(getMarkerOrThrow(left.id), center) -
-        distanceSq(getMarkerOrThrow(right.id), center)
-    )
-    .slice(0, poolSize);
+  await verifyUniformAssetDirectory(
+    "images/icons/ios-scaled/labeled-pins",
+    "labeled-pins"
+  );
+  await verifyUniformAssetDirectory(
+    "images/icons/ios-scaled/compact-pins",
+    "compact-pins"
+  );
 
-  const sizeSummary = summarizeBySize(pooledSingles);
-  const fullCount = pooledSingles.filter((item) => item.sourceKind === "full").length;
-  const fallbackFullCount = pooledSingles.filter(
-    (item) => item.sourceKind === "full-fallback"
-  ).length;
-  const compactCount = pooledSingles.filter((item) => item.sourceKind === "compact").length;
+  const discoverMarkers = createSimulationMarkers();
+  const grouped = groupIOSV3MarkersByLocation(discoverMarkers);
+  const center: [number, number] = [18.091, 48.3069];
+  const createSimulatedSingles = async (
+    groups: Awaited<ReturnType<typeof groupIOSV3MarkersByLocation>>,
+    scenarioTextMode: TextMode,
+    isMapFullyIdle: boolean
+  ) => {
+    const renderedSingles = buildIOSV3Dataset({
+      mode: "single",
+      groups,
+      clusteredFeatures: [],
+      hasActiveFilter: false,
+      cameraCenter: center,
+      renderZoom: RENDER_ZOOM,
+      viewportSize: VIEWPORT_SIZE,
+      poolSize,
+      textBudget: createTextBudget(scenarioTextMode, groups.length, isMapFullyIdle),
+    });
+    const simulatedSingles: SimulatedSingleMarker[] = [];
+    for (const item of renderedSingles) {
+      const sourcePath = String(item.image);
+      const size = await getImageSizeCached(sourcePath);
+      simulatedSingles.push({
+        id: item.id,
+        groupKey: item.id,
+        size,
+        sourcePath,
+        sourceKind: isSourceKind(sourcePath, FULL_PATH_SEGMENT)
+          ? "full"
+          : isSourceKind(sourcePath, LABELED_PATH_SEGMENT)
+            ? "labeled"
+            : "compact",
+      });
+    }
+    return simulatedSingles;
+  };
+
+  const lowDensityGroups = grouped.slice(0, 12);
+  const highDensityGroups = grouped.slice(0, 30);
+  assert(lowDensityGroups.length === 12, "expected 12 low-density groups in simulation");
+  assert(highDensityGroups.length === 30, "expected 30 high-density groups in simulation");
+
+  const lowDensityDynamic = await createSimulatedSingles(lowDensityGroups, "dynamic", true);
+  const lowDensitySummary = summarizeKinds(lowDensityDynamic);
+  const highDensityDynamic = await createSimulatedSingles(highDensityGroups, "dynamic", true);
+  const highDensitySummary = summarizeKinds(highDensityDynamic);
+  const gestureDynamic = await createSimulatedSingles(lowDensityGroups, "dynamic", false);
+  const gestureSummary = summarizeKinds(gestureDynamic);
+  const envModeSingles = await createSimulatedSingles(highDensityGroups, textMode, true);
+
+  const simulatedSingles = envModeSingles;
+
+  const sizeSummary = summarizeBySize(simulatedSingles);
+  const { fullCount, labeledCount, compactCount } = summarizeKinds(simulatedSingles);
 
   if (sizeSummary.length > 1) {
     const details = sizeSummary
@@ -319,20 +303,87 @@ const run = async () => {
       )
       .join(" | ");
     throw new Error(
-      `[verify-ios-marker-render-simulation] FAIL: pooled single markers are not uniform in iOS simulation. variants=${sizeSummary.length}, full=${fullCount}, compact=${compactCount}. ${details}`
+      `[verify-ios-marker-render-simulation] FAIL: pooled single markers are not uniform in iOS simulation. variants=${sizeSummary.length}, full=${fullCount}, labeled=${labeledCount}, compact=${compactCount}. ${details}`
     );
   }
 
-  if (fullCount > 0) {
-    const onlySize = sizeSummary[0]?.size ?? "";
+  const onlySize = sizeSummary[0]?.size ?? "";
+  assert(
+    onlySize === EXPECTED_IOS_SINGLE_MARKER_CANVAS_SIZE,
+    `[verify-ios-marker-render-simulation] FAIL: iOS single-marker canvas must be ${EXPECTED_IOS_SINGLE_MARKER_CANVAS_SIZE}, got ${onlySize}`
+  );
+  assert(
+    compactCount > 0,
+    "[verify-ios-marker-render-simulation] FAIL: expected compact shared marker sprites in the pooled single set"
+  );
+  assert(
+    lowDensitySummary.fullCount + lowDensitySummary.labeledCount > 0 &&
+      lowDensitySummary.fullCount + lowDensitySummary.labeledCount <= 8,
+    "[verify-ios-marker-render-simulation] FAIL: dynamic idle low-density mode must keep between 1 and 8 text markers after collision filtering"
+  );
+  assert(
+    lowDensitySummary.labeledCount === 0,
+    "[verify-ios-marker-render-simulation] FAIL: dynamic idle low-density mode must not use narrow labeled marker sprites"
+  );
+  assert(
+    lowDensitySummary.compactCount > 0,
+    "[verify-ios-marker-render-simulation] FAIL: dynamic idle low-density mode must still keep compact markers outside the 8-marker text budget"
+  );
+  assert(
+    highDensitySummary.fullCount + highDensitySummary.labeledCount > 0 &&
+      highDensitySummary.fullCount + highDensitySummary.labeledCount <= 8,
+    "[verify-ios-marker-render-simulation] FAIL: dynamic idle high-density mode must keep between 1 and 8 text markers after collision filtering"
+  );
+  assert(
+    highDensitySummary.labeledCount === 0,
+    "[verify-ios-marker-render-simulation] FAIL: dynamic idle high-density mode must not use narrow labeled marker sprites"
+  );
+  assert(
+    gestureSummary.fullCount + gestureSummary.labeledCount > 0 &&
+      gestureSummary.fullCount + gestureSummary.labeledCount <= 8,
+    "[verify-ios-marker-render-simulation] FAIL: dynamic gesture mode must keep between 1 and 8 text markers after collision filtering"
+  );
+  assert(
+    gestureSummary.labeledCount === 0,
+    "[verify-ios-marker-render-simulation] FAIL: dynamic gesture mode must not use narrow labeled marker sprites"
+  );
+  assert(
+    gestureSummary.compactCount > 0,
+    "[verify-ios-marker-render-simulation] FAIL: dynamic gesture mode must still keep compact markers outside the 8-marker text budget"
+  );
+  if (textMode === "off") {
     assert(
-      onlySize === EXPECTED_IOS_FULL_MARKER_CANVAS_SIZE,
-      `[verify-ios-marker-render-simulation] FAIL: iOS full-marker canvas must be ${EXPECTED_IOS_FULL_MARKER_CANVAS_SIZE}, got ${onlySize}`
+      fullCount === 0 && labeledCount === 0,
+      "[verify-ios-marker-render-simulation] FAIL: off mode must disable all text markers"
     );
   }
+  if (textMode === "always") {
+    assert(
+      fullCount + labeledCount > 0 && fullCount + labeledCount <= 8,
+      "[verify-ios-marker-render-simulation] FAIL: always mode must render between 1 and 8 text-capable markers after collision filtering"
+    );
+    assert(
+      labeledCount === 0,
+      "[verify-ios-marker-render-simulation] FAIL: always mode must not use narrow labeled marker sprites"
+    );
+  }
+  if (textMode === "dynamic") {
+    assert(
+      fullCount + labeledCount > 0 && fullCount + labeledCount <= 8,
+      "[verify-ios-marker-render-simulation] FAIL: dynamic env mode must keep between 1 and 8 text-capable markers at idle after collision filtering"
+    );
+    assert(
+      labeledCount === 0,
+      "[verify-ios-marker-render-simulation] FAIL: dynamic env mode must not use narrow labeled marker sprites"
+    );
+  }
+  assert(
+    poolSize >= MIN_POOL_SIZE && poolSize <= MAX_POOL_SIZE,
+    "[verify-ios-marker-render-simulation] FAIL: pool size override must stay within the clamped range"
+  );
 
   console.log(
-    `[verify-ios-marker-render-simulation] all checks passed (pool=${poolSize}, singles=${pooledSingles.length}, size=${sizeSummary[0]?.size ?? "n/a"}, full=${fullCount}, fallbackFull=${fallbackFullCount}, compact=${compactCount})`
+    `[verify-ios-marker-render-simulation] all checks passed (mode=${textMode}, pool=${poolSize}, singles=${simulatedSingles.length}, size=${onlySize}, full=${fullCount}, labeled=${labeledCount}, compact=${compactCount})`
   );
 };
 

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import Supercluster from "supercluster";
 import type { DiscoverMapMarker } from "../../../../lib/interfaces";
 import { zoomToRegion } from "../../../../lib/maps/camera";
@@ -6,7 +6,7 @@ import {
   buildClusterPointFeatures,
   buildClusteredFeaturesFromRaw,
 } from "../pipelines/clusterPipeline";
-import type { ClusterViewportBounds, RenderFeature } from "../types";
+import type { ClusterPointFeature, ClusterViewportBounds, RenderFeature } from "../types";
 import { VIEWPORT_PADDING_RATIO } from "../constants";
 
 type UseClusteredFeaturesParams = {
@@ -34,11 +34,25 @@ export const useClusteredFeatures = ({
   stableClusterZoom,
   isIOS,
 }: UseClusteredFeaturesParams): RenderFeature[] => {
+  // Referential stability: avoid Supercluster rebuild when marker IDs haven't changed.
+  const prevFingerprintRef = useRef("");
+  const prevFeaturesRef = useRef<ClusterPointFeature[]>([]);
+
   const clusterPointFeatures = useMemo(() => {
     if (!showClusterLayer || !mapMarkerPipelineOptV1) {
+      prevFingerprintRef.current = "";
+      prevFeaturesRef.current = [];
       return [];
     }
-    return buildClusterPointFeatures(filteredMarkers);
+    // Build a fingerprint from marker IDs to detect actual data changes
+    const fingerprint = filteredMarkers.map((m) => m.id).join("|");
+    if (fingerprint === prevFingerprintRef.current && prevFeaturesRef.current.length > 0) {
+      return prevFeaturesRef.current;
+    }
+    const next = buildClusterPointFeatures(filteredMarkers);
+    prevFingerprintRef.current = fingerprint;
+    prevFeaturesRef.current = next;
+    return next;
   }, [filteredMarkers, mapMarkerPipelineOptV1, showClusterLayer]);
 
   const clusterIndex = useMemo(() => {

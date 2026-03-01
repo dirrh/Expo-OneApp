@@ -29,12 +29,14 @@ type UseIOSV3PoolParams = {
   placeholderAnchor?: { x: number; y: number };
 };
 
-const normalizePoolSize = (poolSize: number) =>
-  Number.isFinite(poolSize) ? Math.max(16, Math.min(96, Math.floor(poolSize))) : IOS_V3_POOL_SIZE;
+export const normalizeIOSV3PoolSize = (poolSize?: number | null, minimum: number = 16) =>
+  typeof poolSize === "number" && Number.isFinite(poolSize)
+    ? Math.max(minimum, Math.min(96, Math.floor(poolSize)))
+    : IOS_V3_POOL_SIZE;
 
 const placeholderCoordinate = (slot: number) => ({
-  latitude: -85 + slot * 0.0001,
-  longitude: -180 + slot * 0.0001,
+  latitude: -80,
+  longitude: -170 + slot * 0.01,
 });
 
 const ensurePoolState = (state: IOSV3PoolState, poolSize: number) => {
@@ -47,6 +49,10 @@ const ensurePoolState = (state: IOSV3PoolState, poolSize: number) => {
   state.slotByMarkerId.forEach((slot, markerId) => {
     if (slot < 0 || slot >= poolSize) {
       state.slotByMarkerId.delete(markerId);
+      // Only clear array slot if within bounds
+      if (slot >= 0 && slot < state.markerIdBySlot.length && state.markerIdBySlot[slot] === markerId) {
+        state.markerIdBySlot[slot] = null;
+      }
       return;
     }
     if (state.markerIdBySlot[slot] !== markerId) {
@@ -71,7 +77,7 @@ const takeFirstFreeSlot = (markerIdBySlot: Array<string | null>) => {
 
 export const createIOSV3PoolState = (poolSize: number): IOSV3PoolState => ({
   slotByMarkerId: new Map(),
-  markerIdBySlot: new Array(normalizePoolSize(poolSize)).fill(null),
+  markerIdBySlot: new Array(normalizeIOSV3PoolSize(poolSize, 1)).fill(null),
 });
 
 const areAnchorsEqual = (
@@ -83,14 +89,25 @@ const areAnchorsEqual = (
   return left.x === right.x && left.y === right.y;
 };
 
+const areImagesEqual = (
+  left: number | { uri: string },
+  right: number | { uri: string }
+) => {
+  if (left === right) return true;
+  if (typeof left === "object" && typeof right === "object") {
+    return left.uri === right.uri;
+  }
+  return false;
+};
+
 const areItemsEquivalent = (left: IOSV3RenderItem, right: IOSV3RenderItem) =>
   left.id === right.id &&
   left.kind === right.kind &&
-  left.image === right.image &&
+  areImagesEqual(left.image, right.image) &&
   left.coordinate.latitude === right.coordinate.latitude &&
   left.coordinate.longitude === right.coordinate.longitude &&
   left.zIndex === right.zIndex &&
-  left.isPoolPlaceholder === right.isPoolPlaceholder &&
+  Boolean(left.isPoolPlaceholder) === Boolean(right.isPoolPlaceholder) &&
   areAnchorsEqual(left.anchor, right.anchor);
 
 export const buildIOSV3Pool = ({
@@ -100,7 +117,7 @@ export const buildIOSV3Pool = ({
   placeholderImage,
   placeholderAnchor,
 }: BuildIOSV3PoolParams): IOSV3PoolResult => {
-  const safePoolSize = normalizePoolSize(poolSize);
+  const safePoolSize = normalizeIOSV3PoolSize(poolSize, 1);
   ensurePoolState(state, safePoolSize);
 
   const cappedItems = items.slice(0, safePoolSize);
@@ -203,4 +220,3 @@ export const useIOSV3Pool = ({
     };
   }, [items, placeholderAnchor, placeholderImage, poolSize]);
 };
-

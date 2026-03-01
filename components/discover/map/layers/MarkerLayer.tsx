@@ -147,12 +147,25 @@ export function MarkerLayer({
         }
       }
 
+      const shouldUseNativePin = Boolean(
+        !marker.isCluster &&
+        !marker.isStacked &&
+        marker.markerData?.useNativePin
+      );
+      const markerTitle =
+        Platform.OS === "ios" ? marker.markerData?.title : undefined;
+      if (shouldUseNativePin) {
+        markerImage = undefined;
+        markerAnchor = undefined;
+      }
+
       // iOS strict-safe must stay on local static assets only.
       // Remote URI marker sources can flash default MapKit pins and increase churn.
       if (
         isIOSStrictSafeRenderer &&
         Platform.OS === "ios" &&
         marker.markerData &&
+        !marker.markerData.useNativePin &&
         typeof markerImage !== "number"
       ) {
         const safeCompact = resolveMarkerImage(
@@ -178,6 +191,8 @@ export function MarkerLayer({
       const anchorProp = canUseCustomImage ? sanitizeAnchor(markerAnchor) : undefined;
       const markerPinColor = isPoolPlaceholder
         ? undefined
+        : shouldUseNativePin
+          ? undefined
         : canUseCustomImage
           ? undefined
           : getDefaultPinColor(marker, hasActiveFilter);
@@ -284,6 +299,7 @@ export function MarkerLayer({
         <Marker
           key={marker.key}
           coordinate={marker.coordinate}
+          title={markerTitle}
           zIndex={marker.zIndex}
           opacity={markerOpacity}
           onPress={isPoolPlaceholder ? undefined : () => handleMarkerPress(marker)}

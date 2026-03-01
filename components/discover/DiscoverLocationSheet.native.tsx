@@ -3,7 +3,7 @@ import { Image, Text, TextInput, View, Platform } from "react-native";
 import { TouchableOpacity } from "react-native-gesture-handler";
 import { Ionicons } from "@expo/vector-icons";
 import BottomSheet, { BottomSheetBackdrop, BottomSheetScrollView } from "@gorhom/bottom-sheet";
-import MapView, { type Region } from "react-native-maps";
+import MapView, { Marker, type Region } from "react-native-maps";
 import { styles } from "./discoverStyles";
 import { normalizeCenter, setMapCamera, zoomToRegion } from "../../lib/maps/camera";
 import { STATIC_MAP_ZOOM } from "../../lib/constants/discover";
@@ -17,9 +17,15 @@ import type {
 } from "../../lib/interfaces";
 
 const SAVED_LOCATION_LIST_ICON = require("../../images/pin.png");
-const SAVED_LOCATION_MARKER_ICON = require("../../images/test_placeholder.png");
+const SAVED_LOCATION_MARKER_ICON = require("../../images/pin.png");
 
 type LocationStep = "add" | "details" | "search" | "map";
+
+const LOCATION_FALLBACK_COORD: [number, number] = [18.091, 48.3069];
+const QUICK_SAVE_DEFAULT_LABEL = "Favorite place";
+
+const formatLocationCoordinateSubtitle = (coord: [number, number]): string =>
+  `${coord[1].toFixed(5)}, ${coord[0].toFixed(5)}`;
 
 /**
  * LocationAddStep: Prvý krok flowu pre pridanie lokality: voľba názvu a vstup do detailu.
@@ -230,10 +236,15 @@ function LocationSearchStep({
 function LocationMapStep({
   selectedCoord,
   selectedCoordLabel,
+  selectedLocationTitle,
+  selectedLocationSubtitle,
+  savePromptVisible,
+  quickSaveMode,
   hasMapMoved,
   onBack,
   onCenterPress,
   onSave,
+  onLongPressLocation,
   setHasMapMoved,
   setSelectedCoord,
   mapCameraRef,
@@ -258,9 +269,21 @@ function LocationMapStep({
           </View>
         </View>
         <View style={styles.locationMapActions}>
-          <TouchableOpacity style={styles.locationPrimaryButton} activeOpacity={0.9} onPress={onSave}>
-            <Text style={styles.locationPrimaryButtonText}>Save Location</Text>
-          </TouchableOpacity>
+          {quickSaveMode ? (
+            <TouchableOpacity
+              style={styles.locationMapHeartButton}
+              activeOpacity={0.9}
+              onPress={onSave}
+            >
+              <Ionicons name="heart" size={22} color="#FFFFFF" />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity style={styles.locationPrimaryButton} activeOpacity={0.9} onPress={onSave}>
+              <Text style={styles.locationPrimaryButtonText}>
+                {savePromptVisible ? "Save to favorites" : "Use this map center"}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
       </>
     );
@@ -281,25 +304,48 @@ function LocationMapStep({
             ref={mapCameraRef}
             style={styles.locationMap}
             initialRegion={initialRegionRef.current}
-            onRegionChange={(region: Region) => {
+            onPanDrag={() => {
+              if (!hasMapMoved) {
+                setHasMapMoved(true);
+              }
+            }}
+            onRegionChangeComplete={(region: Region) => {
               const { latitude, longitude } = region ?? {};
               if (typeof latitude !== "number" || typeof longitude !== "number") {
                 return;
               }
-              if (!hasMapMoved) {
-                setHasMapMoved(true);
-              }
               setSelectedCoord(normalizeCenter([longitude, latitude]));
+            }}
+            onLongPress={(event) => {
+              const { coordinate } = event.nativeEvent ?? {};
+              const latitude = coordinate?.latitude;
+              const longitude = coordinate?.longitude;
+              if (typeof latitude !== "number" || typeof longitude !== "number") {
+                return;
+              }
+              onLongPressLocation(normalizeCenter([longitude, latitude]));
             }}
             showsCompass={false}
             zoomControlEnabled={false}
             toolbarEnabled={false}
-          />
+          >
+            <Marker
+              coordinate={{
+                latitude: selectedCoord[1],
+                longitude: selectedCoord[0],
+              }}
+              pinColor="#EB8100"
+            />
+          </MapView>
 
           <View style={styles.locationMapOverlay} pointerEvents="none">
-            <View style={styles.locationMapLabel}>
-              <Text style={styles.locationMapLabelText}>{selectedCoordLabel}</Text>
-            </View>
+            {!quickSaveMode ? (
+              <View style={styles.locationMapLabel}>
+                <Text style={styles.locationMapLabelText} numberOfLines={1}>
+                  {selectedLocationTitle || selectedCoordLabel}
+                </Text>
+              </View>
+            ) : null}
             <Image
               source={require("../../images/pin.png")}
               style={styles.locationMapPin}
@@ -314,23 +360,50 @@ function LocationMapStep({
           >
             <Ionicons name="locate" size={18} color="#fff" />
           </TouchableOpacity>
+
+          {savePromptVisible && !quickSaveMode ? (
+            <View style={styles.locationMapSelectionCard}>
+              <Text style={styles.locationMapSelectionTitle} numberOfLines={1}>
+                {selectedLocationTitle || "Selected location"}
+              </Text>
+              <Text style={styles.locationMapSelectionSubtitle} numberOfLines={2}>
+                {selectedLocationSubtitle || selectedCoordLabel}
+              </Text>
+            </View>
+          ) : null}
         </View>
       </View>
 
       <View style={styles.locationMapActions}>
-        <View style={styles.locationMapHint}>
-          <Text style={styles.locationMapHintText}>
-            Move the map and set your correct location
-          </Text>
-        </View>
+        {quickSaveMode ? (
+          <TouchableOpacity
+            style={styles.locationMapHeartButton}
+            activeOpacity={0.9}
+            onPress={onSave}
+          >
+            <Ionicons name="heart" size={22} color="#FFFFFF" />
+          </TouchableOpacity>
+        ) : (
+          <>
+            <View style={styles.locationMapHint}>
+              <Text style={styles.locationMapHintText}>
+                {savePromptVisible
+                  ? "Ready to save this place to your favorites"
+                  : "Long press on the map to pick a spot or use the center pin"}
+              </Text>
+            </View>
 
-        <TouchableOpacity
-          style={styles.locationSecondaryButton}
-          activeOpacity={0.9}
-          onPress={onSave}
-        >
-          <Text style={styles.locationSecondaryButtonText}>Save Location</Text>
-        </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.locationSecondaryButton}
+              activeOpacity={0.9}
+              onPress={onSave}
+            >
+              <Text style={styles.locationSecondaryButtonText}>
+                {savePromptVisible ? "Save to favorites" : "Use this map center"}
+              </Text>
+            </TouchableOpacity>
+          </>
+        )}
       </View>
     </>
   );
@@ -346,10 +419,16 @@ export default function DiscoverLocationSheet({
   setLocation,
   userCoord,
   mainMapCenter,
+  pendingMapSelection,
+  onPendingMapSelectionHandled,
   onLocationSheetChange,
 }: DiscoverLocationSheetProps) {
   const mapCameraRef = useRef<MapView | null>(null);
   const snapPoints = useMemo(() => ["15%", "92%"], []);
+  const fallbackCoord = useMemo(
+    () => normalizeCenter(mainMapCenter ?? userCoord ?? LOCATION_FALLBACK_COORD),
+    [mainMapCenter, userCoord]
+  );
   const [locationStep, setLocationStep] = useState<LocationStep>("add");
   const [locationReturnStep, setLocationReturnStep] = useState<"add" | "search">("add");
   const [searchQuery, setSearchQuery] = useState("");
@@ -357,14 +436,18 @@ export default function DiscoverLocationSheet({
   const [addressLine2, setAddressLine2] = useState("");
   const [locationName, setLocationName] = useState("");
   const [selectedCoord, setSelectedCoord] = useState<[number, number]>(
-    () => normalizeCenter(mainMapCenter ?? userCoord ?? [18.091, 48.3069])
+    () => fallbackCoord
   );
+  const [mapSelectionTitle, setMapSelectionTitle] = useState("Map center");
+  const [mapSelectionSubtitle, setMapSelectionSubtitle] = useState(formatLocationCoordinateSubtitle(fallbackCoord));
+  const [savePromptVisible, setSavePromptVisible] = useState(false);
+  const [quickSaveMode, setQuickSaveMode] = useState(false);
   const [hasMapMoved, setHasMapMoved] = useState(false);
   const searchResults = useMemo<DiscoverLocationSearchResult[]>(
     () => [
-      { title: "Hlavna 12", subtitle: "Nitra, Slovakia" },
-      { title: "Hlavna 10", subtitle: "Bratislava, Slovakia" },
-      { title: "Hlavna 8", subtitle: "Banska Bystrica, Slovakia" },
+      { title: "Hlavna 12", subtitle: "Nitra, Slovakia", coord: [18.08731, 48.30882] },
+      { title: "Hlavna 10", subtitle: "Bratislava, Slovakia", coord: [17.10779, 48.14892] },
+      { title: "Hlavna 8", subtitle: "Banska Bystrica, Slovakia", coord: [19.14519, 48.73658] },
     ],
     []
   );
@@ -409,29 +492,82 @@ export default function DiscoverLocationSheet({
   );
 
   const openMapStep = useCallback(
-    (returnTo: "add" | "search") => {
+    (
+      returnTo: "add" | "search",
+      options?: {
+        coord?: [number, number];
+        previewTitle?: string;
+        previewSubtitle?: string;
+        showSavePrompt?: boolean;
+        quickSaveMode?: boolean;
+      }
+    ) => {
       setLocationReturnStep(returnTo);
       setHasMapMoved(false);
-      const target = userCoord ?? mainMapCenter ?? [18.091, 48.3069];
-      setSelectedCoord(normalizeCenter(target));
+      const target = normalizeCenter(options?.coord ?? fallbackCoord);
+      setSelectedCoord(target);
+      const nextQuickSaveMode = Boolean(options?.quickSaveMode);
+      setQuickSaveMode(nextQuickSaveMode);
+      setMapSelectionTitle(nextQuickSaveMode ? "" : options?.previewTitle?.trim() || "Map center");
+      setMapSelectionSubtitle(
+        nextQuickSaveMode
+          ? ""
+          : options?.previewSubtitle?.trim() || formatLocationCoordinateSubtitle(target)
+      );
+      setSavePromptVisible(Boolean(options?.showSavePrompt));
+      setLocationName(
+        options?.showSavePrompt
+          ? nextQuickSaveMode
+            ? QUICK_SAVE_DEFAULT_LABEL
+            : options?.previewTitle?.trim() || ""
+          : ""
+      );
       setLocationStep("map");
       locationRef.current?.snapToIndex(1);
     },
-    [mainMapCenter, userCoord, locationRef]
+    [fallbackCoord, locationRef]
   );
 
   const handleCenterPress = useCallback(() => {
-    const target = userCoord ?? mainMapCenter ?? [18.091, 48.3069];
+    const target = fallbackCoord;
     setHasMapMoved(false);
     setSelectedCoord(normalizeCenter(target));
-    setMapCamera(mapCameraRef, { center: target, zoom: STATIC_MAP_ZOOM, durationMs: 500 });
-  }, [mainMapCenter, userCoord]);
+    setMapSelectionTitle(quickSaveMode ? "" : "Current position");
+    setMapSelectionSubtitle(
+      quickSaveMode ? "" : formatLocationCoordinateSubtitle(normalizeCenter(target))
+    );
+    setSavePromptVisible(true);
+    setLocationName(quickSaveMode ? QUICK_SAVE_DEFAULT_LABEL : "Current position");
+  }, [fallbackCoord, quickSaveMode]);
+
+  useEffect(() => {
+    if (!pendingMapSelection) {
+      return;
+    }
+
+    const target = normalizeCenter(pendingMapSelection.coord);
+    setAddressLine1("");
+    setAddressLine2("");
+    setSearchQuery("");
+    openMapStep("add", {
+      coord: target,
+      showSavePrompt: true,
+      quickSaveMode: true,
+    });
+    onPendingMapSelectionHandled?.(pendingMapSelection.id);
+  }, [onPendingMapSelectionHandled, openMapStep, pendingMapSelection]);
 
   const handleLocationSheetChange = (index: number) => {
     if (index === -1) {
       setLocationStep("add");
       setLocationReturnStep("add");
       setHasMapMoved(false);
+      setSavePromptVisible(false);
+      setQuickSaveMode(false);
+      setLocationName("");
+      setSelectedCoord(fallbackCoord);
+      setMapSelectionTitle("Map center");
+      setMapSelectionSubtitle(formatLocationCoordinateSubtitle(fallbackCoord));
     }
     onLocationSheetChange?.(index);
   };
@@ -459,39 +595,75 @@ export default function DiscoverLocationSheet({
     }
     const coord: [number, number] = [selectedCoord[0], selectedCoord[1]];
     saveLocation(trimmedName, coord);
+    setAddressLine1(mapSelectionTitle);
+    setAddressLine2(mapSelectionSubtitle);
     setLocationName("");
+    setSavePromptVisible(false);
+    setQuickSaveMode(false);
     setLocationStep("add");
     locationRef.current?.close();
-  }, [locationName, saveLocation, selectedCoord, locationRef]);
+  }, [
+    locationName,
+    locationRef,
+    mapSelectionSubtitle,
+    mapSelectionTitle,
+    saveLocation,
+    selectedCoord,
+  ]);
 
   const handleMapSave = useCallback(() => {
     const lat = selectedCoord[1].toFixed(5);
     const lng = selectedCoord[0].toFixed(5);
     const trimmedName = locationName.trim();
-    if (!trimmedName) {
+    const resolvedName = trimmedName || (quickSaveMode ? QUICK_SAVE_DEFAULT_LABEL : "");
+    if (!resolvedName) {
       setLocationStep("details");
       return;
     }
-    saveLocation(trimmedName, [selectedCoord[0], selectedCoord[1]]);
-    setAddressLine1("Selected location");
-    setAddressLine2(`${lat}, ${lng}`);
+    saveLocation(resolvedName, [selectedCoord[0], selectedCoord[1]]);
+    setAddressLine1(quickSaveMode ? "" : mapSelectionTitle);
+    setAddressLine2(quickSaveMode ? "" : mapSelectionSubtitle || `${lat}, ${lng}`);
     setLocationName("");
+    setSavePromptVisible(false);
+    setQuickSaveMode(false);
     setLocationStep("add");
-  }, [locationName, saveLocation, selectedCoord]);
+    locationRef.current?.close();
+  }, [
+    quickSaveMode,
+    locationName,
+    locationRef,
+    mapSelectionSubtitle,
+    mapSelectionTitle,
+    saveLocation,
+    selectedCoord,
+  ]);
 
-  useEffect(() => {
-    if (locationStep !== "map" || hasMapMoved) {
-      return;
-    }
-    if (userCoord) {
-      setSelectedCoord(normalizeCenter(userCoord));
-      setMapCamera(mapCameraRef, { center: userCoord, zoom: STATIC_MAP_ZOOM, durationMs: 350 });
-      return;
-    }
-    if (mainMapCenter) {
-      setSelectedCoord(normalizeCenter(mainMapCenter));
-    }
-  }, [locationStep, hasMapMoved, mainMapCenter, userCoord]);
+  const handleSearchResultSelect = useCallback(
+    (item: DiscoverLocationSearchResult) => {
+      setAddressLine1(item.title);
+      setAddressLine2(item.subtitle);
+      setSearchQuery(item.title);
+      openMapStep("search", {
+        coord: item.coord,
+        previewTitle: item.title,
+        previewSubtitle: item.subtitle,
+        showSavePrompt: true,
+      });
+    },
+    [openMapStep]
+  );
+
+  const handleMapLongPressLocation = useCallback((coord: [number, number]) => {
+    const normalizedCoord = normalizeCenter(coord);
+    setHasMapMoved(false);
+    setSelectedCoord(normalizedCoord);
+    setMapSelectionTitle(quickSaveMode ? "" : "Dropped pin");
+    setMapSelectionSubtitle(
+      quickSaveMode ? "" : formatLocationCoordinateSubtitle(normalizedCoord)
+    );
+    setSavePromptVisible(true);
+    setLocationName(quickSaveMode ? QUICK_SAVE_DEFAULT_LABEL : "Dropped pin");
+  }, [quickSaveMode]);
 
   useEffect(() => {
     if (locationStep !== "map" || hasMapMoved) {
@@ -499,6 +671,16 @@ export default function DiscoverLocationSheet({
     }
     setMapCamera(mapCameraRef, { center: selectedCoord, zoom: STATIC_MAP_ZOOM, durationMs: 0 });
   }, [locationStep, hasMapMoved, selectedCoord]);
+
+  useEffect(() => {
+    if (locationStep !== "map" || !hasMapMoved) {
+      return;
+    }
+    setMapSelectionTitle(quickSaveMode ? "" : "Map center");
+    setMapSelectionSubtitle(quickSaveMode ? "" : selectedCoordLabel);
+    setSavePromptVisible(true);
+    setLocationName(quickSaveMode ? QUICK_SAVE_DEFAULT_LABEL : "Map center");
+  }, [hasMapMoved, locationStep, quickSaveMode, selectedCoordLabel]);
 
   return (
     <BottomSheet
@@ -542,12 +724,7 @@ export default function DiscoverLocationSheet({
             searchQuery={searchQuery}
             onChangeQuery={setSearchQuery}
             results={filteredResults}
-            onSelectResult={(item) => {
-              setAddressLine1(item.title);
-              setAddressLine2(item.subtitle);
-              setSearchQuery(item.title);
-              setLocationStep("add");
-            }}
+            onSelectResult={handleSearchResultSelect}
             onContinue={() => setLocationStep("details")}
             onMapPress={() => openMapStep("search")}
           />
@@ -555,10 +732,15 @@ export default function DiscoverLocationSheet({
           <LocationMapStep
             selectedCoord={selectedCoord}
             selectedCoordLabel={selectedCoordLabel}
+            selectedLocationTitle={mapSelectionTitle}
+            selectedLocationSubtitle={mapSelectionSubtitle}
+            savePromptVisible={savePromptVisible}
+            quickSaveMode={quickSaveMode}
             hasMapMoved={hasMapMoved}
             onBack={() => setLocationStep(locationReturnStep)}
             onCenterPress={handleCenterPress}
             onSave={handleMapSave}
+            onLongPressLocation={handleMapLongPressLocation}
             setHasMapMoved={setHasMapMoved}
             setSelectedCoord={setSelectedCoord}
             mapCameraRef={mapCameraRef}

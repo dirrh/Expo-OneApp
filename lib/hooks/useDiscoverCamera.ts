@@ -58,6 +58,7 @@ export interface UseDiscoverCameraReturn {
 interface UseDiscoverCameraOptions {
   cityCenter: [number, number];                 // stred mesta (fallback pozícia)
   selectedOptionCoord?: [number, number] | null; // vybraná lokácia z dropdownu
+  shouldResetOptionOnUserGesture?: boolean;     // ci sa ma pri manualnom pohybe zrusit vyber
   onOptionReset?: () => void;                   // callback keď user oddiali od vybranej lokácie
 }
 
@@ -74,6 +75,7 @@ interface UseDiscoverCameraOptions {
 export const useDiscoverCamera = ({
   cityCenter,
   selectedOptionCoord = null,
+  shouldResetOptionOnUserGesture = false,
   onOptionReset,
 }: UseDiscoverCameraOptions): UseDiscoverCameraReturn => {
   
@@ -255,19 +257,30 @@ export const useDiscoverCamera = ({
       markUserPanning(isUserGesture);
 
       // 4. Ak user manuálne posunul mapu preč od vybranej lokácie, resetujeme výber
-      if (!isUserGesture || !selectedOptionCoord) {
+      if (!isUserGesture || !shouldResetOptionOnUserGesture || !onOptionReset) {
         return;
       }
-      
+
+      if (!selectedOptionCoord) {
+        onOptionReset();
+        return;
+      }
+
       const [selectedLng, selectedLat] = normalizeCenter(selectedOptionCoord);
       const [centerLng, centerLat] = normalizedCenter;
       const distance = Math.hypot(selectedLng - centerLng, selectedLat - centerLat);
       
-      if (distance > 0.0005 && onOptionReset) {
+      if (distance > 0.00005) {
         onOptionReset();
       }
     },
-    [selectedOptionCoord, onOptionReset, applyCameraState, markUserPanning]
+    [
+      selectedOptionCoord,
+      shouldResetOptionOnUserGesture,
+      onOptionReset,
+      applyCameraState,
+      markUserPanning,
+    ]
   );
 
   // Cleanup timeout pri unmounte

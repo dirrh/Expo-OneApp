@@ -6,7 +6,7 @@
 
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import type BottomSheet from "@gorhom/bottom-sheet";
-import { ImageSourcePropType } from "react-native";
+import type { ImageSourcePropType } from "react-native";
 import type MapView from "react-native-maps";
 
 export type MapViewRef = RefObject<MapView | null>;
@@ -89,6 +89,7 @@ export interface DiscoverMapMarker {
   id: string;
   title?: string;
   labelPriority?: number;
+  useNativePin?: boolean;
   markerSpriteUrl?: string;
   markerSpriteKey?: string;
   coord: { lng: number; lat: number };
@@ -142,11 +143,16 @@ export interface DiscoverTopControlsProps {
   setLocation: Dispatch<SetStateAction<Location[]>>;
   option: string;
   setOption: Dispatch<SetStateAction<string>>;
+  searchText?: string;
+  onApplySearchText?: (value: string) => void;
   o: boolean;
   filterRef: RefObject<BottomSheet | null>;
   onOpenSearch: () => void;
   userCoord: [number, number] | null;
   mainMapCenter?: [number, number] | null;
+  mainMapZoom?: number;
+  pendingMapSelection?: DiscoverPendingLocationSelection | null;
+  onPendingMapSelectionHandled?: (selectionId: number) => void;
   cameraRef: MapViewRef;
   t: (key: string) => string;
   onLocationSheetChange?: (index: number) => void;
@@ -158,6 +164,7 @@ export interface DiscoverTopControlsProps {
 export interface DiscoverLocationSearchResult {
   title: string;
   subtitle: string;
+  coord: [number, number];
 }
 
 export interface DiscoverFavoritePlace {
@@ -167,11 +174,18 @@ export interface DiscoverFavoritePlace {
   isSaved?: boolean;
 }
 
+export interface DiscoverPendingLocationSelection {
+  id: number;
+  coord: [number, number];
+}
+
 export interface DiscoverLocationSheetProps {
   locationRef: RefObject<BottomSheet | null>;
   setLocation: Dispatch<SetStateAction<Location[]>>;
   userCoord: [number, number] | null;
   mainMapCenter?: [number, number] | null;
+  pendingMapSelection?: DiscoverPendingLocationSelection | null;
+  onPendingMapSelectionHandled?: (selectionId: number) => void;
   onLocationSheetChange?: (index: number) => void;
 }
 
@@ -214,10 +228,15 @@ export interface LocationSearchStepProps {
 export interface LocationMapStepProps {
   selectedCoord: [number, number];
   selectedCoordLabel: string;
+  selectedLocationTitle: string;
+  selectedLocationSubtitle: string;
+  savePromptVisible: boolean;
+  quickSaveMode: boolean;
   hasMapMoved: boolean;
   onBack: () => void;
   onCenterPress: () => void;
   onSave: () => void;
+  onLongPressLocation: (coord: [number, number]) => void;
   setHasMapMoved: Dispatch<SetStateAction<boolean>>;
   setSelectedCoord: Dispatch<SetStateAction<[number, number]>>;
   mapCameraRef: MapViewRef;

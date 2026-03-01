@@ -10,7 +10,9 @@
       "Bash(npx tsx scripts/normalize-ios-cluster-markers.ts)",
       "Bash(npx tsc --noEmit --skipLibCheck)",
       "Bash(npx tsx scripts/generate-ios-compact-pins.ts)",
-      "Bash(npx tsx scripts/normalize-ios-full-markers.ts)"
+      "Bash(npx tsx scripts/normalize-ios-full-markers.ts)",
+      "Bash(wc -l /c/Users/Ivan/Documents/PRAX/Expo-OneApp/components/discover/map/pipelines/*.ts)",
+      "Bash(npx tsc --noEmit --pretty)"
     ]
   }
 }
