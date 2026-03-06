@@ -105,9 +105,9 @@ const MENU_BY_CATEGORY: Record<MenuCategory, MenuConfig> = {
   },
   Relax: {
     sectionTitleKey: "businessPricelistTitle",
-    sectionTitleFallback: "Price list",
+    sectionTitleFallback: "Prices",
     ctaKey: "businessShowFullPricelist",
-    ctaFallback: "Show full price list",
+    ctaFallback: "Show full prices",
     groups: [
       {
         id: "r-massage",
@@ -162,9 +162,9 @@ const MENU_BY_CATEGORY: Record<MenuCategory, MenuConfig> = {
   },
   Beauty: {
     sectionTitleKey: "businessPricelistTitle",
-    sectionTitleFallback: "Price list",
+    sectionTitleFallback: "Prices",
     ctaKey: "businessShowFullPricelist",
-    ctaFallback: "Show full price list",
+    ctaFallback: "Show full prices",
     groups: [
       {
         id: "b-hair",

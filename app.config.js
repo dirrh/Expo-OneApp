@@ -48,6 +48,8 @@ export default ({ config }) => ({
     ...config.android,
     // Reanimated + Worklets in SDK 54 require New Architecture on Android builds.
     newArchEnabled: true,
+    // Keep bottom sheets/modals fixed while keyboard is open (no resize push-up).
+    softwareKeyboardLayoutMode: "pan",
     config: {
       ...config.android?.config,
       googleMaps: {

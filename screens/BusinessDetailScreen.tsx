@@ -127,6 +127,7 @@ export default function BusinessDetailScreen() {
           name,
           details: item.details?.trim() || undefined,
           price: item.price?.trim() || undefined,
+          groupTitle: item.groupTitle?.trim() || undefined,
         };
       })
       .filter((item): item is NonNullable<typeof item> => Boolean(item));
@@ -221,8 +222,9 @@ export default function BusinessDetailScreen() {
       rating: number;
       text: string;
       daysAgo: number;
+      createdAt?: number;
       likes: number;
-      comments: Array<{ id: string; name: string; text: string; daysAgo: number }>;
+      comments: Array<{ id: string; name: string; text: string; daysAgo: number; createdAt?: number }>;
       photos?: ReviewPhotoDraft[];
     }>
   >([]);
@@ -399,6 +401,7 @@ export default function BusinessDetailScreen() {
           rating,
           text,
           daysAgo: 0,
+          createdAt: Date.now(),
           likes: 0,
           comments: [],
           photos: reviewPhotos.length > 0 ? reviewPhotos : undefined,

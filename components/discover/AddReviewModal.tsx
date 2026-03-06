@@ -6,7 +6,6 @@ import {
   Modal,
   TouchableOpacity,
   TextInput,
-  KeyboardAvoidingView,
   Platform,
   Alert,
   Image,
@@ -49,16 +48,19 @@ const dedupePhotosByUri = (photos: ReviewPhotoDraft[]) => {
   return Array.from(unique.values());
 };
 
+const resolveLabel = (translated: string, key: string, fallback: string): string =>
+  translated === key ? fallback : translated;
+
 /**
- * AddReviewModal: Modal na vytvorenie recenzie s hodnotením, textom a výberom fotiek.
+ * AddReviewModal: Bottom sheet formular na vytvorenie recenzie s hodnotenim, textom a fotkami.
  *
- * Prečo: Vedený formulár zvyšuje kvalitu recenzií a znižuje počet neúplných odoslaní.
+ * Preco: Jednoduchy flow v jednom paneli udrzi focus pouzivatela a zodpoveda navrhu detailu prevadzky.
  */
 export function AddReviewModal({
   visible,
   onClose,
   onSubmit,
-  branchName,
+  branchName: _branchName,
   photosEnabled = false,
   maxPhotos = 3,
 }: Props) {
@@ -66,8 +68,25 @@ export function AddReviewModal({
   const insets = useSafeAreaInsets();
   const [rating, setRating] = useState(0);
   const [reviewText, setReviewText] = useState("");
-  const [hoveredStar, setHoveredStar] = useState(0);
   const [photos, setPhotos] = useState<ReviewPhotoDraft[]>([]);
+
+  const modalTitle = resolveLabel(t("addReviewSheetTitle"), "addReviewSheetTitle", "Add a review");
+  const ratingQuestion = resolveLabel(
+    t("reviewRatingQuestion"),
+    "reviewRatingQuestion",
+    "What is your rating?"
+  );
+  const shareExperienceLabel = resolveLabel(
+    t("reviewShareExperience"),
+    "reviewShareExperience",
+    "Share your experience with this place"
+  );
+  const reviewInputPlaceholder = resolveLabel(
+    t("reviewInputPlaceholder"),
+    "reviewInputPlaceholder",
+    resolveLabel(t("yourReview"), "yourReview", "Your review")
+  );
+  const sendReviewLabel = resolveLabel(t("sendReview"), "sendReview", "Send review");
 
   const resetState = useCallback(() => {
     setRating(0);
@@ -76,16 +95,19 @@ export function AddReviewModal({
   }, []);
 
   const handleSubmit = useCallback(() => {
+    const trimmedReviewText = reviewText.trim();
+
     if (rating === 0) {
       Alert.alert(t("error"), t("ratingRequired"));
       return;
     }
-    if (reviewText.trim().length < 10) {
+    if (trimmedReviewText.length === 0) {
       Alert.alert(t("error"), t("reviewRequired"));
       return;
     }
 
-    onSubmit(rating, reviewText.trim(), photosEnabled ? photos : undefined);
+    const selectedPhotos = photosEnabled && photos.length > 0 ? photos : undefined;
+    onSubmit(rating, trimmedReviewText, selectedPhotos);
     resetState();
     Alert.alert(t("success"), t("thankYouReview"));
     onClose();
@@ -120,9 +142,7 @@ export function AddReviewModal({
       }
 
       const drafts = result.assets.map(createPhotoDraft);
-      setPhotos((prev) =>
-        dedupePhotosByUri([...prev, ...drafts]).slice(0, maxPhotos)
-      );
+      setPhotos((prev) => dedupePhotosByUri([...prev, ...drafts]).slice(0, maxPhotos));
     } catch {
       Alert.alert(t("error"), t("reviewPhotoPickerError"));
     }
@@ -132,149 +152,139 @@ export function AddReviewModal({
     setPhotos((prev) => prev.filter((photo) => photo.id !== photoId));
   }, []);
 
-  const getRatingLabel = useCallback(
-    (value: number) => {
-      if (value === 5) return t("ratingLabel5");
-      if (value === 4) return t("ratingLabel4");
-      if (value === 3) return t("ratingLabel3");
-      if (value === 2) return t("ratingLabel2");
-      return t("ratingLabel1");
-    },
-    [t]
-  );
-
   const renderStars = () => {
     const stars = [];
-    for (let i = 1; i <= 5; i += 1) {
-      const isActive = i <= (hoveredStar || rating);
+    for (let index = 1; index <= 5; index += 1) {
+      const isActive = index <= rating;
       stars.push(
         <TouchableOpacity
-          key={i}
-          onPress={() => setRating(i)}
-          onPressIn={() => setHoveredStar(i)}
-          onPressOut={() => setHoveredStar(0)}
+          key={index}
+          onPress={() => setRating(index)}
           activeOpacity={0.7}
           style={styles.starButton}
+          accessibilityRole="button"
           accessibilityLabel={t("selectRating")}
         >
           <Ionicons
             name={isActive ? "star" : "star-outline"}
-            size={36}
-            color={isActive ? "#F5A623" : "#D1D5DB"}
+            size={37}
+            color={isActive ? "#111111" : "rgba(0, 0, 0, 0.3)"}
           />
         </TouchableOpacity>
       );
     }
+
     return stars;
   };
 
-  const photoSectionVisible = photosEnabled;
+  const canSubmit = rating > 0 && reviewText.trim().length > 0;
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.overlay}
-      >
-        <View style={styles.backdrop}>
-          <TouchableOpacity style={styles.backdropTouchable} onPress={handleClose} />
-        </View>
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent
+      presentationStyle="overFullScreen"
+      onRequestClose={handleClose}
+    >
+      <View style={styles.overlay}>
+        <TouchableOpacity
+          style={styles.backdropTouchable}
+          activeOpacity={1}
+          onPress={handleClose}
+          accessibilityRole="button"
+          accessibilityLabel={t("cancel")}
+        />
 
-        <View style={[styles.container, { paddingBottom: insets.bottom + 20 }]}>
-          <View style={styles.handleContainer}>
+        <View style={styles.sheet}>
+          <View style={styles.handleWrap}>
             <View style={styles.handle} />
           </View>
 
-          <View style={styles.header}>
-            <Text style={styles.title}>{t("writeReview")}</Text>
-            <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
-              <Ionicons name="close" size={24} color="#6B7280" />
-            </TouchableOpacity>
-          </View>
+          <ScrollView
+            bounces={false}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+            contentContainerStyle={[
+              styles.content,
+              { paddingBottom: Math.max(20, insets.bottom + 10) },
+            ]}
+          >
+            <Text style={styles.title}>{modalTitle}</Text>
 
-          {branchName ? <Text style={styles.branchName}>{branchName}</Text> : null}
+            <View style={styles.ratingSection}>
+              <Text style={styles.ratingQuestion}>{ratingQuestion}</Text>
+              <View style={styles.starsRow}>{renderStars()}</View>
+            </View>
 
-          <View style={styles.ratingSection}>
-            <Text style={styles.sectionLabel}>{t("selectRating")}</Text>
-            <View style={styles.starsContainer}>{renderStars()}</View>
-            {rating > 0 ? <Text style={styles.ratingText}>{getRatingLabel(rating)}</Text> : null}
-          </View>
+            <View style={styles.textSection}>
+              <Text style={styles.sectionLabel}>{shareExperienceLabel}</Text>
+              <TextInput
+                style={styles.reviewInput}
+                placeholder={reviewInputPlaceholder}
+                placeholderTextColor="#71717A"
+                value={reviewText}
+                onChangeText={setReviewText}
+                multiline
+                numberOfLines={5}
+                maxLength={500}
+                scrollEnabled
+                textAlignVertical="top"
+              />
+            </View>
 
-          <View style={styles.textSection}>
-            <Text style={styles.sectionLabel}>{t("yourReview")}</Text>
-            <TextInput
-              style={styles.textInput}
-              placeholder={t("reviewPlaceholder")}
-              placeholderTextColor="#9CA3AF"
-              value={reviewText}
-              onChangeText={setReviewText}
-              multiline
-              numberOfLines={5}
-              maxLength={500}
-              textAlignVertical="top"
-            />
-            <Text style={styles.charCount}>{reviewText.length}/500</Text>
-          </View>
+            {photosEnabled ? (
+              <View style={styles.photosSection}>
+                <View style={styles.photosHeader}>
+                  <Text style={styles.sectionLabel}>{t("reviewPhotoAdd")}</Text>
+                  <Text style={styles.photoCount}>
+                    {photos.length}/{maxPhotos}
+                  </Text>
+                </View>
 
-          {photoSectionVisible ? (
-            <View style={styles.photoSection}>
-              <View style={styles.photoSectionHeader}>
-                <Text style={styles.sectionLabel}>{t("reviewPhotosTitle")}</Text>
-                <Text style={styles.photoCount}>
-                  {photos.length}/{maxPhotos}
-                </Text>
-              </View>
-
-              <TouchableOpacity
-                style={[
-                  styles.photoPickerButton,
-                  photos.length >= maxPhotos && styles.photoPickerButtonDisabled,
-                ]}
-                onPress={handlePickPhotos}
-                activeOpacity={0.8}
-                disabled={photos.length >= maxPhotos}
-                accessibilityLabel={t("reviewPhotoAddA11y")}
-              >
-                <Ionicons name="images-outline" size={16} color="#FFFFFF" />
-                <Text style={styles.photoPickerButtonText}>{t("reviewPhotoAdd")}</Text>
-              </TouchableOpacity>
-
-              {photos.length > 0 ? (
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.photoPreviewRow}
-                >
+                <View style={styles.photoGrid}>
                   {photos.map((photo) => (
-                    <View key={photo.id} style={styles.photoPreviewItem}>
-                      <Image source={{ uri: photo.uri }} style={styles.photoPreviewImage} />
+                    <View key={photo.id} style={styles.photoTile}>
+                      <Image source={{ uri: photo.uri }} style={styles.photoImage} />
                       <TouchableOpacity
                         style={styles.photoRemoveButton}
                         onPress={() => handleRemovePhoto(photo.id)}
+                        accessibilityRole="button"
                         accessibilityLabel={t("reviewPhotoRemoveA11y")}
+                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                       >
-                        <Ionicons name="close" size={14} color="#FFFFFF" />
+                        <Ionicons name="close" size={12} color="#FFFFFF" />
                       </TouchableOpacity>
                     </View>
                   ))}
-                </ScrollView>
-              ) : null}
-            </View>
-          ) : null}
 
-          <TouchableOpacity
-            style={[
-              styles.submitButton,
-              (rating === 0 || reviewText.trim().length < 10) && styles.submitButtonDisabled,
-            ]}
-            onPress={handleSubmit}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="send" size={18} color="#FFF" style={styles.submitIcon} />
-            <Text style={styles.submitButtonText}>{t("submitReview")}</Text>
-          </TouchableOpacity>
+                  {photos.length < maxPhotos ? (
+                    <TouchableOpacity
+                      style={styles.photoAddTile}
+                      onPress={handlePickPhotos}
+                      activeOpacity={0.85}
+                      accessibilityRole="button"
+                      accessibilityLabel={t("reviewPhotoAddA11y")}
+                    >
+                      <Ionicons name="add" size={30} color="#000000" />
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              </View>
+            ) : null}
+
+            <TouchableOpacity
+              style={[styles.submitButton, !canSubmit && styles.submitButtonDisabled]}
+              onPress={handleSubmit}
+              activeOpacity={0.85}
+              disabled={!canSubmit}
+            >
+              <Text style={styles.submitButtonText}>{sendReviewLabel}</Text>
+            </TouchableOpacity>
+          </ScrollView>
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
@@ -284,151 +294,122 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "flex-end",
   },
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-  },
   backdropTouchable: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0, 0, 0, 0.34)",
   },
-  container: {
+  sheet: {
     backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 20,
+    borderTopLeftRadius: 40,
+    borderTopRightRadius: 40,
+    paddingTop: 6,
+    paddingHorizontal: 16,
+    maxHeight: "86%",
   },
-  handleContainer: {
+  handleWrap: {
     alignItems: "center",
-    paddingVertical: 8,
+    paddingBottom: 10,
   },
   handle: {
-    width: 40,
+    width: 63,
     height: 4,
-    backgroundColor: "#E5E7EB",
-    borderRadius: 2,
+    borderRadius: 999,
+    backgroundColor: "#B9B9B9",
   },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 8,
-    paddingTop: 8,
+  content: {
+    width: "100%",
+    maxWidth: 358,
+    alignSelf: "center",
+    gap: 32,
   },
   title: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#111827",
-  },
-  closeButton: {
-    padding: 4,
-  },
-  branchName: {
-    fontSize: 14,
-    color: "#6B7280",
-    marginBottom: 16,
+    fontFamily: "Inter_700Bold",
+    fontSize: 16,
+    lineHeight: 19,
+    color: "#000000",
+    textAlign: "center",
   },
   ratingSection: {
-    marginBottom: 20,
+    width: "100%",
     alignItems: "center",
+    gap: 15,
   },
-  sectionLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#374151",
-    marginBottom: 12,
-    alignSelf: "flex-start",
+  ratingQuestion: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 16,
+    lineHeight: 19,
+    color: "#000000",
+    textAlign: "center",
   },
-  starsContainer: {
+  starsRow: {
     flexDirection: "row",
-    justifyContent: "center",
-    gap: 8,
-    marginBottom: 8,
+    alignItems: "center",
+    gap: 5,
   },
   starButton: {
-    padding: 4,
-  },
-  ratingText: {
-    fontSize: 14,
-    color: "#6B7280",
-    marginTop: 4,
+    width: 52,
+    height: 52,
+    alignItems: "center",
+    justifyContent: "center",
   },
   textSection: {
-    marginBottom: 16,
+    width: "100%",
+    gap: 15,
   },
-  textInput: {
-    backgroundColor: "#F9FAFB",
-    borderRadius: 12,
-    padding: 14,
-    fontSize: 15,
-    color: "#111827",
-    minHeight: 120,
+  sectionLabel: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 16,
+    lineHeight: 19,
+    color: "#000000",
+  },
+  reviewInput: {
+    height: 117,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: "#E4E4E7",
+    borderRadius: 20,
+    backgroundColor: "#FFFFFF",
+    padding: 12,
+    fontFamily: "Inter_500Medium",
+    fontSize: 14,
+    lineHeight: 20,
+    color: "#000000",
   },
-  charCount: {
-    fontSize: 12,
-    color: "#9CA3AF",
-    textAlign: "right",
-    marginTop: 6,
+  photosSection: {
+    width: "100%",
+    gap: 15,
   },
-  photoSection: {
-    marginBottom: 18,
-  },
-  photoSectionHeader: {
+  photosHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 8,
   },
   photoCount: {
-    fontSize: 12,
-    color: "#6B7280",
-    fontWeight: "600",
-  },
-  photoPickerButton: {
-    backgroundColor: "#F97316",
-    borderRadius: 10,
-    minHeight: 40,
-    paddingHorizontal: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-  },
-  photoPickerButtonDisabled: {
-    backgroundColor: "#D1D5DB",
-  },
-  photoPickerButtonText: {
-    color: "#FFFFFF",
+    fontFamily: "Inter_600SemiBold",
     fontSize: 14,
-    fontWeight: "700",
+    lineHeight: 17,
+    color: "#000000",
   },
-  photoPreviewRow: {
-    gap: 10,
-    paddingTop: 10,
+  photoGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "flex-end",
+    gap: 12,
   },
-  photoPreviewItem: {
-    width: 74,
-    height: 74,
-    borderRadius: 12,
+  photoTile: {
+    width: 110,
+    height: 107,
+    borderRadius: 15,
     overflow: "hidden",
     backgroundColor: "#E5E7EB",
-    position: "relative",
   },
-  photoPreviewImage: {
+  photoImage: {
     width: "100%",
     height: "100%",
   },
   photoRemoveButton: {
     position: "absolute",
-    top: 5,
-    right: 5,
+    top: 6,
+    right: 6,
     width: 20,
     height: 20,
     borderRadius: 10,
@@ -436,30 +417,36 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  submitButton: {
-    backgroundColor: "#F97316",
-    borderRadius: 12,
-    paddingVertical: 16,
-    flexDirection: "row",
+  photoAddTile: {
+    width: 111,
+    height: 107,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: "#E4E4E7",
+    backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#F97316",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
+  },
+  submitButton: {
+    width: "100%",
+    height: 50,
+    borderRadius: 999,
+    backgroundColor: "#000000",
+    alignItems: "center",
+    justifyContent: "center",
   },
   submitButtonDisabled: {
-    backgroundColor: "#D1D5DB",
-    shadowOpacity: 0,
-    elevation: 0,
-  },
-  submitIcon: {
-    marginRight: 8,
+    opacity: 0.45,
   },
   submitButtonText: {
-    color: "#FFFFFF",
+    fontFamily: "Inter_600SemiBold",
     fontSize: 16,
-    fontWeight: "700",
+    lineHeight: 19,
+    color: "#FFFFFF",
+    textAlign: "center",
   },
 });
+
+
+
+

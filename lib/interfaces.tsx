@@ -20,6 +20,7 @@ export interface BranchMenuItem {
   name: string;
   details?: string;
   price?: string;
+  groupTitle?: string;
 }
 
 export interface User {

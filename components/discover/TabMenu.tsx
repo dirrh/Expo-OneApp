@@ -21,7 +21,7 @@ const FALLBACK_LABELS: Record<string, string> = {
   home: "Home",
   benefits: "Benefits",
   menu: "Menu",
-  pricelist: "Price list",
+  pricelist: "Prices",
   info: "Info",
   reviews: "Reviews",
 };

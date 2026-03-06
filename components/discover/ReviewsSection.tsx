@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useMemo, useState } from "react";
+import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -20,6 +20,7 @@ export type ReviewComment = {
   name: string;
   text: string;
   daysAgo: number;
+  createdAt?: number;
 };
 
 export type Review = {
@@ -28,6 +29,7 @@ export type Review = {
   rating: number;
   text: string;
   daysAgo: number;
+  createdAt?: number;
   likes?: number;
   comments?: ReviewComment[];
   photos?: ReviewPhotoDraft[];
@@ -40,6 +42,7 @@ export type ReviewItemProps = {
   comments: ReviewComment[];
   isReplying: boolean;
   replyDraft: string;
+  formatRelativeTime: (createdAt?: number, daysAgo?: number) => string;
   onLike: (reviewId: string) => void;
   onReplyToggle: (reviewId: string) => void;
   onReplyDraftChange: (reviewId: string, text: string) => void;
@@ -57,6 +60,9 @@ type Props = {
 };
 
 const EMPTY_COMMENTS: ReviewComment[] = [];
+const MINUTE_MS = 60 * 1000;
+const HOUR_MS = 60 * MINUTE_MS;
+const DAY_MS = 24 * HOUR_MS;
 
 const getInitials = (name: string): string =>
   name
@@ -77,6 +83,7 @@ const ReviewItem = memo(function ReviewItem({
   comments,
   isReplying,
   replyDraft,
+  formatRelativeTime,
   onLike,
   onReplyToggle,
   onReplyDraftChange,
@@ -95,7 +102,7 @@ const ReviewItem = memo(function ReviewItem({
           </View>
           <View style={styles.nameContainer}>
             <Text style={styles.name}>{review.name}</Text>
-            <Text style={styles.time}>{t("daysAgo", { count: review.daysAgo })}</Text>
+            <Text style={styles.time}>{formatRelativeTime(review.createdAt, review.daysAgo)}</Text>
           </View>
         </View>
 
@@ -159,7 +166,7 @@ const ReviewItem = memo(function ReviewItem({
                 <View style={styles.commentHeader}>
                   <Text style={styles.commentName}>{comment.name}</Text>
                   <Text style={styles.commentTime}>
-                    {comment.daysAgo === 0 ? t("justNow") : t("daysAgo", { count: comment.daysAgo })}
+                    {formatRelativeTime(comment.createdAt, comment.daysAgo)}
                   </Text>
                 </View>
                 <Text style={styles.commentText}>{comment.text}</Text>
@@ -217,6 +224,44 @@ export function ReviewsSection({
   const [galleryVisible, setGalleryVisible] = useState(false);
   const [galleryStartIndex, setGalleryStartIndex] = useState(0);
   const [galleryImages, setGalleryImages] = useState<Array<{ id: string; image: ImageSourcePropType }>>([]);
+  const [nowTimestamp, setNowTimestamp] = useState(() => Date.now());
+
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      setNowTimestamp(Date.now());
+    }, MINUTE_MS);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, []);
+
+  const formatRelativeTime = useCallback(
+    (createdAt?: number, daysAgo?: number) => {
+      const normalizedCreatedAt =
+        typeof createdAt === "number" && Number.isFinite(createdAt)
+          ? createdAt
+          : nowTimestamp - Math.max(0, Math.floor(daysAgo ?? 0)) * DAY_MS;
+
+      const elapsedMs = Math.max(0, nowTimestamp - normalizedCreatedAt);
+
+      if (elapsedMs < MINUTE_MS) {
+        return t("justNow");
+      }
+      if (elapsedMs < HOUR_MS) {
+        const minutes = Math.max(1, Math.floor(elapsedMs / MINUTE_MS));
+        return t("minutesAgoShort", { count: minutes });
+      }
+      if (elapsedMs < DAY_MS) {
+        const hours = Math.max(1, Math.floor(elapsedMs / HOUR_MS));
+        return t("hoursAgoShort", { count: hours });
+      }
+
+      const days = Math.max(1, Math.floor(elapsedMs / DAY_MS));
+      return t("daysAgo", { count: days });
+    },
+    [nowTimestamp, t]
+  );
 
   const handleAddReview = useCallback(
     (reviewRating: number, text: string, photos?: ReviewPhotoDraft[]) => {
@@ -309,6 +354,7 @@ export function ReviewsSection({
         name: t("you"),
         text: draft,
         daysAgo: 0,
+        createdAt: Date.now(),
       };
 
       setLocalComments((prev) => ({
@@ -381,6 +427,7 @@ export function ReviewsSection({
               comments={comments}
               isReplying={isReplying}
               replyDraft={replyDraft}
+              formatRelativeTime={formatRelativeTime}
               onLike={handleLike}
               onReplyToggle={handleReplyToggle}
               onReplyDraftChange={handleReplyDraftChange}
@@ -644,3 +691,4 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 });
+

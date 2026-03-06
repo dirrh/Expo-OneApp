@@ -191,7 +191,6 @@ interface NearbyCardProps {
   onPress?: () => void;
 }
 type SortOption = "alphabetical" | "latest" | "custom";
-const CARDS_PER_PAGE = 9;
 
 const NearbyCard = ({ item, cardWidth, onPress }: NearbyCardProps) => (
   <TouchableOpacity
@@ -316,15 +315,7 @@ export default function CardsScreen() {
 
     return cards;
   }, [allLoyaltyCards, searchQuery, sortOption]);
-  const pagedLoyaltyCards = useMemo<LoyaltyCardItem[][]>(() => {
-    const pages: LoyaltyCardItem[][] = [];
 
-    for (let start = 0; start < filteredLoyaltyCards.length; start += CARDS_PER_PAGE) {
-      pages.push(filteredLoyaltyCards.slice(start, start + CARDS_PER_PAGE));
-    }
-
-    return pages;
-  }, [filteredLoyaltyCards]);
   const sortLabel = useMemo(() => {
     if (sortOption === "latest") return t("fromLatest");
     if (sortOption === "custom") return t("custom");
@@ -420,7 +411,7 @@ export default function CardsScreen() {
     <>
       <ScrollView
         style={styles.container}
-        scrollEnabled={false}
+        scrollEnabled
         bounces={false}
         overScrollMode="never"
         contentContainerStyle={[
@@ -566,34 +557,23 @@ export default function CardsScreen() {
               </Text>
             </TouchableOpacity>
           ) : (
-            <ScrollView
-              horizontal
-              pagingEnabled
-              nestedScrollEnabled
-              showsHorizontalScrollIndicator={false}
-              style={styles.cardsPagesScroll}
-              contentContainerStyle={styles.cardsPagesRow}
-            >
-              {pagedLoyaltyCards.map((cardsPage, pageIndex) => (
-                <View key={`cards-page-${pageIndex}`} style={[styles.cardsPage, { width: availableWidth }]}>
-                  <View style={styles.cardsGrid}>
-                    {cardsPage.map((card) => (
-                      <LoyaltyCard
-                        key={card.id}
-                        item={card}
-                        cardWidth={loyaltyCardWidth}
-                        cardHeight={loyaltyCardHeight}
-                        onPress={
-                          card.hasCard
-                            ? () => handleCardPress(card.name, card.cardNumber)
-                            : undefined
-                        }
-                      />
-                    ))}
-                  </View>
-                </View>
-              ))}
-            </ScrollView>
+            <View style={styles.cardsList}>
+              <View style={styles.cardsGrid}>
+                {filteredLoyaltyCards.map((card) => (
+                  <LoyaltyCard
+                    key={card.id}
+                    item={card}
+                    cardWidth={loyaltyCardWidth}
+                    cardHeight={loyaltyCardHeight}
+                    onPress={
+                      card.hasCard
+                        ? () => handleCardPress(card.name, card.cardNumber)
+                        : undefined
+                    }
+                  />
+                ))}
+              </View>
+            </View>
           )}
         </View>
       </ScrollView>
@@ -836,14 +816,7 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 10,
   },
-  cardsPagesScroll: {
-    width: "100%",
-  },
-  cardsPagesRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-  },
-  cardsPage: {
+  cardsList: {
     paddingVertical: 2,
   },
   loyaltyCard: {

@@ -28,7 +28,7 @@ export const buildBusinessDetailTabConfig = (
     base.push({
       key: "menu",
       labelKey: menuLabelMode === "menu" ? "tab_menu" : "tab_pricelist",
-      fallbackLabel: menuLabelMode === "menu" ? "Menu" : "Price list",
+      fallbackLabel: menuLabelMode === "menu" ? "Menu" : "Prices",
     });
   }
 

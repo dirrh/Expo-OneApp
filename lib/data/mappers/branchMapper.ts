@@ -147,6 +147,7 @@ const toMenuItems = (
       const name = resolveTranslatedString(context, item?.name);
       const details = resolveTranslatedString(context, item?.details);
       const price = toNonEmptyString(item?.price);
+      const groupTitle = resolveTranslatedString(context, item?.groupTitle);
 
       if (!name) {
         return undefined;
@@ -157,6 +158,7 @@ const toMenuItems = (
         name,
         details,
         price,
+        groupTitle,
       };
     })
     .filter((item): item is NonNullable<typeof item> => Boolean(item));

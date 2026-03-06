@@ -1,7 +1,7 @@
 /**
- * mockBranchMenu: Menu modul mock Branch Menu poskytuje fallback položky menu alebo cenníka pre detail podniku.
+ * mockBranchMenu: Menu modul mock Branch Menu poskytuje fallback polozky menu alebo cennika pre detail podniku.
  *
- * Prečo: Fallback obsah v mockBranchMenu drží konzistentný zážitok aj pri nekompletných backend dátach.
+ * Preco: Fallback obsah v mockBranchMenu drzi konzistentny zazitok aj pri nekompletnych backend datach.
  */
 
 import type { DiscoverCategory, BranchMenuLabelMode } from "../../interfaces";
@@ -17,109 +17,169 @@ const normalizeCategory = (value?: string | null): DiscoverCategory => {
 
 const FITNESS_MENU: BranchMenuItemDto[] = [
   {
-    id: "f-1",
-    name: "businessMenuFitnessItem1Name",
-    details: "businessMenuFitnessItem1Details",
-    price: "9 EUR",
+    id: "f-e-1",
+    groupTitle: "businessMenuGroupFitnessOneTime",
+    name: "businessMenuFitnessPriceItem1Name",
+    price: "6.00 EUR",
   },
   {
-    id: "f-2",
-    name: "businessMenuFitnessItem2Name",
-    details: "businessMenuFitnessItem2Details",
-    price: "25 EUR",
+    id: "f-e-2",
+    groupTitle: "businessMenuGroupFitnessOneTime",
+    name: "businessMenuFitnessPriceItem2Name",
+    price: "4.50 EUR",
   },
   {
-    id: "f-3",
-    name: "businessMenuFitnessItem3Name",
-    details: "businessMenuFitnessItem3Details",
-    price: "39 EUR",
+    id: "f-e-3",
+    groupTitle: "businessMenuGroupFitnessOneTime",
+    name: "businessMenuFitnessPriceItem3Name",
+    price: "4.50 EUR",
   },
   {
-    id: "f-4",
-    name: "businessMenuFitnessItem4Name",
-    details: "businessMenuFitnessItem4Details",
-    price: "59 EUR",
+    id: "f-s-1",
+    groupTitle: "businessMenuGroupFitnessSeason",
+    name: "businessMenuFitnessPriceItem4Name",
+    price: "49.00 EUR",
+  },
+  {
+    id: "f-s-2",
+    groupTitle: "businessMenuGroupFitnessSeason",
+    name: "businessMenuFitnessPriceItem5Name",
+    price: "39.00 EUR",
+  },
+  {
+    id: "f-s-3",
+    groupTitle: "businessMenuGroupFitnessSeason",
+    name: "businessMenuFitnessPriceItem6Name",
+    price: "49.00 EUR",
   },
 ];
 
 const GASTRO_MENU: BranchMenuItemDto[] = [
   {
     id: "g-1",
-    name: "businessMenuGastroItem1Name",
-    details: "businessMenuGastroItem1Details",
-    price: "11.90 EUR",
+    groupTitle: "businessMenuGroupGastroTopPicks",
+    name: "businessMenuGastroPriceItem1Name",
+    price: "6.90 EUR",
   },
   {
     id: "g-2",
-    name: "businessMenuGastroItem2Name",
-    details: "businessMenuGastroItem2Details",
-    price: "8.20 EUR",
+    groupTitle: "businessMenuGroupGastroTopPicks",
+    name: "businessMenuGastroPriceItem2Name",
+    price: "8.90 EUR",
   },
   {
     id: "g-3",
-    name: "businessMenuGastroItem3Name",
-    details: "businessMenuGastroItem3Details",
+    groupTitle: "businessMenuGroupGastroTopPicks",
+    name: "businessMenuGastroPriceItem3Name",
     price: "6.90 EUR",
   },
   {
     id: "g-4",
-    name: "businessMenuGastroItem4Name",
-    details: "businessMenuGastroItem4Details",
-    price: "6.50 EUR",
+    groupTitle: "businessMenuGroupGastroTopPicks",
+    name: "businessMenuGastroPriceItem4Name",
+    price: "9.90 EUR",
+  },
+  {
+    id: "g-5",
+    groupTitle: "businessMenuGroupGastroChefSpecials",
+    name: "businessMenuGastroPriceItem5Name",
+    price: "9.90 EUR",
+  },
+  {
+    id: "g-6",
+    groupTitle: "businessMenuGroupGastroChefSpecials",
+    name: "businessMenuGastroPriceItem6Name",
+    price: "10.90 EUR",
+  },
+  {
+    id: "g-7",
+    groupTitle: "businessMenuGroupGastroChefSpecials",
+    name: "businessMenuGastroPriceItem7Name",
+    price: "14.90 EUR",
+  },
+  {
+    id: "g-8",
+    groupTitle: "businessMenuGroupGastroChefSpecials",
+    name: "businessMenuGastroPriceItem8Name",
+    price: "11.90 EUR",
   },
 ];
 
 const RELAX_MENU: BranchMenuItemDto[] = [
   {
-    id: "r-1",
-    name: "businessMenuRelaxItem1Name",
-    details: "businessMenuRelaxItem1Details",
-    price: "39 EUR",
+    id: "r-e-1",
+    groupTitle: "businessMenuGroupRelaxSingleEntry",
+    name: "businessMenuRelaxPriceItem1Name",
+    price: "18.00 EUR",
   },
   {
-    id: "r-2",
-    name: "businessMenuRelaxItem2Name",
-    details: "businessMenuRelaxItem2Details",
-    price: "18 EUR",
+    id: "r-e-2",
+    groupTitle: "businessMenuGroupRelaxSingleEntry",
+    name: "businessMenuRelaxPriceItem2Name",
+    price: "24.00 EUR",
   },
   {
-    id: "r-3",
-    name: "businessMenuRelaxItem3Name",
-    details: "businessMenuRelaxItem3Details",
-    price: "29 EUR",
+    id: "r-e-3",
+    groupTitle: "businessMenuGroupRelaxSingleEntry",
+    name: "businessMenuRelaxPriceItem3Name",
+    price: "12.00 EUR",
   },
   {
-    id: "r-4",
-    name: "businessMenuRelaxItem4Name",
-    details: "businessMenuRelaxItem4Details",
-    price: "24 EUR",
+    id: "r-p-1",
+    groupTitle: "businessMenuGroupRelaxPackages",
+    name: "businessMenuRelaxPriceItem4Name",
+    price: "49.00 EUR",
+  },
+  {
+    id: "r-p-2",
+    groupTitle: "businessMenuGroupRelaxPackages",
+    name: "businessMenuRelaxPriceItem5Name",
+    price: "79.00 EUR",
+  },
+  {
+    id: "r-p-3",
+    groupTitle: "businessMenuGroupRelaxPackages",
+    name: "businessMenuRelaxPriceItem6Name",
+    price: "59.00 EUR",
   },
 ];
 
 const BEAUTY_MENU: BranchMenuItemDto[] = [
   {
-    id: "b-1",
-    name: "businessMenuBeautyItem1Name",
-    details: "businessMenuBeautyItem1Details",
-    price: "26 EUR",
+    id: "b-s-1",
+    groupTitle: "businessMenuGroupBeautySingleService",
+    name: "businessMenuBeautyPriceItem1Name",
+    price: "26.00 EUR",
   },
   {
-    id: "b-2",
-    name: "businessMenuBeautyItem2Name",
-    details: "businessMenuBeautyItem2Details",
-    price: "24 EUR",
+    id: "b-s-2",
+    groupTitle: "businessMenuGroupBeautySingleService",
+    name: "businessMenuBeautyPriceItem2Name",
+    price: "24.00 EUR",
   },
   {
-    id: "b-3",
-    name: "businessMenuBeautyItem3Name",
-    details: "businessMenuBeautyItem3Details",
-    price: "35 EUR",
+    id: "b-s-3",
+    groupTitle: "businessMenuGroupBeautySingleService",
+    name: "businessMenuBeautyPriceItem3Name",
+    price: "29.00 EUR",
   },
   {
-    id: "b-4",
-    name: "businessMenuBeautyItem4Name",
-    details: "businessMenuBeautyItem4Details",
-    price: "29 EUR",
+    id: "b-p-1",
+    groupTitle: "businessMenuGroupBeautyPackages",
+    name: "businessMenuBeautyPriceItem4Name",
+    price: "49.00 EUR",
+  },
+  {
+    id: "b-p-2",
+    groupTitle: "businessMenuGroupBeautyPackages",
+    name: "businessMenuBeautyPriceItem5Name",
+    price: "79.00 EUR",
+  },
+  {
+    id: "b-p-3",
+    groupTitle: "businessMenuGroupBeautyPackages",
+    name: "businessMenuBeautyPriceItem6Name",
+    price: "59.00 EUR",
   },
 ];
 
@@ -135,4 +195,3 @@ export const resolveBranchMenuLabelMode = (category?: string | null): BranchMenu
 
 export const getMockBranchMenuItems = (category?: string | null): BranchMenuItemDto[] =>
   MENU_BY_CATEGORY[normalizeCategory(category)];
-

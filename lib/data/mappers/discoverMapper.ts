@@ -136,6 +136,9 @@ export const buildBranchFromMarkerViewModel = (
       const rawDetails = item.details?.trim();
       const translatedDetails =
         rawDetails && rawDetails.length > 0 ? context.translateKey(rawDetails) : undefined;
+      const rawGroupTitle = item.groupTitle?.trim();
+      const translatedGroupTitle =
+        rawGroupTitle && rawGroupTitle.length > 0 ? context.translateKey(rawGroupTitle) : undefined;
 
       return {
         id,
@@ -145,6 +148,10 @@ export const buildBranchFromMarkerViewModel = (
             ? translatedDetails
             : rawDetails,
         price: item.price?.trim() || undefined,
+        groupTitle:
+          translatedGroupTitle && rawGroupTitle && translatedGroupTitle !== rawGroupTitle
+            ? translatedGroupTitle
+            : rawGroupTitle,
       };
     })
     .filter((item): item is NonNullable<typeof item> => Boolean(item));

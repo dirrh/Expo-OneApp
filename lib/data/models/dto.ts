@@ -14,6 +14,7 @@ export interface BranchMenuItemDto {
   name?: string | null;
   details?: string | null;
   price?: string | null;
+  groupTitle?: string | null;
 }
 
 export interface BranchDto {
