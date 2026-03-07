@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useMemo } from "react";
-import { FlatList, Image, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { FlatList, Image, Platform, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { ScrollView, TouchableOpacity } from "react-native-gesture-handler";
 import BranchCard from "../BranchCard";
 import { styles } from "./discoverStyles";
@@ -78,7 +78,11 @@ function DiscoverBranchOverlay({
             badgeVariant="more"
             cardPaddingBottom={discoverCardBottomPadding}
             onPress={() => {
-              navigation.navigate("BusinessDetailScreen", { branch: branchData });
+              navigation.navigate("BusinessDetailScreen", {
+                branch: branchData,
+                source: "discover",
+                disableTransitionAnimation: Platform.OS === "android",
+              });
             }}
           />
         </View>

@@ -67,6 +67,8 @@ type ContentRow = { key: "menu" | "content" };
 
 type BusinessDetailRouteParams = {
   branch?: Partial<BranchData> & { id?: string };
+  disableTransitionAnimation?: boolean;
+  source?: "discover";
 };
 
 type BusinessDetailRoute = RouteProp<

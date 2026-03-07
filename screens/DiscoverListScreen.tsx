@@ -278,9 +278,16 @@ export default function DiscoverListScreen() {
         moreCount={item.moreCount}
         badgeRowOffset={-4}
         noElevation
+        onPress={(branch) => {
+          navigation.navigate("BusinessDetailScreen", {
+            branch,
+            source: "discover",
+            disableTransitionAnimation: Platform.OS === "android",
+          });
+        }}
       />
     ),
-    []
+    [navigation]
   );
 
   const keyExtractor = useCallback(
@@ -309,7 +316,11 @@ export default function DiscoverListScreen() {
   }, []);
   const handleSelectSearchBranch = useCallback((branch: BranchData) => {
     handleCloseSearch();
-    navigation.navigate("BusinessDetailScreen", { branch });
+    navigation.navigate("BusinessDetailScreen", {
+      branch,
+      source: "discover",
+      disableTransitionAnimation: Platform.OS === "android",
+    });
   }, [handleCloseSearch, navigation]);
   const handleSelectFavorite = useCallback(() => {
     // DiscoverSearchSheet vyžaduje callback, v list view favorites nepoužívame.

@@ -473,7 +473,11 @@ export default function DiscoverScreen() {
       discoverDebugLog("[DiscoverMapDebug:screen] navigateToBranchDetail:navigate", {
         branchId: branch.id,
       });
-      navigation.navigate("BusinessDetailScreen", { branch });
+      navigation.navigate("BusinessDetailScreen", {
+        branch,
+        source: "discover",
+        disableTransitionAnimation: Platform.OS === "android",
+      });
     },
     [camera.syncCameraFromNative, camera.setPreserveCamera, navigation]
   );

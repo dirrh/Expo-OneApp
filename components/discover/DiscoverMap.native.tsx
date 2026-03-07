@@ -7,7 +7,7 @@ import React, {
   useState,
   type MutableRefObject,
 } from "react";
-import { StyleSheet, View } from "react-native";
+import { PixelRatio, Platform, StyleSheet, View } from "react-native";
 import type { Region } from "react-native-maps";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
 import { Asset } from "expo-asset";
@@ -21,6 +21,7 @@ import {
   getIOSScaledMarkerSize,
   isValidMapCoordinate,
   isValidRegion,
+  getMarkerNumericRating,
   toMarkerTitle,
 } from "../../lib/maps/discoverMapUtils";
 import {
@@ -34,6 +35,11 @@ import { CLUSTER_PRESS_ZOOM_STEP } from "./map/constants";
 import { useClusteredFeatures } from "./map/hooks/useClusteredFeatures";
 import { resolveIOSCompactPin } from "../../lib/maps/iosLabeledPinProvider";
 import {
+  resolveDiscoverSvgClusterMarker,
+  resolveDiscoverSvgMarker,
+  resolveDiscoverSvgRatingBadge,
+} from "../../lib/maps/discoverSvgMarkerProvider";
+import {
   IOS_SCALED_CLUSTER_BY_COUNT,
   IOS_SCALED_FILTER_CLUSTER_BY_COUNT,
 } from "../../lib/maps/generatedIOSScaledClusterByCount";
@@ -41,6 +47,7 @@ import { IOS_SCALED_STACKED_BY_COUNT } from "../../lib/maps/generatedIOSScaledSt
 import { IOS_COMPACT_PIN_ANCHOR } from "../../lib/maps/generatedIOSCompactPins";
 
 type OverlayMarkerKind = "cluster" | "grouped" | "single";
+type OverlayMarkerRenderMode = "dom" | "single-layer";
 
 type MarkerGroup = {
   id: string;
@@ -51,10 +58,16 @@ type MarkerGroup = {
 type OverlayMarker = {
   id: string;
   kind: OverlayMarkerKind;
+  renderMode: OverlayMarkerRenderMode;
   coordinate: { latitude: number; longitude: number };
   focusCoordinate: { latitude: number; longitude: number };
   image: number;
   anchor: { x: number; y: number };
+  width?: number;
+  height?: number;
+  isSvg?: boolean;
+  countOverlay?: boolean;
+  ratingValue?: string;
   title?: string;
   category?: DiscoverMapMarker["category"];
   count?: number;
@@ -63,6 +76,7 @@ type OverlayMarker = {
 type WebMarker = {
   id: string;
   kind: OverlayMarkerKind;
+  renderMode: OverlayMarkerRenderMode;
   imageKey: string;
   lat: number;
   lng: number;
@@ -76,6 +90,8 @@ type WebMarker = {
   height: number;
   anchorX: number;
   anchorY: number;
+  countOverlay?: boolean;
+  ratingValue?: string;
 };
 
 type CameraState = {
@@ -88,6 +104,7 @@ const WEBVIEW_ICON_URI_CACHE: Record<number, string | null> = {};
 const CLUSTER_PRESS_DURATION_MS = 500;
 const CLUSTER_PRESS_MIN_TARGET_ZOOM = IOS_FORCE_CLUSTER_ZOOM + 1;
 const IOS_MULTI_COMPACT_FALLBACK = require("../../images/icons/ios-scaled/compact-pins/multi.png");
+const SINGLE_MARKER_SVG_IMAGE_SCALE = Math.max(2, Math.min(3, Math.ceil(PixelRatio.get())));
 
 const toSafeClusterCountKey = (count: number) =>
   String(Math.max(0, Math.min(99, Math.floor(count)))) as keyof typeof IOS_SCALED_CLUSTER_BY_COUNT;
@@ -103,6 +120,153 @@ const resolveClusterImage = (count: number, hasActiveFilter: boolean) => {
 const resolveStackedImage = (count: number) => {
   const clampedCount = Math.max(2, Math.min(6, Math.floor(count)));
   return IOS_SCALED_STACKED_BY_COUNT[clampedCount] ?? IOS_MULTI_COMPACT_FALLBACK;
+};
+
+const resolveAssetMimeType = (asset: Asset) => {
+  const type = typeof asset.type === "string" ? asset.type.toLowerCase() : "";
+  if (type === "svg") {
+    return "image/svg+xml";
+  }
+  if (type === "jpg" || type === "jpeg") {
+    return "image/jpeg";
+  }
+  if (type === "webp") {
+    return "image/webp";
+  }
+
+  const uri = asset.localUri ?? asset.uri ?? "";
+  const extensionMatch = uri.match(/\.([a-z0-9]+)(?:[?#].*)?$/i);
+  const extension = extensionMatch?.[1]?.toLowerCase() ?? "";
+  if (extension === "svg") {
+    return "image/svg+xml";
+  }
+  if (extension === "jpg" || extension === "jpeg") {
+    return "image/jpeg";
+  }
+  if (extension === "webp") {
+    return "image/webp";
+  }
+  return "image/png";
+};
+
+const escapeSvgText = (value: string) =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+const composeSingleMarkerSvgUri = ({
+  markerUri,
+  markerWidth,
+  markerHeight,
+  badgeUri,
+  ratingValue,
+}: {
+  markerUri: string;
+  markerWidth: number;
+  markerHeight: number;
+  badgeUri?: string | null;
+  ratingValue?: string;
+}) => {
+  const outputWidth = Math.max(1, Math.round(markerWidth * SINGLE_MARKER_SVG_IMAGE_SCALE));
+  const outputHeight = Math.max(1, Math.round(markerHeight * SINGLE_MARKER_SVG_IMAGE_SCALE));
+  const badgeBaseWidth = 40;
+  const badgeBaseHeight = 18;
+  const badgeWidth = 32;
+  const badgeHeight = 14;
+  const badgeScaleX = badgeWidth / badgeBaseWidth;
+  const badgeScaleY = badgeHeight / badgeBaseHeight;
+  const badgeX = Math.max(0, markerWidth - badgeWidth);
+  const badgeY = 0;
+  const badgeContentTranslateX = badgeX + 7 * badgeScaleX;
+  const badgeContentTranslateY = badgeY + 3 * badgeScaleY;
+  const badgeRowCenterY = 6.35;
+  const badgeStarTextX = 0;
+  const badgeRatingTextX = 12;
+  const badgeStarSize = 10;
+  const badgeStarY = badgeRowCenterY - badgeStarSize / 2 + 0.2;
+  const safeRatingValue =
+    typeof ratingValue === "string" && ratingValue.length > 0
+      ? escapeSvgText(ratingValue)
+      : "";
+  const badgeStarMarkup =
+    Platform.OS === "android"
+      ? `
+        <g transform="translate(${badgeStarTextX} ${badgeStarY})">
+          <path
+            d="M5 0.5L6.545 3.364H9.755L7.105 5.482L8.179 8.945L5 7.182L1.821 8.945L2.895 5.482L0.245 3.364H3.455L5 0.5Z"
+            fill="#FFD000"
+          />
+        </g>`
+      : `
+        <text
+          x="${badgeStarTextX}"
+          y="${badgeRowCenterY}"
+          fill="#FFD000"
+          font-size="10"
+          font-weight="600"
+          font-family="Inter, Roboto, Helvetica Neue, Arial, sans-serif"
+          dominant-baseline="central"
+          alignment-baseline="central"
+          text-anchor="start"
+          lengthAdjust="spacingAndGlyphs"
+          textLength="10"
+        >&#9733;</text>`;
+  const badgeImageMarkup =
+    badgeUri && safeRatingValue
+      ? `
+      <image
+        href="${badgeUri}"
+        xlink:href="${badgeUri}"
+        x="${badgeX}"
+        y="${badgeY}"
+        width="${badgeWidth}"
+        height="${badgeHeight}"
+        preserveAspectRatio="none"
+      />
+      <g transform="translate(${badgeContentTranslateX} ${badgeContentTranslateY}) scale(${badgeScaleX} ${badgeScaleY})">
+        ${badgeStarMarkup}
+        <text
+          x="${badgeRatingTextX}"
+          y="${badgeRowCenterY}"
+          fill="#FFFFFF"
+          font-size="10"
+          font-weight="600"
+          font-family="Inter, Roboto, Helvetica Neue, Arial, sans-serif"
+          dominant-baseline="central"
+          alignment-baseline="central"
+          text-anchor="start"
+          lengthAdjust="spacingAndGlyphs"
+          textLength="14"
+        >${safeRatingValue}</text>
+      </g>`
+      : "";
+
+  const svg = `
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      xmlns:xlink="http://www.w3.org/1999/xlink"
+      width="${outputWidth}"
+      height="${outputHeight}"
+      viewBox="0 0 ${markerWidth} ${markerHeight}"
+      fill="none"
+    >
+      <image
+        href="${markerUri}"
+        xlink:href="${markerUri}"
+        x="0"
+        y="0"
+        width="${markerWidth}"
+        height="${markerHeight}"
+        preserveAspectRatio="xMidYMid meet"
+      />
+      ${badgeImageMarkup}
+    </svg>
+  `;
+
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 };
 
 const LEAFLET_HTML = String.raw`<!doctype html>
@@ -125,12 +289,27 @@ const LEAFLET_HTML = String.raw`<!doctype html>
       background: #f3f4f6;
     }
     .marker-wrap {
+      position: relative;
       display: flex;
       align-items: center;
       justify-content: center;
+      overflow: visible;
       user-select: none;
+      transform: translateZ(0);
+      -webkit-transform: translateZ(0);
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
     }
-    .marker-img { display: block; pointer-events: none; user-select: none; -webkit-user-drag: none; }
+    .marker-img {
+      display: block;
+      pointer-events: none;
+      user-select: none;
+      -webkit-user-drag: none;
+      transform: translateZ(0);
+      -webkit-transform: translateZ(0);
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+    }
     .maplibregl-marker,
     .maplibregl-marker * {
       -webkit-tap-highlight-color: transparent !important;
@@ -148,8 +327,44 @@ const LEAFLET_HTML = String.raw`<!doctype html>
       position: absolute;
       left: 50%;
       transform: translateX(-50%);
-      top: 100%;
-      margin-top: -12px;
+      top: calc(100% + 4px);
+      margin-top: 0;
+      max-width: 180px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      pointer-events: none;
+      user-select: none;
+      color: #0B0F19;
+      font-size: 11px;
+      line-height: 14px;
+      font-weight: 600;
+      font-family: Roboto, Inter, "Inter_600SemiBold", "Helvetica Neue", Arial, sans-serif;
+      text-align: center;
+      text-shadow: 0 0 3px rgba(255, 255, 255, 0.92);
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+    .cluster-marker-count {
+      position: absolute;
+      left: 50%;
+      top: 42%;
+      transform: translate(-50%, -50%);
+      min-width: 16px;
+      pointer-events: none;
+      user-select: none;
+      color: #FFFFFF;
+      font-size: 12px;
+      line-height: 12px;
+      font-weight: 700;
+      letter-spacing: -0.2px;
+      font-family: Roboto, Inter, "Inter_700Bold", "Helvetica Neue", Arial, sans-serif;
+      text-align: center;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: geometricPrecision;
+    }
+    .single-marker-dom-label {
+      display: block;
       max-width: 180px;
       white-space: nowrap;
       overflow: hidden;
@@ -215,7 +430,8 @@ const LEAFLET_HTML = String.raw`<!doctype html>
       var textMeasureCanvas = document.createElement('canvas');
       var textMeasureCtx = textMeasureCanvas.getContext('2d');
       var SINGLE_MARKERS_SOURCE_ID = 'single-markers';
-      var SINGLE_MARKERS_HIT_LAYER_ID = 'single-markers-hit';
+      var MARKER_HIT_SOURCE_ID = 'marker-hit-source';
+      var MARKER_HIT_LAYER_ID = 'marker-hit-layer';
       var SINGLE_MARKERS_ICON_LAYER_ID = 'single-markers-icons';
       var SINGLE_MARKERS_LABEL_LAYER_ID = 'single-markers-labels';
       var singleMarkersRevision = 0;
@@ -226,6 +442,8 @@ const LEAFLET_HTML = String.raw`<!doctype html>
       var MARKER_LONG_PRESS_MS = 450;
       var MARKER_LONG_PRESS_MOVE_TOLERANCE_PX = 10;
       var MARKER_HIT_QUERY_PAD_PX = 10;
+      var SINGLE_LABEL_OFFSET_Y_PX = 18;
+      var SINGLE_MARKER_LABEL_TEXT_OFFSET_Y = 0.5;
       function escapeHtml(value) {
         var text = String(value || '');
         return text
@@ -244,8 +462,16 @@ const LEAFLET_HTML = String.raw`<!doctype html>
         }
         var title = entry.kind === 'single' ? String(entry.title || '') : '';
         var safeTitle = escapeHtml(title);
+        var clusterCountHtml = '';
+        if (entry.kind === 'cluster' && entry.countOverlay) {
+          var countValue = Number(entry.count);
+          if (Number.isFinite(countValue)) {
+            var safeCount = String(Math.max(0, Math.min(99, Math.floor(countValue))));
+            clusterCountHtml = '<div class="cluster-marker-count">' + safeCount + '</div>';
+          }
+        }
         var labelHtml = safeTitle ? '<div class="marker-label">' + safeTitle + '</div>' : '';
-        return '<div class="marker-wrap" style="width:' + w + 'px;height:' + h + 'px;"><img class="marker-img" src="' + entry.iconUri + '" style="width:' + w + 'px;height:' + h + 'px;" />' + labelHtml + '</div>';
+        return '<div class="marker-wrap" style="width:' + w + 'px;height:' + h + 'px;"><img class="marker-img" src="' + entry.iconUri + '" style="width:' + w + 'px;height:' + h + 'px;" />' + clusterCountHtml + labelHtml + '</div>';
       }
 
       function createMarker(entry) {
@@ -322,15 +548,68 @@ const LEAFLET_HTML = String.raw`<!doctype html>
         };
       }
 
+      function buildEntryIconRect(entry) {
+        if (!entry) return null;
+        var width = Number(entry.width);
+        var height = Number(entry.height);
+        var anchorX = Number(entry.anchorX);
+        var anchorY = Number(entry.anchorY);
+        var lng = Number(entry.lng);
+        var lat = Number(entry.lat);
+        if (
+          !Number.isFinite(width) ||
+          !Number.isFinite(height) ||
+          !Number.isFinite(lng) ||
+          !Number.isFinite(lat)
+        ) {
+          return null;
+        }
+
+        var ax = Number.isFinite(anchorX) ? anchorX : 0.5;
+        var ay = Number.isFinite(anchorY) ? anchorY : 0.5;
+        var projected = map.project([lng, lat]);
+        var left = projected.x - width * ax;
+        var top = projected.y - height * ay;
+        return {
+          left: left,
+          top: top,
+          right: left + width,
+          bottom: top + height,
+        };
+      }
+
       function buildLabelRect(m, markerRect) {
         if (!m.labelEl) return null;
         var title = String(m.entry.title || '');
         if (!title) return null;
         var labelWidth = estimateLabelWidth(title);
         var labelHeight = 14;
-        var marginTop = -12;
+        var marginTop = 4;
         var left = markerRect.left + m.width / 2 - labelWidth / 2;
         var top = markerRect.top + m.height + marginTop;
+        return {
+          left: left,
+          top: top,
+          right: left + labelWidth,
+          bottom: top + labelHeight,
+        };
+      }
+
+      function buildSingleLayerLabelRect(entry) {
+        if (!entry) return null;
+        var title = String(entry.title || '');
+        if (!title) return null;
+        var lng = Number(entry.lng);
+        var lat = Number(entry.lat);
+        if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
+          return null;
+        }
+
+        var projected = map.project([lng, lat]);
+        var labelWidth = estimateLabelWidth(title);
+        var labelHeight = 14;
+        var top = projected.y + SINGLE_MARKER_LABEL_TEXT_OFFSET_Y * 11;
+        var left = projected.x - labelWidth / 2;
         return {
           left: left,
           top: top,
@@ -464,20 +743,45 @@ const LEAFLET_HTML = String.raw`<!doctype html>
       }
 
       function applyLabelCollisions() {
-        if (!Array.isArray(window.__markers__) || window.__markers__.length === 0) return;
+        var domMarkers = Array.isArray(window.__markers__) ? window.__markers__ : [];
+        var singleMarkers = Array.isArray(window.__singleMarkers__) ? window.__singleMarkers__ : [];
+        var singleLabelMarkers = Array.isArray(window.__singleLabelMarkers__)
+          ? window.__singleLabelMarkers__
+          : [];
+        if (domMarkers.length === 0 && singleMarkers.length === 0 && singleLabelMarkers.length === 0) {
+          syncSingleMarkerSourceData({});
+          return;
+        }
 
-        var markerRects = new Array(window.__markers__.length);
-        for (var i = 0; i < window.__markers__.length; i += 1) {
-          markerRects[i] = buildMarkerRect(window.__markers__[i]);
+        var iconRects = [];
+        for (var i = 0; i < domMarkers.length; i += 1) {
+          var domMarkerRect = buildMarkerRect(domMarkers[i]);
+          if (!domMarkerRect) continue;
+          iconRects.push({
+            id: domMarkers[i] && domMarkers[i].entry ? String(domMarkers[i].entry.id || '') : '',
+            rect: domMarkerRect
+          });
+        }
+
+        for (var singleIndex = 0; singleIndex < singleMarkers.length; singleIndex += 1) {
+          var singleMarkerRect = buildEntryIconRect(singleMarkers[singleIndex]);
+          if (!singleMarkerRect) continue;
+          iconRects.push({
+            id: singleMarkers[singleIndex] ? String(singleMarkers[singleIndex].id || '') : '',
+            rect: singleMarkerRect
+          });
         }
 
         var acceptedLabelRects = [];
-        for (var j = 0; j < window.__markers__.length; j += 1) {
-          var markerObj = window.__markers__[j];
+        for (var j = 0; j < domMarkers.length; j += 1) {
+          var markerObj = domMarkers[j];
           var labelEl = markerObj.labelEl;
           if (!labelEl) continue;
 
-          var labelRect = buildLabelRect(markerObj, markerRects[j]);
+          var domMarkerRectForLabel = buildMarkerRect(markerObj);
+          var labelRect = domMarkerRectForLabel
+            ? buildLabelRect(markerObj, domMarkerRectForLabel)
+            : null;
           if (!labelRect) {
             if (labelEl.style.display !== 'none') {
               labelEl.style.display = 'none';
@@ -486,17 +790,14 @@ const LEAFLET_HTML = String.raw`<!doctype html>
           }
 
           var hasCollision = false;
-
-          // Rule 1: hide if touches any other marker icon.
-          for (var k = 0; k < markerRects.length; k += 1) {
-            if (k === j) continue;
-            if (rectsIntersect(labelRect, markerRects[k])) {
+          for (var k = 0; k < iconRects.length; k += 1) {
+            if (iconRects[k].id === String(markerObj.entry.id || '')) continue;
+            if (rectsIntersect(labelRect, iconRects[k].rect)) {
               hasCollision = true;
               break;
             }
           }
 
-          // Rule 2: hide if touches already accepted label.
           if (!hasCollision) {
             for (var l = 0; l < acceptedLabelRects.length; l += 1) {
               if (rectsIntersect(labelRect, acceptedLabelRects[l])) {
@@ -517,6 +818,90 @@ const LEAFLET_HTML = String.raw`<!doctype html>
             acceptedLabelRects.push(labelRect);
           }
         }
+
+        for (var singleLabelIndex = 0; singleLabelIndex < singleLabelMarkers.length; singleLabelIndex += 1) {
+          var singleLabelMarker = singleLabelMarkers[singleLabelIndex];
+          if (!singleLabelMarker || !singleLabelMarker.element || !singleLabelMarker.entry) continue;
+
+          var singleLabelRect = buildSingleLabelRect(singleLabelMarker);
+          if (!singleLabelRect) {
+            if (singleLabelMarker.element.style.display !== 'none') {
+              singleLabelMarker.element.style.display = 'none';
+            }
+            continue;
+          }
+
+          var singleLabelCollision = false;
+          for (var iconIndex = 0; iconIndex < iconRects.length; iconIndex += 1) {
+            if (iconRects[iconIndex].id === String(singleLabelMarker.entry.id || '')) continue;
+            if (rectsIntersect(singleLabelRect, iconRects[iconIndex].rect)) {
+              singleLabelCollision = true;
+              break;
+            }
+          }
+
+          if (!singleLabelCollision) {
+            for (var acceptedIndex = 0; acceptedIndex < acceptedLabelRects.length; acceptedIndex += 1) {
+              if (rectsIntersect(singleLabelRect, acceptedLabelRects[acceptedIndex])) {
+                singleLabelCollision = true;
+                break;
+              }
+            }
+          }
+
+          if (singleLabelCollision) {
+            if (singleLabelMarker.element.style.display !== 'none') {
+              singleLabelMarker.element.style.display = 'none';
+            }
+          } else {
+            if (singleLabelMarker.element.style.display === 'none') {
+              singleLabelMarker.element.style.display = '';
+            }
+            acceptedLabelRects.push(singleLabelRect);
+          }
+        }
+
+        var singleLayerLabelTitlesById = {};
+        for (var singleMarkerIndex = 0; singleMarkerIndex < singleMarkers.length; singleMarkerIndex += 1) {
+          var singleMarkerEntry = singleMarkers[singleMarkerIndex];
+          if (!singleMarkerEntry) continue;
+
+          var singleLayerLabelRect = buildSingleLayerLabelRect(singleMarkerEntry);
+          if (!singleLayerLabelRect) {
+            continue;
+          }
+
+          var singleLayerLabelCollision = false;
+          for (var singleIconIndex = 0; singleIconIndex < iconRects.length; singleIconIndex += 1) {
+            if (iconRects[singleIconIndex].id === String(singleMarkerEntry.id || '')) continue;
+            if (rectsIntersect(singleLayerLabelRect, iconRects[singleIconIndex].rect)) {
+              singleLayerLabelCollision = true;
+              break;
+            }
+          }
+
+          if (!singleLayerLabelCollision) {
+            for (
+              var singleAcceptedIndex = 0;
+              singleAcceptedIndex < acceptedLabelRects.length;
+              singleAcceptedIndex += 1
+            ) {
+              if (rectsIntersect(singleLayerLabelRect, acceptedLabelRects[singleAcceptedIndex])) {
+                singleLayerLabelCollision = true;
+                break;
+              }
+            }
+          }
+
+          if (!singleLayerLabelCollision) {
+            singleLayerLabelTitlesById[String(singleMarkerEntry.id || '')] = String(
+              singleMarkerEntry.title || ''
+            );
+            acceptedLabelRects.push(singleLayerLabelRect);
+          }
+        }
+
+        syncSingleMarkerSourceData(singleLayerLabelTitlesById);
       }
 
       function scheduleLabelCollisionPass() {
@@ -576,7 +961,7 @@ const LEAFLET_HTML = String.raw`<!doctype html>
           [point.x + radius, point.y + radius]
         ];
         var features = map.queryRenderedFeatures(bbox, {
-          layers: [SINGLE_MARKERS_HIT_LAYER_ID]
+          layers: [MARKER_HIT_LAYER_ID]
         });
 
         if (!Array.isArray(features) || features.length === 0) {
@@ -657,25 +1042,34 @@ const LEAFLET_HTML = String.raw`<!doctype html>
         }, MARKER_LONG_PRESS_MS);
       }
 
-      function ensureSingleMarkerLayers() {
-        if (!map.getSource(SINGLE_MARKERS_SOURCE_ID)) {
-          map.addSource(SINGLE_MARKERS_SOURCE_ID, {
+      function ensureMarkerHitLayer() {
+        if (!map.getSource(MARKER_HIT_SOURCE_ID)) {
+          map.addSource(MARKER_HIT_SOURCE_ID, {
             type: 'geojson',
             data: buildEmptyFeatureCollection()
           });
         }
 
-        if (!map.getLayer(SINGLE_MARKERS_HIT_LAYER_ID)) {
+        if (!map.getLayer(MARKER_HIT_LAYER_ID)) {
           map.addLayer({
-            id: SINGLE_MARKERS_HIT_LAYER_ID,
+            id: MARKER_HIT_LAYER_ID,
             type: 'circle',
-            source: SINGLE_MARKERS_SOURCE_ID,
+            source: MARKER_HIT_SOURCE_ID,
             paint: {
               'circle-radius': ['coalesce', ['get', 'hitRadius'], 20],
               'circle-color': '#000000',
               'circle-opacity': 0.001,
               'circle-stroke-width': 0
             }
+          });
+        }
+      }
+
+      function ensureSingleMarkerLayers() {
+        if (!map.getSource(SINGLE_MARKERS_SOURCE_ID)) {
+          map.addSource(SINGLE_MARKERS_SOURCE_ID, {
+            type: 'geojson',
+            data: buildEmptyFeatureCollection()
           });
         }
 
@@ -706,17 +1100,31 @@ const LEAFLET_HTML = String.raw`<!doctype html>
               'text-size': 11,
               'text-line-height': 1.15,
               'text-anchor': 'top',
-              'text-offset': [0, 0.45],
+              'text-offset': [0, SINGLE_MARKER_LABEL_TEXT_OFFSET_Y],
               'text-max-width': 12,
-              'text-overlap': 'always',
-              'text-optional': true
+              'text-padding': 2,
+              'text-optional': true,
+              'text-allow-overlap': true,
+              'text-ignore-placement': true
             },
             paint: {
               'text-color': '#0B0F19',
-              'text-halo-color': 'rgba(255,255,255,0.92)',
-              'text-halo-width': 1.5
+              'text-halo-color': 'rgba(255, 255, 255, 0.92)',
+              'text-halo-width': 1.25,
+              'text-halo-blur': 0.6
             }
           });
+        }
+
+        if (map.getLayer(SINGLE_MARKERS_LABEL_LAYER_ID)) {
+          map.setLayoutProperty(SINGLE_MARKERS_LABEL_LAYER_ID, 'text-anchor', 'top');
+          map.setLayoutProperty(
+            SINGLE_MARKERS_LABEL_LAYER_ID,
+            'text-offset',
+            [0, SINGLE_MARKER_LABEL_TEXT_OFFSET_Y]
+          );
+          map.setLayoutProperty(SINGLE_MARKERS_LABEL_LAYER_ID, 'text-allow-overlap', true);
+          map.setLayoutProperty(SINGLE_MARKERS_LABEL_LAYER_ID, 'text-ignore-placement', true);
         }
       }
 
@@ -826,10 +1234,7 @@ const LEAFLET_HTML = String.raw`<!doctype html>
         image.src = blobUrl || entry.iconUri;
       }
 
-      function toSingleMarkerFeature(entry) {
-        var width = Number(entry.width);
-        var height = Number(entry.height);
-        var fallbackRadius = Math.max(16, Math.round(Math.max(width, height) * 0.5));
+      function toSingleMarkerFeature(entry, labelTitle) {
         return {
           type: 'Feature',
           geometry: {
@@ -839,12 +1244,260 @@ const LEAFLET_HTML = String.raw`<!doctype html>
           properties: {
             id: entry.id,
             imageKey: entry.imageKey,
-            title: entry.title || '',
-            focusLng: entry.focusLng,
-            focusLat: entry.focusLat,
-            hitRadius: Number.isFinite(fallbackRadius) ? fallbackRadius : 20
+            title: labelTitle || ''
           }
         };
+      }
+
+      function syncSingleMarkerSourceData(labelTitlesById) {
+        var source = map.getSource(SINGLE_MARKERS_SOURCE_ID);
+        if (!source || typeof source.setData !== 'function') {
+          return;
+        }
+
+        var renderedMarkers = Array.isArray(window.__singleMarkers__) ? window.__singleMarkers__ : [];
+        var features = [];
+        var fingerprintParts = [];
+
+        for (var i = 0; i < renderedMarkers.length; i += 1) {
+          var entry = renderedMarkers[i];
+          if (!entry || !Number.isFinite(entry.lat) || !Number.isFinite(entry.lng)) {
+            continue;
+          }
+          if (!entry.imageKey || !map.hasImage(entry.imageKey)) {
+            continue;
+          }
+
+          var markerId = String(entry.id || '');
+          var resolvedLabelTitle =
+            labelTitlesById && labelTitlesById[markerId] ? String(entry.title || '') : '';
+          features.push(toSingleMarkerFeature(entry, resolvedLabelTitle));
+          fingerprintParts.push(
+            markerId + '|' + String(entry.imageKey || '') + '|' + resolvedLabelTitle
+          );
+        }
+
+        var nextFingerprint = fingerprintParts.join('||');
+        if (window.__singleMarkerFeatureFingerprint__ === nextFingerprint) {
+          return;
+        }
+
+        window.__singleMarkerFeatureFingerprint__ = nextFingerprint;
+        source.setData({
+          type: 'FeatureCollection',
+          features: features
+        });
+      }
+
+      function singleLabelFingerprint(entry) {
+        return (
+          String(entry.id || '') + '|' +
+          String(entry.lat || '') + '|' +
+          String(entry.lng || '') + '|' +
+          String(entry.title || '') + '|' +
+          String(entry.width || '') + '|' +
+          String(entry.height || '') + '|' +
+          String(entry.anchorX || '') + '|' +
+          String(entry.anchorY || '')
+        );
+      }
+
+      function measureSingleLabelMarker(labelMarker) {
+        if (!labelMarker || !labelMarker.element || !labelMarker.entry) {
+          return;
+        }
+        var rect = labelMarker.element.getBoundingClientRect();
+        labelMarker.labelWidth =
+          rect && rect.width > 0 ? rect.width : estimateLabelWidth(labelMarker.entry.title || '');
+        labelMarker.labelHeight =
+          rect && rect.height > 0 ? rect.height : 14;
+      }
+
+      function createSingleLabelMarker(entry) {
+        var title = String(entry && entry.title ? entry.title : '');
+        var iconHeight = Number(entry && entry.height);
+        var anchorY = Number(entry && entry.anchorY);
+        var ay = Number.isFinite(anchorY) ? anchorY : 1;
+        var resolvedIconHeight = Number.isFinite(iconHeight) ? iconHeight : 0;
+        var offsetY = Math.round(resolvedIconHeight * (1 - ay) + SINGLE_LABEL_OFFSET_Y_PX);
+        var element = document.createElement('div');
+        element.className = 'single-marker-dom-label';
+        element.textContent = title;
+        element.style.pointerEvents = 'none';
+        element.style.userSelect = 'none';
+        element.style.webkitUserSelect = 'none';
+
+        var marker = new maplibregl.Marker({
+          element: element,
+          anchor: 'top',
+          offset: [0, offsetY],
+          rotationAlignment: 'viewport',
+          pitchAlignment: 'viewport',
+        })
+          .setLngLat([entry.lng, entry.lat])
+          .addTo(map);
+
+        var wrapperEl = marker.getElement();
+        if (wrapperEl) {
+          wrapperEl.style.pointerEvents = 'none';
+        }
+
+        var labelMarker = {
+          marker: marker,
+          element: element,
+          entry: entry,
+          offsetY: offsetY,
+          labelWidth: 0,
+          labelHeight: 14,
+        };
+        measureSingleLabelMarker(labelMarker);
+        return labelMarker;
+      }
+
+      function buildSingleLabelRect(labelMarker) {
+        if (!labelMarker || !labelMarker.entry) return null;
+        var lng = Number(labelMarker.entry.lng);
+        var lat = Number(labelMarker.entry.lat);
+        if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
+          return null;
+        }
+
+        var projected = map.project([lng, lat]);
+        var labelWidth = Number(labelMarker.labelWidth);
+        var labelHeight = Number(labelMarker.labelHeight);
+        var width = Number.isFinite(labelWidth) && labelWidth > 0
+          ? labelWidth
+          : estimateLabelWidth(labelMarker.entry.title || '');
+        var height = Number.isFinite(labelHeight) && labelHeight > 0 ? labelHeight : 14;
+        var top = projected.y + Number(labelMarker.offsetY || 0);
+        var left = projected.x - width / 2;
+        return {
+          left: left,
+          top: top,
+          right: left + width,
+          bottom: top + height,
+        };
+      }
+
+      function setSingleLabelMarkers(newMarkers) {
+        var safeMarkers = Array.isArray(newMarkers) ? newMarkers : [];
+        var existingById = {};
+        var currentMarkers = Array.isArray(window.__singleLabelMarkers__)
+          ? window.__singleLabelMarkers__
+          : [];
+
+        for (var i = 0; i < currentMarkers.length; i += 1) {
+          var current = currentMarkers[i];
+          if (!current || !current.entry) continue;
+          existingById[String(current.entry.id || '')] = current;
+        }
+
+        var nextMarkers = [];
+        var didChange = false;
+
+        for (var j = 0; j < safeMarkers.length; j += 1) {
+          var entry = safeMarkers[j];
+          if (!entry || !entry.title || !Number.isFinite(entry.lat) || !Number.isFinite(entry.lng)) {
+            continue;
+          }
+
+          var markerId = String(entry.id || '');
+          var existing = existingById[markerId];
+          if (existing && singleLabelFingerprint(existing.entry) === singleLabelFingerprint(entry)) {
+            existing.entry = entry;
+            nextMarkers.push(existing);
+            delete existingById[markerId];
+            continue;
+          }
+
+          if (existing) {
+            existing.marker.remove();
+            delete existingById[markerId];
+          }
+
+          didChange = true;
+          nextMarkers.push(createSingleLabelMarker(entry));
+        }
+
+        var leftoverIds = Object.keys(existingById);
+        for (var k = 0; k < leftoverIds.length; k += 1) {
+          existingById[leftoverIds[k]].marker.remove();
+        }
+        if (leftoverIds.length > 0) {
+          didChange = true;
+        }
+
+        if (!didChange) {
+          if (currentMarkers.length !== nextMarkers.length) {
+            didChange = true;
+          } else {
+            for (var orderIndex = 0; orderIndex < nextMarkers.length; orderIndex += 1) {
+              if (currentMarkers[orderIndex] !== nextMarkers[orderIndex]) {
+                didChange = true;
+                break;
+              }
+            }
+          }
+        }
+
+        window.__singleLabelMarkers__ = nextMarkers;
+        for (var measureIndex = 0; measureIndex < nextMarkers.length; measureIndex += 1) {
+          measureSingleLabelMarker(nextMarkers[measureIndex]);
+        }
+        scheduleLabelCollisionPass();
+      }
+
+      function toHitFeature(entry, hitRadius) {
+        return {
+          type: 'Feature',
+          geometry: {
+            type: 'Point',
+            coordinates: [entry.lng, entry.lat]
+          },
+          properties: {
+            id: entry.id,
+            kind: entry.kind,
+            focusLng: entry.focusLng,
+            focusLat: entry.focusLat,
+            hitRadius: hitRadius
+          }
+        };
+      }
+
+      function syncHitFeatures() {
+        ensureMarkerHitLayer();
+
+        var hitSource = map.getSource(MARKER_HIT_SOURCE_ID);
+        if (!hitSource || typeof hitSource.setData !== 'function') {
+          return;
+        }
+
+        var hitFeatures = [];
+        var domMarkers = Array.isArray(window.__markers__) ? window.__markers__ : [];
+        var singleMarkers = Array.isArray(window.__singleMarkers__) ? window.__singleMarkers__ : [];
+
+        for (var hi = 0; hi < domMarkers.length; hi += 1) {
+          var hm = domMarkers[hi];
+          if (!hm || !hm.entry || !Number.isFinite(hm.entry.lat) || !Number.isFinite(hm.entry.lng)) continue;
+          var domHitRadius = String(hm.entry.kind || '') === 'single'
+            ? Math.max(16, Math.round(Math.max(hm.width, hm.height) * 0.5))
+            : Math.max(18, Math.round(Math.min(hm.width, hm.height) * 0.38));
+          hitFeatures.push(toHitFeature(hm.entry, domHitRadius));
+        }
+
+        for (var si = 0; si < singleMarkers.length; si += 1) {
+          var sm = singleMarkers[si];
+          if (!sm || !Number.isFinite(sm.lat) || !Number.isFinite(sm.lng)) continue;
+          var smWidth = Number(sm.width);
+          var smHeight = Number(sm.height);
+          var singleHitRadius = Math.max(16, Math.round(Math.max(smWidth, smHeight) * 0.5));
+          hitFeatures.push(toHitFeature(sm, singleHitRadius));
+        }
+
+        hitSource.setData({
+          type: 'FeatureCollection',
+          features: hitFeatures
+        });
       }
 
       function setSingleMarkers(newMarkers) {
@@ -869,12 +1522,11 @@ const LEAFLET_HTML = String.raw`<!doctype html>
             return;
           }
 
-          var source = map.getSource(SINGLE_MARKERS_SOURCE_ID);
-          if (!source || typeof source.setData !== 'function') {
+          if (!map.getSource(SINGLE_MARKERS_SOURCE_ID)) {
             return;
           }
 
-          var features = [];
+          var renderedMarkers = [];
           for (var j = 0; j < safeMarkers.length; j += 1) {
             var markerEntry = safeMarkers[j];
             if (!markerEntry || !Number.isFinite(markerEntry.lat) || !Number.isFinite(markerEntry.lng)) {
@@ -883,31 +1535,30 @@ const LEAFLET_HTML = String.raw`<!doctype html>
             if (!markerEntry.imageKey || !map.hasImage(markerEntry.imageKey)) {
               continue;
             }
-            features.push(toSingleMarkerFeature(markerEntry));
+            renderedMarkers.push(markerEntry);
           }
 
-          source.setData({
-            type: 'FeatureCollection',
-            features: features
-          });
+          window.__singleMarkers__ = renderedMarkers;
+          setSingleLabelMarkers([]);
+          applyLabelCollisions();
+          syncHitFeatures();
 
-          var firstFeature = features.length > 0 ? features[0] : null;
+          var firstFeature = renderedMarkers.length > 0 ? renderedMarkers[0] : null;
           var firstPoint = null;
           var firstVisibleFeature = null;
           var firstVisiblePoint = null;
           var viewportWidth = map.getContainer().clientWidth;
           var viewportHeight = map.getContainer().clientHeight;
-          for (var featureIndex = 0; featureIndex < features.length; featureIndex += 1) {
-            var candidateFeature = features[featureIndex];
+          for (var featureIndex = 0; featureIndex < renderedMarkers.length; featureIndex += 1) {
+            var candidateFeature = renderedMarkers[featureIndex];
             if (
               !candidateFeature ||
-              !candidateFeature.geometry ||
-              !Array.isArray(candidateFeature.geometry.coordinates) ||
-              candidateFeature.geometry.coordinates.length < 2
+              !Number.isFinite(candidateFeature.lng) ||
+              !Number.isFinite(candidateFeature.lat)
             ) {
               continue;
             }
-            var candidatePoint = map.project(candidateFeature.geometry.coordinates);
+            var candidatePoint = map.project([candidateFeature.lng, candidateFeature.lat]);
             var roundedCandidatePoint = [Math.round(candidatePoint.x), Math.round(candidatePoint.y)];
             if (!firstPoint) {
               firstPoint = roundedCandidatePoint;
@@ -925,13 +1576,10 @@ const LEAFLET_HTML = String.raw`<!doctype html>
           }
           debug('setSingleMarkers', {
             requested: safeMarkers.length,
-            rendered: features.length,
-            firstId: firstFeature && firstFeature.properties ? String(firstFeature.properties.id || '') : '',
+            rendered: renderedMarkers.length,
+            firstId: firstFeature ? String(firstFeature.id || '') : '',
             firstPoint: firstPoint,
-            firstVisibleId:
-              firstVisibleFeature && firstVisibleFeature.properties
-                ? String(firstVisibleFeature.properties.id || '')
-                : '',
+            firstVisibleId: firstVisibleFeature ? String(firstVisibleFeature.id || '') : '',
             firstVisiblePoint: firstVisiblePoint
           });
         });
@@ -940,7 +1588,8 @@ const LEAFLET_HTML = String.raw`<!doctype html>
       function markerFingerprint(m) {
         return m.id + '|' + m.lat + '|' + m.lng + '|' + m.kind + '|' +
           (m.title || '') + '|' + (m.count || 0) + '|' + m.width + '|' +
-          m.height + '|' + (m.iconUri ? m.iconUri.length : 0);
+          m.height + '|' + (m.iconUri ? m.iconUri.length : 0) + '|' +
+          (m.countOverlay ? '1' : '0') + '|' + (m.ratingValue || '');
       }
 
       function getVisibleMarkerSnapshot(markerEntries) {
@@ -1051,32 +1700,7 @@ const LEAFLET_HTML = String.raw`<!doctype html>
           firstVisiblePoint: firstVisibleSnapshot.firstPoint
         });
 
-        // Sync canvas hit layer with all current DOM markers so map.on('click')
-        // can detect taps on all marker types without any DOM touch events.
-        ensureSingleMarkerLayers();
-        var hitSource = map.getSource(SINGLE_MARKERS_SOURCE_ID);
-        if (hitSource && typeof hitSource.setData === 'function') {
-          var hitFeatures = [];
-          for (var hi = 0; hi < nextArr.length; hi += 1) {
-            var hm = nextArr[hi];
-            if (!hm || !hm.entry || !Number.isFinite(hm.entry.lat) || !Number.isFinite(hm.entry.lng)) continue;
-            // hitRadius must cover the full icon height — for bottom-anchored pins
-            // the coord is at the base, so the entire icon body sits above it.
-            var hitRadius = Math.max(18, Math.round(Math.min(hm.width, hm.height) * 0.38));
-            hitFeatures.push({
-              type: 'Feature',
-              geometry: { type: 'Point', coordinates: [hm.entry.lng, hm.entry.lat] },
-              properties: {
-                id: hm.entry.id,
-                kind: hm.entry.kind,
-                focusLng: hm.entry.focusLng,
-                focusLat: hm.entry.focusLat,
-                hitRadius: hitRadius
-              }
-            });
-          }
-          hitSource.setData({ type: 'FeatureCollection', features: hitFeatures });
-        }
+        syncHitFeatures();
 
         if (didChange) {
           scheduleLabelCollisionPass();
@@ -1138,14 +1762,16 @@ const LEAFLET_HTML = String.raw`<!doctype html>
           var msg = typeof raw === 'string' ? JSON.parse(raw) : raw;
           if (!msg || typeof msg !== 'object') return;
           if (msg.type === 'setData') {
-            var allMarkers = (msg.markers || []).concat(msg.singleMarkers || []);
             debug('incomingSetData', {
               markerCount: Array.isArray(msg.markers) ? msg.markers.length : 0,
               singleMarkerCount: Array.isArray(msg.singleMarkers) ? msg.singleMarkers.length : 0,
-              totalMarkers: allMarkers.length,
+              totalMarkers:
+                (Array.isArray(msg.markers) ? msg.markers.length : 0) +
+                (Array.isArray(msg.singleMarkers) ? msg.singleMarkers.length : 0),
               hasUserCoord: Array.isArray(msg.userCoord)
             });
-            setMarkers(allMarkers);
+            setMarkers(msg.markers || []);
+            setSingleMarkers(msg.singleMarkers || []);
             setUserCoord(msg.userCoord || null);
             return;
           }
@@ -1159,6 +1785,9 @@ const LEAFLET_HTML = String.raw`<!doctype html>
       document.addEventListener('message', function (e) { onIncoming(e.data); });
 
       window.__markers__ = [];
+      window.__singleMarkers__ = [];
+      window.__singleLabelMarkers__ = [];
+      window.__singleMarkerFeatureFingerprint__ = '';
 
       map.on('dragstart', function () {
         clearMarkerLongPressTracking();
@@ -1181,9 +1810,6 @@ const LEAFLET_HTML = String.raw`<!doctype html>
           send({ type: 'userGestureStart' });
         }
       });
-      map.on('move', scheduleLabelCollisionPass);
-      map.on('zoom', scheduleLabelCollisionPass);
-      map.on('rotate', scheduleLabelCollisionPass);
       map.on('touchstart', function (e) {
         var point = resolveEventPoint(e);
         var touchCount = e && Array.isArray(e.points) ? e.points.length : 1;
@@ -1266,6 +1892,7 @@ const LEAFLET_HTML = String.raw`<!doctype html>
       });
 
       map.on('style.load', function () {
+        ensureMarkerHitLayer();
         ensureSingleMarkerLayers();
         debug('styleLoad', {
           center: [map.getCenter().lng, map.getCenter().lat],
@@ -1275,6 +1902,7 @@ const LEAFLET_HTML = String.raw`<!doctype html>
       });
 
       map.on('load', function () {
+        ensureMarkerHitLayer();
         ensureSingleMarkerLayers();
         debug('mapLoad', {
           center: [map.getCenter().lng, map.getCenter().lat],
@@ -1376,6 +2004,7 @@ function DiscoverMapNative({
     zoom: fallbackZoom,
   });
   const iconUriCacheRef = useRef<Record<number, string | null>>(WEBVIEW_ICON_URI_CACHE);
+  const composedIconUriCacheRef = useRef<Record<string, string>>({});
   const onCameraChangedRef = useRef(onCameraChanged);
   const onMarkerPressRef = useRef(onMarkerPress);
   const onMarkerLongPressRef = useRef(onMarkerLongPress);
@@ -1504,13 +2133,18 @@ function DiscoverMapNative({
 
   const overlayMarkers = useMemo<OverlayMarker[]>(() => {
     if (visibleMode === "cluster") {
+      const svgClusterMarker = resolveDiscoverSvgClusterMarker(Boolean(hasActiveFilter));
       return clusteredFeatures.map((feature) => ({
         id: feature.id,
         kind: "cluster",
+        renderMode: "dom",
         coordinate: feature.coordinates,
         focusCoordinate: feature.focusCoordinates ?? feature.coordinates,
-        image: resolveClusterImage(feature.count, Boolean(hasActiveFilter)),
-        anchor: IOS_COMPACT_PIN_ANCHOR,
+        image: svgClusterMarker.asset,
+        anchor: svgClusterMarker.anchor,
+        width: svgClusterMarker.width,
+        height: svgClusterMarker.height,
+        countOverlay: true,
         count: feature.count,
         category: "Multi",
       }));
@@ -1522,6 +2156,7 @@ function DiscoverMapNative({
         markers.push({
           id: group.id,
           kind: "grouped",
+          renderMode: "dom",
           coordinate: group.coordinate,
           focusCoordinate: group.coordinate,
           image: resolveStackedImage(group.items.length),
@@ -1533,13 +2168,21 @@ function DiscoverMapNative({
       }
       const marker = group.items[0];
       if (!marker) continue;
+      const svgMarker = resolveDiscoverSvgMarker(marker.category);
+      const numericRating = getMarkerNumericRating(marker);
       markers.push({
         id: marker.id,
         kind: "single",
+        renderMode: "single-layer",
         coordinate: group.coordinate,
         focusCoordinate: group.coordinate,
-        image: resolveIOSCompactPin(marker.category),
-        anchor: IOS_COMPACT_PIN_ANCHOR,
+        image: svgMarker?.asset ?? resolveIOSCompactPin(marker.category),
+        anchor: svgMarker?.anchor ?? IOS_COMPACT_PIN_ANCHOR,
+        width: svgMarker?.width,
+        height: svgMarker?.height,
+        isSvg: Boolean(svgMarker),
+        ratingValue:
+          svgMarker && numericRating !== null ? numericRating.toFixed(1) : undefined,
         title: toMarkerTitle(marker),
         category: marker.category,
       });
@@ -1572,7 +2215,7 @@ function DiscoverMapNative({
           iconUriCacheRef.current[assetId] = null;
           return null;
         }
-        const dataUri = `data:image/png;base64,${base64}`;
+        const dataUri = `data:${resolveAssetMimeType(asset)};base64,${base64}`;
         iconUriCacheRef.current[assetId] = dataUri;
         return dataUri;
       } catch {
@@ -1582,17 +2225,88 @@ function DiscoverMapNative({
     };
 
     const build = async () => {
+      const svgRatingBadge = resolveDiscoverSvgRatingBadge();
+      const shouldResolveRatingBadge = overlayMarkers.some(
+        (marker) =>
+          marker.kind === "single" &&
+          marker.renderMode === "single-layer" &&
+          marker.isSvg &&
+          typeof marker.ratingValue === "string" &&
+          marker.ratingValue.length > 0
+      );
+      const requiredAssetIds = new Set<number>();
+      for (let assetIndex = 0; assetIndex < overlayMarkers.length; assetIndex += 1) {
+        const marker = overlayMarkers[assetIndex];
+        requiredAssetIds.add(marker.image);
+      }
+      if (shouldResolveRatingBadge) {
+        requiredAssetIds.add(svgRatingBadge.asset);
+      }
+
+      const resolvedAssets = new Map<number, string>();
+      await Promise.all(
+        Array.from(requiredAssetIds).map(async (assetId) => {
+          const uri = await resolveIconUri(assetId);
+          if (uri) {
+            resolvedAssets.set(assetId, uri);
+          }
+        })
+      );
+
+      if (cancelled) return;
+
+      const ratingBadgeUri = shouldResolveRatingBadge
+        ? resolvedAssets.get(svgRatingBadge.asset) ?? null
+        : null;
       const next: WebMarker[] = [];
       for (let i = 0; i < overlayMarkers.length; i += 1) {
         const marker = overlayMarkers[i];
         if (!isValidMapCoordinate(marker.coordinate.latitude, marker.coordinate.longitude)) continue;
-        const iconUri = await resolveIconUri(marker.image);
+        const baseIconUri = resolvedAssets.get(marker.image);
+        if (!baseIconUri) continue;
+        const spriteSize =
+          Number.isFinite(marker.width) &&
+          Number.isFinite(marker.height) &&
+          Number(marker.width) > 0 &&
+          Number(marker.height) > 0
+            ? {
+                width: Number(marker.width),
+                height: Number(marker.height),
+              }
+            : getIOSScaledMarkerSize(marker.image);
+        let iconUri = baseIconUri;
+        const composedIconKey = [
+          marker.image,
+          marker.isSvg ? "svg" : "bitmap",
+          marker.ratingValue || "plain",
+          spriteSize.width,
+          spriteSize.height,
+        ].join("|");
+        if (marker.kind === "single" && marker.renderMode === "single-layer" && marker.isSvg) {
+          const cachedComposedIconUri = composedIconUriCacheRef.current[composedIconKey];
+          if (cachedComposedIconUri) {
+            iconUri = cachedComposedIconUri;
+          } else {
+            iconUri = composeSingleMarkerSvgUri({
+              markerUri: baseIconUri,
+              markerWidth: spriteSize.width,
+              markerHeight: spriteSize.height,
+              badgeUri: ratingBadgeUri,
+              ratingValue: marker.ratingValue,
+            });
+            composedIconUriCacheRef.current[composedIconKey] = iconUri;
+          }
+        }
         if (!iconUri) continue;
-        const spriteSize = getIOSScaledMarkerSize(marker.image);
+        const imageKey =
+          marker.kind === "single" && marker.renderMode === "single-layer"
+            ? `asset-${composedIconKey}`
+            : `asset-${marker.image}`;
         next.push({
           id: marker.id,
           kind: marker.kind,
-          imageKey: `asset-${marker.image}`,
+          renderMode: marker.renderMode,
+          imageKey,
           lat: marker.coordinate.latitude,
           lng: marker.coordinate.longitude,
           focusLat: marker.focusCoordinate.latitude,
@@ -1605,6 +2319,8 @@ function DiscoverMapNative({
           height: spriteSize.height,
           anchorX: marker.anchor.x,
           anchorY: marker.anchor.y,
+          countOverlay: marker.countOverlay,
+          ratingValue: marker.ratingValue,
         });
       }
       if (cancelled) return;
@@ -1618,11 +2334,16 @@ function DiscoverMapNative({
             prev[idx].lat === m.lat &&
             prev[idx].lng === m.lng &&
             prev[idx].kind === m.kind &&
+            prev[idx].renderMode === m.renderMode &&
             prev[idx].imageKey === m.imageKey &&
             prev[idx].title === m.title &&
             prev[idx].count === m.count &&
             prev[idx].width === m.width &&
             prev[idx].height === m.height &&
+            prev[idx].anchorX === m.anchorX &&
+            prev[idx].anchorY === m.anchorY &&
+            prev[idx].countOverlay === m.countOverlay &&
+            prev[idx].ratingValue === m.ratingValue &&
             prev[idx].iconUri === m.iconUri
         )
       ) {
@@ -1646,12 +2367,15 @@ function DiscoverMapNative({
   }, [userCoord]);
 
   const singleLayerMarkers = useMemo(
-    () => webMarkers.filter((marker) => marker.kind === "single"),
+    () =>
+      webMarkers.filter(
+        (marker) => marker.kind === "single" && marker.renderMode === "single-layer"
+      ),
     [webMarkers]
   );
 
   const domWebMarkers = useMemo(
-    () => webMarkers.filter((marker) => marker.kind !== "single"),
+    () => webMarkers.filter((marker) => marker.renderMode === "dom"),
     [webMarkers]
   );
 
@@ -1803,7 +2527,10 @@ function DiscoverMapNative({
   );
 
   return (
-    <View style={styles.map}>
+    <View
+      style={styles.map}
+      renderToHardwareTextureAndroid={Platform.OS === "android"}
+    >
       <WebView
         ref={webViewRef}
         style={StyleSheet.absoluteFill}
@@ -1811,6 +2538,7 @@ function DiscoverMapNative({
         source={WEBVIEW_SOURCE}
         javaScriptEnabled
         domStorageEnabled
+        androidLayerType={Platform.OS === "android" ? "hardware" : "none"}
         onLoadStart={() => {
           discoverDebugLog("[DiscoverMapDebug:native] webViewLoadStart");
         }}

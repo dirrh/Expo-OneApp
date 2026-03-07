@@ -53,6 +53,11 @@ if (typeof global.TextDecoder === "undefined") {
 
 const Stack = createNativeStackNavigator();
 
+type BusinessDetailNavigationParams = {
+  disableTransitionAnimation?: boolean;
+  source?: "discover";
+};
+
 export default function App() {
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
@@ -87,7 +92,11 @@ export default function App() {
             )}
             <NavigationContainer>
               <Stack.Navigator screenOptions={{ headerShown: false }}>
-                <Stack.Screen name="Tabs" component={Tabs} />
+                <Stack.Screen
+                  name="Tabs"
+                  component={Tabs}
+                  options={{ freezeOnBlur: true }}
+                />
                 <Stack.Screen
                   name="SubscriptionActivation"
                   component={SubscriptionActivationScreen}
@@ -115,6 +124,17 @@ export default function App() {
                 <Stack.Screen
                   name="BusinessDetailScreen"
                   component={BusinessDetailScreen}
+                  options={({ route }) => {
+                    const params = route.params as BusinessDetailNavigationParams | undefined;
+                    const shouldDisableAnimation =
+                      Platform.OS === "android" &&
+                      params?.source === "discover" &&
+                      params?.disableTransitionAnimation === true;
+
+                    return {
+                      animation: shouldDisableAnimation ? "none" : "default",
+                    };
+                  }}
                 />
                 <Stack.Screen
                   name="Signup"
