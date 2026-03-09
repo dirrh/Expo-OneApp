@@ -37,7 +37,6 @@ import { resolveIOSCompactPin } from "../../lib/maps/iosLabeledPinProvider";
 import {
   resolveDiscoverSvgClusterMarker,
   resolveDiscoverSvgMarker,
-  resolveDiscoverSvgRatingBadge,
 } from "../../lib/maps/discoverSvgMarkerProvider";
 import {
   IOS_SCALED_CLUSTER_BY_COUNT,
@@ -66,6 +65,7 @@ type OverlayMarker = {
   width?: number;
   height?: number;
   isSvg?: boolean;
+  iosCanvasRatingBadge?: boolean;
   countOverlay?: boolean;
   ratingValue?: string;
   title?: string;
@@ -92,6 +92,7 @@ type WebMarker = {
   anchorY: number;
   countOverlay?: boolean;
   ratingValue?: string;
+  iosCanvasRatingBadge?: boolean;
 };
 
 type CameraState = {
@@ -161,13 +162,11 @@ const composeSingleMarkerSvgUri = ({
   markerUri,
   markerWidth,
   markerHeight,
-  badgeUri,
   ratingValue,
 }: {
   markerUri: string;
   markerWidth: number;
   markerHeight: number;
-  badgeUri?: string | null;
   ratingValue?: string;
 }) => {
   const outputWidth = Math.max(1, Math.round(markerWidth * SINGLE_MARKER_SVG_IMAGE_SCALE));
@@ -215,17 +214,14 @@ const composeSingleMarkerSvgUri = ({
           textLength="10"
         >&#9733;</text>`;
   const badgeImageMarkup =
-    badgeUri && safeRatingValue
+    safeRatingValue
       ? `
-      <image
-        href="${badgeUri}"
-        xlink:href="${badgeUri}"
-        x="${badgeX}"
-        y="${badgeY}"
-        width="${badgeWidth}"
-        height="${badgeHeight}"
-        preserveAspectRatio="none"
-      />
+      <g transform="translate(${badgeX} ${badgeY}) scale(${badgeScaleX} ${badgeScaleY})">
+        <path
+          d="M0 9C0 4.02944 4.02944 0 9 0H31C35.9706 0 40 4.02944 40 9C40 13.9706 35.9706 18 31 18H9C4.02944 18 0 13.9706 0 9Z"
+          fill="#374151"
+        />
+      </g>
       <g transform="translate(${badgeContentTranslateX} ${badgeContentTranslateY}) scale(${badgeScaleX} ${badgeScaleY})">
         ${badgeStarMarkup}
         <text
@@ -443,7 +439,7 @@ const LEAFLET_HTML = String.raw`<!doctype html>
       var MARKER_LONG_PRESS_MOVE_TOLERANCE_PX = 10;
       var MARKER_HIT_QUERY_PAD_PX = 10;
       var SINGLE_LABEL_OFFSET_Y_PX = 18;
-      var SINGLE_MARKER_LABEL_TEXT_OFFSET_Y = 0.5;
+      var SINGLE_MARKER_LABEL_TEXT_OFFSET_Y = -0.1;
       function escapeHtml(value) {
         var text = String(value || '');
         return text
@@ -1141,6 +1137,127 @@ const LEAFLET_HTML = String.raw`<!doctype html>
         return new Blob([ua], { type: mime });
       }
 
+      function drawRoundedRectPath(ctx, x, y, width, height, radius) {
+        var r = Math.max(0, Math.min(radius, width / 2, height / 2));
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + width, y, x + width, y + height, r);
+        ctx.arcTo(x + width, y + height, x, y + height, r);
+        ctx.arcTo(x, y + height, x, y, r);
+        ctx.arcTo(x, y, x + width, y, r);
+        ctx.closePath();
+      }
+
+      function drawBadgeStar(ctx, centerX, centerY, outerRadius, innerRadius) {
+        var points = 5;
+        var step = Math.PI / points;
+        var angle = -Math.PI / 2;
+        ctx.beginPath();
+        for (var pointIndex = 0; pointIndex < points * 2; pointIndex += 1) {
+          var radius = pointIndex % 2 === 0 ? outerRadius : innerRadius;
+          var x = centerX + Math.cos(angle) * radius;
+          var y = centerY + Math.sin(angle) * radius;
+          if (pointIndex === 0) {
+            ctx.moveTo(x, y);
+          } else {
+            ctx.lineTo(x, y);
+          }
+          angle += step;
+        }
+        ctx.closePath();
+      }
+
+      function drawSingleMarkerRatingBadge(ctx, entry, naturalWidth, naturalHeight) {
+        var ratingValue = entry && entry.ratingValue ? String(entry.ratingValue) : '';
+        if (!ratingValue) {
+          return;
+        }
+
+        var sourceCanvasWidth = 165;
+        var sourceCanvasHeight = 226;
+        var badgeCanvas = document.createElement('canvas');
+        badgeCanvas.width = sourceCanvasWidth;
+        badgeCanvas.height = sourceCanvasHeight;
+
+        var badgeCtx = badgeCanvas.getContext('2d', { willReadFrequently: true });
+        if (!badgeCtx) {
+          return;
+        }
+
+        var badgeTop = 35;
+        var badgeMinWidth = 98;
+        var badgeMaxWidth = 132;
+        var badgeMinHeight = 32;
+        var badgeGap = 6;
+        var badgePaddingLeft = 15;
+        var badgePaddingRight = 15;
+        var badgePaddingY = 10;
+        var badgeTextWidthBuffer = 8;
+        var badgeRightInset = -2;
+        var badgeLeftSafeMargin = 2;
+        var badgeRadius = 9999;
+        var badgeFontPx = 30;
+        var badgeStarSize = 27;
+
+        badgeCtx.clearRect(0, 0, sourceCanvasWidth, sourceCanvasHeight);
+        badgeCtx.font = '600 ' + String(badgeFontPx) + 'px Arial';
+        badgeCtx.textBaseline = 'middle';
+        badgeCtx.textAlign = 'left';
+
+        var textMetrics = badgeCtx.measureText(ratingValue);
+        var textHeight = Math.ceil(
+          (textMetrics.actualBoundingBoxAscent || badgeFontPx * 0.78) +
+          (textMetrics.actualBoundingBoxDescent || badgeFontPx * 0.22)
+        );
+        var rawBadgeWidth = Math.ceil(
+          badgePaddingLeft +
+          badgeStarSize +
+          badgeGap +
+          textMetrics.width +
+          badgePaddingRight +
+          badgeTextWidthBuffer
+        );
+        var badgeWidth = Math.max(badgeMinWidth, Math.min(badgeMaxWidth, rawBadgeWidth));
+        var badgeHeight = Math.max(
+          badgeMinHeight,
+          Math.ceil(Math.max(badgeStarSize, textHeight) + badgePaddingY * 2)
+        );
+        var rawBadgeX = sourceCanvasWidth - badgeWidth - badgeRightInset;
+        var badgeX = Math.min(
+          sourceCanvasWidth - badgeWidth,
+          Math.max(badgeLeftSafeMargin, rawBadgeX)
+        );
+        var badgeCenterY = badgeTop + badgeHeight / 2;
+        var starCenterX = badgeX + badgePaddingLeft + badgeStarSize / 2;
+        var textX = starCenterX + badgeStarSize / 2 + badgeGap;
+
+        badgeCtx.save();
+        drawRoundedRectPath(badgeCtx, badgeX, badgeTop, badgeWidth, badgeHeight, badgeRadius);
+        badgeCtx.fillStyle = '#374151';
+        badgeCtx.fill();
+
+        drawBadgeStar(
+          badgeCtx,
+          starCenterX,
+          badgeCenterY,
+          badgeStarSize / 2,
+          badgeStarSize / 4.6
+        );
+        badgeCtx.fillStyle = '#FFD000';
+        badgeCtx.fill();
+
+        badgeCtx.fillStyle = '#FFFFFF';
+        badgeCtx.font = '600 ' + String(badgeFontPx) + 'px Arial';
+        badgeCtx.fillText(ratingValue, textX, badgeCenterY);
+        badgeCtx.restore();
+
+        var targetPinLeft = naturalWidth * (149 / 402);
+        var targetPinTop = 0;
+        var targetPinWidth = naturalWidth * (104 / 402);
+        var targetPinHeight = naturalHeight * (141 / 172);
+        ctx.drawImage(badgeCanvas, targetPinLeft, targetPinTop, targetPinWidth, targetPinHeight);
+      }
+
       function addImageFromBitmap(entry, bitmap) {
         var naturalWidth = bitmap.width;
         var naturalHeight = bitmap.height;
@@ -1163,6 +1280,9 @@ const LEAFLET_HTML = String.raw`<!doctype html>
         var ctx = canvas.getContext('2d', { willReadFrequently: true });
         if (!ctx) return false;
         ctx.drawImage(bitmap, 0, 0);
+        if (entry.iosCanvasRatingBadge && entry.ratingValue) {
+          drawSingleMarkerRatingBadge(ctx, entry, naturalWidth, naturalHeight);
+        }
         var imageData = ctx.getImageData(0, 0, naturalWidth, naturalHeight);
         if (!map.hasImage(entry.imageKey)) {
           map.addImage(entry.imageKey, imageData, { pixelRatio: pixelRatio });
@@ -1500,13 +1620,80 @@ const LEAFLET_HTML = String.raw`<!doctype html>
         });
       }
 
+      function commitSingleMarkersRevision(revision, markers) {
+        if (revision !== singleMarkersRevision) {
+          return;
+        }
+
+        if (!map.getSource(SINGLE_MARKERS_SOURCE_ID)) {
+          return;
+        }
+
+        var safeMarkers = Array.isArray(markers) ? markers : [];
+        var renderedMarkers = [];
+        for (var j = 0; j < safeMarkers.length; j += 1) {
+          var markerEntry = safeMarkers[j];
+          if (!markerEntry || !Number.isFinite(markerEntry.lat) || !Number.isFinite(markerEntry.lng)) {
+            continue;
+          }
+          if (!markerEntry.imageKey || !map.hasImage(markerEntry.imageKey)) {
+            continue;
+          }
+          renderedMarkers.push(markerEntry);
+        }
+
+        window.__singleMarkers__ = renderedMarkers;
+        setSingleLabelMarkers([]);
+        applyLabelCollisions();
+        syncHitFeatures();
+
+        var firstFeature = renderedMarkers.length > 0 ? renderedMarkers[0] : null;
+        var firstPoint = null;
+        var firstVisibleFeature = null;
+        var firstVisiblePoint = null;
+        var viewportWidth = map.getContainer().clientWidth;
+        var viewportHeight = map.getContainer().clientHeight;
+        for (var featureIndex = 0; featureIndex < renderedMarkers.length; featureIndex += 1) {
+          var candidateFeature = renderedMarkers[featureIndex];
+          if (
+            !candidateFeature ||
+            !Number.isFinite(candidateFeature.lng) ||
+            !Number.isFinite(candidateFeature.lat)
+          ) {
+            continue;
+          }
+          var candidatePoint = map.project([candidateFeature.lng, candidateFeature.lat]);
+          var roundedCandidatePoint = [Math.round(candidatePoint.x), Math.round(candidatePoint.y)];
+          if (!firstPoint) {
+            firstPoint = roundedCandidatePoint;
+          }
+          if (
+            candidatePoint.x >= 0 &&
+            candidatePoint.x <= viewportWidth &&
+            candidatePoint.y >= 0 &&
+            candidatePoint.y <= viewportHeight
+          ) {
+            firstVisibleFeature = candidateFeature;
+            firstVisiblePoint = roundedCandidatePoint;
+            break;
+          }
+        }
+        debug('setSingleMarkers', {
+          requested: safeMarkers.length,
+          rendered: renderedMarkers.length,
+          firstId: firstFeature ? String(firstFeature.id || '') : '',
+          firstPoint: firstPoint,
+          firstVisibleId: firstVisibleFeature ? String(firstVisibleFeature.id || '') : '',
+          firstVisiblePoint: firstVisiblePoint
+        });
+      }
+
       function setSingleMarkers(newMarkers) {
         ensureSingleMarkerLayers();
 
         var safeMarkers = Array.isArray(newMarkers) ? newMarkers : [];
         var nextRevision = ++singleMarkersRevision;
         var seenImageKeys = {};
-        var imageLoads = [];
 
         for (var i = 0; i < safeMarkers.length; i += 1) {
           var imageEntry = safeMarkers[i];
@@ -1514,75 +1701,15 @@ const LEAFLET_HTML = String.raw`<!doctype html>
             continue;
           }
           seenImageKeys[imageEntry.imageKey] = true;
-          imageLoads.push(loadSingleMarkerImage(imageEntry));
+          if (map.hasImage(imageEntry.imageKey)) {
+            continue;
+          }
+          loadSingleMarkerImage(imageEntry).finally(function () {
+            commitSingleMarkersRevision(nextRevision, safeMarkers);
+          });
         }
 
-        Promise.all(imageLoads).then(function () {
-          if (nextRevision !== singleMarkersRevision) {
-            return;
-          }
-
-          if (!map.getSource(SINGLE_MARKERS_SOURCE_ID)) {
-            return;
-          }
-
-          var renderedMarkers = [];
-          for (var j = 0; j < safeMarkers.length; j += 1) {
-            var markerEntry = safeMarkers[j];
-            if (!markerEntry || !Number.isFinite(markerEntry.lat) || !Number.isFinite(markerEntry.lng)) {
-              continue;
-            }
-            if (!markerEntry.imageKey || !map.hasImage(markerEntry.imageKey)) {
-              continue;
-            }
-            renderedMarkers.push(markerEntry);
-          }
-
-          window.__singleMarkers__ = renderedMarkers;
-          setSingleLabelMarkers([]);
-          applyLabelCollisions();
-          syncHitFeatures();
-
-          var firstFeature = renderedMarkers.length > 0 ? renderedMarkers[0] : null;
-          var firstPoint = null;
-          var firstVisibleFeature = null;
-          var firstVisiblePoint = null;
-          var viewportWidth = map.getContainer().clientWidth;
-          var viewportHeight = map.getContainer().clientHeight;
-          for (var featureIndex = 0; featureIndex < renderedMarkers.length; featureIndex += 1) {
-            var candidateFeature = renderedMarkers[featureIndex];
-            if (
-              !candidateFeature ||
-              !Number.isFinite(candidateFeature.lng) ||
-              !Number.isFinite(candidateFeature.lat)
-            ) {
-              continue;
-            }
-            var candidatePoint = map.project([candidateFeature.lng, candidateFeature.lat]);
-            var roundedCandidatePoint = [Math.round(candidatePoint.x), Math.round(candidatePoint.y)];
-            if (!firstPoint) {
-              firstPoint = roundedCandidatePoint;
-            }
-            if (
-              candidatePoint.x >= 0 &&
-              candidatePoint.x <= viewportWidth &&
-              candidatePoint.y >= 0 &&
-              candidatePoint.y <= viewportHeight
-            ) {
-              firstVisibleFeature = candidateFeature;
-              firstVisiblePoint = roundedCandidatePoint;
-              break;
-            }
-          }
-          debug('setSingleMarkers', {
-            requested: safeMarkers.length,
-            rendered: renderedMarkers.length,
-            firstId: firstFeature ? String(firstFeature.id || '') : '',
-            firstPoint: firstPoint,
-            firstVisibleId: firstVisibleFeature ? String(firstVisibleFeature.id || '') : '',
-            firstVisiblePoint: firstVisiblePoint
-          });
-        });
+        commitSingleMarkersRevision(nextRevision, safeMarkers);
       }
 
       function markerFingerprint(m) {
@@ -2169,6 +2296,7 @@ function DiscoverMapNative({
       const marker = group.items[0];
       if (!marker) continue;
       const svgMarker = resolveDiscoverSvgMarker(marker.category);
+      const shouldUseIOSBitmapSingleMarker = Platform.OS === "ios";
       const numericRating = getMarkerNumericRating(marker);
       markers.push({
         id: marker.id,
@@ -2176,13 +2304,20 @@ function DiscoverMapNative({
         renderMode: "single-layer",
         coordinate: group.coordinate,
         focusCoordinate: group.coordinate,
-        image: svgMarker?.asset ?? resolveIOSCompactPin(marker.category),
-        anchor: svgMarker?.anchor ?? IOS_COMPACT_PIN_ANCHOR,
-        width: svgMarker?.width,
-        height: svgMarker?.height,
-        isSvg: Boolean(svgMarker),
+        image: shouldUseIOSBitmapSingleMarker
+          ? resolveIOSCompactPin(marker.category)
+          : svgMarker?.asset ?? resolveIOSCompactPin(marker.category),
+        anchor: shouldUseIOSBitmapSingleMarker
+          ? IOS_COMPACT_PIN_ANCHOR
+          : svgMarker?.anchor ?? IOS_COMPACT_PIN_ANCHOR,
+        width: shouldUseIOSBitmapSingleMarker ? undefined : svgMarker?.width,
+        height: shouldUseIOSBitmapSingleMarker ? undefined : svgMarker?.height,
+        isSvg: !shouldUseIOSBitmapSingleMarker && Boolean(svgMarker),
+        iosCanvasRatingBadge: shouldUseIOSBitmapSingleMarker && numericRating !== null,
         ratingValue:
-          svgMarker && numericRating !== null ? numericRating.toFixed(1) : undefined,
+          (shouldUseIOSBitmapSingleMarker || svgMarker) && numericRating !== null
+            ? numericRating.toFixed(1)
+            : undefined,
         title: toMarkerTitle(marker),
         category: marker.category,
       });
@@ -2225,22 +2360,10 @@ function DiscoverMapNative({
     };
 
     const build = async () => {
-      const svgRatingBadge = resolveDiscoverSvgRatingBadge();
-      const shouldResolveRatingBadge = overlayMarkers.some(
-        (marker) =>
-          marker.kind === "single" &&
-          marker.renderMode === "single-layer" &&
-          marker.isSvg &&
-          typeof marker.ratingValue === "string" &&
-          marker.ratingValue.length > 0
-      );
       const requiredAssetIds = new Set<number>();
       for (let assetIndex = 0; assetIndex < overlayMarkers.length; assetIndex += 1) {
         const marker = overlayMarkers[assetIndex];
         requiredAssetIds.add(marker.image);
-      }
-      if (shouldResolveRatingBadge) {
-        requiredAssetIds.add(svgRatingBadge.asset);
       }
 
       const resolvedAssets = new Map<number, string>();
@@ -2255,9 +2378,6 @@ function DiscoverMapNative({
 
       if (cancelled) return;
 
-      const ratingBadgeUri = shouldResolveRatingBadge
-        ? resolvedAssets.get(svgRatingBadge.asset) ?? null
-        : null;
       const next: WebMarker[] = [];
       for (let i = 0; i < overlayMarkers.length; i += 1) {
         const marker = overlayMarkers[i];
@@ -2277,7 +2397,7 @@ function DiscoverMapNative({
         let iconUri = baseIconUri;
         const composedIconKey = [
           marker.image,
-          marker.isSvg ? "svg" : "bitmap",
+          marker.iosCanvasRatingBadge ? "ios-canvas-badge" : marker.isSvg ? "svg" : "bitmap",
           marker.ratingValue || "plain",
           spriteSize.width,
           spriteSize.height,
@@ -2291,7 +2411,6 @@ function DiscoverMapNative({
               markerUri: baseIconUri,
               markerWidth: spriteSize.width,
               markerHeight: spriteSize.height,
-              badgeUri: ratingBadgeUri,
               ratingValue: marker.ratingValue,
             });
             composedIconUriCacheRef.current[composedIconKey] = iconUri;
@@ -2321,6 +2440,7 @@ function DiscoverMapNative({
           anchorY: marker.anchor.y,
           countOverlay: marker.countOverlay,
           ratingValue: marker.ratingValue,
+          iosCanvasRatingBadge: marker.iosCanvasRatingBadge,
         });
       }
       if (cancelled) return;
@@ -2344,6 +2464,7 @@ function DiscoverMapNative({
             prev[idx].anchorY === m.anchorY &&
             prev[idx].countOverlay === m.countOverlay &&
             prev[idx].ratingValue === m.ratingValue &&
+            prev[idx].iosCanvasRatingBadge === m.iosCanvasRatingBadge &&
             prev[idx].iconUri === m.iconUri
         )
       ) {

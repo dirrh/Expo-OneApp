@@ -27,7 +27,7 @@ export function HeroActions({
   isFavorite = false,
   notificationsEnabled = false,
 }: Props) {
-  const iconColor = "#111";
+  const iconColor = "#000000";
   const iconSize = 16;
 
   return (
@@ -159,4 +159,3 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 });
-

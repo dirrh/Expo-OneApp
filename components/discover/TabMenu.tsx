@@ -96,7 +96,7 @@ const styles = StyleSheet.create({
   frame: {
     height: 50,
     borderRadius: 22,
-    backgroundColor: "#FAFAFA",
+    backgroundColor: "#FFFFFF",
     borderWidth: 1,
     borderColor: "#E4E4E7",
     justifyContent: "center",
@@ -124,7 +124,7 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_500Medium",
     fontSize: 13,
     lineHeight: 16,
-    color: "#3F3F46",
+    color: "#71717A",
     textAlign: "center",
   },
   tabTextActive: {

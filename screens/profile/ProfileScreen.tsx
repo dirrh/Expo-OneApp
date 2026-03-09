@@ -443,26 +443,31 @@ export default function ProfileScreen() {
           <Text style={styles.sectionTitle}>Môj prehľad</Text>
         </View>
 
-        {/* UNDERLINE TABS */}
+        {/* PILL TABS */}
         <View style={styles.tabBar}>
           {TABS.map((tab) => {
             const isActive = tab.key === activeTab;
             return (
               <TouchableOpacity
                 key={tab.key}
-                style={styles.tabItem}
-                activeOpacity={0.7}
+                style={[styles.tabItem, isActive ? styles.tabItemActive : styles.tabItemIdle]}
+                activeOpacity={0.85}
                 onPress={() => setActiveTab(tab.key)}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: isActive }}
+                accessibilityLabel={tab.label}
               >
                 <Ionicons
                   name={tab.icon as any}
                   size={16}
-                  color={isActive ? "#EB8100" : "#9CA3AF"}
+                  color={isActive ? "#FFFFFF" : "#71717A"}
                 />
-                <Text style={[styles.tabLabel, isActive && styles.tabLabelActive]}>
+                <Text
+                  style={[styles.tabLabel, isActive && styles.tabLabelActive]}
+                  numberOfLines={1}
+                >
                   {tab.label}
                 </Text>
-                <View style={[styles.tabUnderline, isActive && styles.tabUnderlineActive]} />
               </TouchableOpacity>
             );
           })}
@@ -653,39 +658,43 @@ const styles = StyleSheet.create({
     color: "#111827",
   },
 
-  // --- Underline tab bar ---
+  // --- Pill tab bar ---
   tabBar: {
     flexDirection: "row",
-    borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
+    alignItems: "center",
+    gap: 6,
+    padding: 5,
+    borderWidth: 1,
+    borderColor: "#E4E4E7",
+    borderRadius: 22,
+    backgroundColor: "#FFFFFF",
     marginBottom: 16,
   },
   tabItem: {
     flex: 1,
     alignItems: "center",
-    paddingVertical: 10,
+    justifyContent: "center",
+    minHeight: 56,
+    paddingHorizontal: 4,
+    paddingVertical: 8,
+    borderRadius: 18,
     gap: 4,
   },
+  tabItemIdle: {
+    backgroundColor: "#FFFFFF",
+  },
+  tabItemActive: {
+    backgroundColor: "#EB8100",
+  },
   tabLabel: {
-    fontSize: 11,
+    fontSize: 10,
+    lineHeight: 12,
     fontWeight: "600",
-    color: "#9CA3AF",
+    color: "#71717A",
     textAlign: "center",
   },
   tabLabelActive: {
-    color: "#EB8100",
-  },
-  tabUnderline: {
-    position: "absolute",
-    bottom: 0,
-    left: 8,
-    right: 8,
-    height: 2,
-    borderRadius: 1,
-    backgroundColor: "transparent",
-  },
-  tabUnderlineActive: {
-    backgroundColor: "#EB8100",
+    color: "#FFFFFF",
   },
 
   tabContent: {

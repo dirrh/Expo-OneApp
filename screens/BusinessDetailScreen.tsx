@@ -932,7 +932,7 @@ export default function BusinessDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FAFAFA",
+    backgroundColor: "#FFFFFF",
   },
   list: {
     flex: 1,
@@ -943,7 +943,7 @@ const styles = StyleSheet.create({
   menuWrapper: {
     paddingTop: 10,
     paddingBottom: 12,
-    backgroundColor: "#FAFAFA",
+    backgroundColor: "#FFFFFF",
     borderBottomWidth: 1,
     borderBottomColor: "transparent",
   },
